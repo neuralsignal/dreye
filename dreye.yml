@@ -11,5 +11,5 @@ dependencies:
   - anaconda
   - pint
   - cloudpickle
+  - seabreeze
 prefix: /Users/matthias.christenson/anaconda3/envs/dreye
-
