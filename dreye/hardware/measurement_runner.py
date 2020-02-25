@@ -15,7 +15,6 @@ class MeasurementRunner:
         self, system, spectrometer,
         n_steps=10, step_kwargs={},
         n_avg=10, sleep=None,
-        units='uE',
     ):
         assert isinstance(system, AbstractSystem)
         assert isinstance(spectrometer, AbstractSpectrometer)
@@ -27,7 +26,6 @@ class MeasurementRunner:
         self.step_kwargs = step_kwargs
         self.n_avg = n_avg
         self.sleep = sleep
-        self.units = units
 
     def run(self, verbose=0):
         if verbose:
