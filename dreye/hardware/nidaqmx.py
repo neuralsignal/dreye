@@ -115,13 +115,13 @@ class NiDaqMxSystem(AbstractSystem):
     @property
     def device_order(self):
         devices = [
-            output.device
+            output.device.name
             for output in self
         ]
         if self.trigger is None:
             return np.array(devices)
         else:
-            return np.array(devices + [self.trigger.device])
+            return np.array(devices + [self.trigger.device.name])
 
     @property
     def object_order(self):
