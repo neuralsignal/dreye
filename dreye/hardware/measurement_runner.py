@@ -15,7 +15,7 @@ class MeasurementRunner:
         self, system, spectrometer,
         n_steps=10, step_kwargs={},
         n_avg=10, sleep=None,
-        wls=None, remove_zero=True, 
+        wls=None, remove_zero=True,
         smoothing_window=None
     ):
         assert isinstance(system, AbstractSystem)
@@ -102,7 +102,7 @@ class MeasurementRunner:
                 mspectrum = mspectrum(self.wls)
             if self.smoothing_window is not None:
                 mspectrum = mspectrum.smooth
-                
+
             output.mspectrum = mspectrum
             output.close()
 

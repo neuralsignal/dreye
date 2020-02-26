@@ -105,7 +105,7 @@ class AbstractOutput(AbstractSender):
 
     def channel_exists(self):
         return False
-    
+
     def __repr__(self):
         return (
             f"{self.__class__.__name__}("
@@ -247,10 +247,10 @@ class AbstractSystem(AbstractSender):
 
         # attributes calculated on the go
         self._spms = None
-        
+
     def __repr__(self):
         return (
-            f"{self.__class__.__name__} contains:\n" + 
+            f"{self.__class__.__name__} contains:\n" +
             "\n".join(f"{output}" for output in self)
         )
 

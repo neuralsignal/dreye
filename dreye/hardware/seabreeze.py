@@ -155,14 +155,14 @@ class Spectrometer(AbstractSpectrometer):
     @property
     def min_it(self):
         return np.nanmax([
-            self._min_it, 
+            self._min_it,
             self.spec.integration_time_micros_limits[0] * 10 ** -6
         ])
 
     @property
     def max_it(self):
         return np.nanmin([
-            self._max_it, 
+            self._max_it,
             self.spec.integration_time_micros_limits[1] * 10 ** -6
         ])
 
