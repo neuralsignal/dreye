@@ -15,6 +15,8 @@ class MeasurementRunner:
         self, system, spectrometer,
         n_steps=10, step_kwargs={},
         n_avg=10, sleep=None,
+        wls=None, remove_zero=True, 
+        smoothing_window=None
     ):
         assert isinstance(system, AbstractSystem)
         assert isinstance(spectrometer, AbstractSpectrometer)
@@ -26,16 +28,20 @@ class MeasurementRunner:
         self.step_kwargs = step_kwargs
         self.n_avg = n_avg
         self.sleep = sleep
+        self.wls = wls
+        self.remove_zero = remove_zero
+        self.smoothing_window = smoothing_window
 
     def run(self, verbose=0):
         if verbose:
-            sys.stdout.wrtie(
-                '\n---------STARTING MEASUREMENTS----------\n'
+            sys.stdout.write(
+                '\n-----------STARTING MEASUREMENTS-------------\n'
             )
         # iterate over system devices
         for n, output in enumerate(self.system):
             if verbose:
                 sys.stdout.write(
+                    f'\n---------------------------------------------'
                     f'\nStarting measurement for {output.name}.\n'
                 )
             output.open()
@@ -64,12 +70,20 @@ class MeasurementRunner:
                         return_it=True, verbose=verbose
                     )
                 )
+            # remove background zero from the rest
+            if self.remove_zero:
+                spectrum_array -= spectrum_array[:, :1]
+            # flip if reversed
+            if output.zero_boundary > output.max_boundary:
+                spectrum_array = spectrum_array[:, ::-1]
+                values = values[::-1]
             if verbose == 1:
                 sys.stdout.write('\n')
             if verbose:
                 sys.stdout.write(
                     f'=============================================='
                     f'\nFinished measurement for "{output.name}".'
+                    '\n---------------------------------------------\n'
                 )
             # zero output device
             output._zero()
@@ -81,9 +95,14 @@ class MeasurementRunner:
                 calibration=self.spectrometer.cal,
                 integration_time=its,
                 axis=0,
+                smoothing_window=self.smoothing_window,
                 input_units=output.units,
             )
-
+            if self.wls is not None:
+                mspectrum = mspectrum(self.wls)
+            if self.smoothing_window is not None:
+                mspectrum = mspectrum.smooth
+                
             output.mspectrum = mspectrum
             output.close()
 

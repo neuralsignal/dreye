@@ -65,7 +65,8 @@ def create_measured_spectrum(
     calibration, integration_time,
     axis=0,
     units='microspectralphotonflux',
-    input_units='V'
+    input_units='V', 
+    is_mole=False, **kwargs
 ):
     """
 
@@ -99,6 +100,8 @@ def create_measured_spectrum(
         wavelengths,
         domain_axis=axis,
     )
+    if is_mole:
+        spectrum = spectrum * UREG('mole')
 
     return convert_measurement(
         spectrum,
@@ -106,7 +109,7 @@ def create_measured_spectrum(
         integration_time=integration_time,
         labels=labels,
         units=units,
-        spectrum_cls=MeasuredSpectrum
+        spectrum_cls=MeasuredSpectrum, **kwargs
     )
 
 
