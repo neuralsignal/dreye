@@ -65,7 +65,7 @@ def create_measured_spectrum(
     calibration, integration_time,
     axis=0,
     units='microspectralphotonflux',
-    input_units='V', 
+    input_units='V',
     is_mole=False, **kwargs
 ):
     """
