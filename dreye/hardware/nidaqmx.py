@@ -80,10 +80,12 @@ class NiDaqMxOutput(AbstractOutput):
     def send(self, values, rate=None, return_value=None):
         dt = float(convert_units(1 / rate, 's'))
         self.open()
-        for value in values.astype(np.float64):
+        for value in np.asarray(values).astype(np.float64):
+            now = time.clock()
             # assumes sending does not take a lot of time
             self.send_value(value)
-            time.sleep(dt)
+            while time.clock() - now < dt:
+                pass
         if return_value is not None:
             self.send_value(return_value)
         self.close()
@@ -149,7 +151,7 @@ class NiDaqMxSystem(AbstractSystem):
 
         for output in self:
             self.tasks[
-                output.device
+                output.device.name
             ].ao_channels.add_ao_voltage_chan(
                 output.object_name,
                 max_val=output.max_val,
@@ -158,7 +160,7 @@ class NiDaqMxSystem(AbstractSystem):
 
         if self.trigger is not None:
             self.tasks[
-                self.trigger.device
+                self.trigger.device.name
             ].ao_channels.add_ao_voltage_chan(
                 self.trigger.object_name,
                 max_val=self.trigger.max_val,
@@ -167,8 +169,8 @@ class NiDaqMxSystem(AbstractSystem):
 
         self.writers = pd.Series()
 
-        for device, task in self.tasks.items():
-            self.writers[device] = (
+        for device_name, task in self.tasks.items():
+            self.writers[device_name] = (
                 AnalogMultiChannelWriter(task.out_stream)
             )
 
@@ -199,14 +201,18 @@ class NiDaqMxSystem(AbstractSystem):
         self.open()
 
         dt = float(convert_units(1 / rate, 's'))
+        values = np.asarray(values, dtype=np.float64)
         grouped_values = self._group_values(values, rate)
 
         for grouped_value in grouped_values:
+            now = time.clock()
             # assumes sending does not take a lot of time
             self._send_value(grouped_value)
-            time.sleep(dt)
+            while time.clock() - now < dt:
+                pass
 
         if return_value is not None:
+            # TODO append trigger if does not exist
             self.send_value(return_value)
 
         self.close()
@@ -218,8 +224,8 @@ class NiDaqMxSystem(AbstractSystem):
             assert self.trigger is not None
             trigger_values = self._create_trigger_array(
                 values.shape[0], rate, self.trigger.rate,
-                on=self.trigger.max_boundary,
-                off=self.trigger.zero_boundary
+                on=self.trigger.max_boundary.magnitude,
+                off=self.trigger.zero_boundary.magnitude
             )
             values = np.hstack([
                 values, trigger_values[:, None]
@@ -239,7 +245,7 @@ class NiDaqMxSystem(AbstractSystem):
     def _group_value(self, value):
         grouped_value = []
         for n, device in enumerate(self.unique_devices):
-            _v = value[self.object_order == device]
+            _v = value[self.device_order == device]
             grouped_value.append(_v)
         return np.array(grouped_value)
 
@@ -248,5 +254,6 @@ class NiDaqMxSystem(AbstractSystem):
             writer.write_one_sample(value)
 
     def send_value(self, value):
+        value = np.asarray(value, dtype=np.float64)
         grouped_value = self._group_value(value)
         self._send_value(grouped_value)
