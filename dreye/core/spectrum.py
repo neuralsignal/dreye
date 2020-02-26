@@ -40,6 +40,9 @@ class AbstractSpectrum(ClippedSignal):
         for key, value in kwargs.items():
             if key not in AbstractSpectrum.init_args:
                 _kwargs[key] = value
+                
+        # ignore domain units
+        _kwargs.pop('domain_units', None)
 
         super().__init__(
             values=values,

@@ -17,6 +17,7 @@ from dreye.core.measurement_utils import (
 )
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.err import DreyeError
+from dreye.utilities import is_numeric
 
 #HARDWARE API IMPORTS
 try:
@@ -83,7 +84,7 @@ def read_calibration_file(
 
     if create_spectrum:
         cal = create_calibration_spectrum(
-            cal_data[:, 0], cal_data[:, 1], area
+            cal_data[:, 1], cal_data[:, 0], area
         )
         if return_integration_time:
             return cal, integration_time
@@ -100,7 +101,7 @@ class Spectrometer(AbstractSpectrometer):
     """
 
     def __init__(
-        self, calibration, sb_device=None, integration_time=1,
+        self, calibration, sb_device=None, integration_time=1.0,
         correct_dark_counts=True, correct_nonlinearity=False,
         min_it=np.nan, max_it=np.nan
     ):
@@ -148,19 +149,21 @@ class Spectrometer(AbstractSpectrometer):
 
     @current_it.setter
     def current_it(self, value):
-        assert isinstance(value, float)
+        assert is_numeric(value)
         self._current_it = value
 
     @property
     def min_it(self):
         return np.nanmax([
-            self._min_it, self.spec.integration_time_micros_limits[0]
+            self._min_it, 
+            self.spec.integration_time_micros_limits[0] * 10 ** -6
         ])
 
     @property
     def max_it(self):
         return np.nanmin([
-            self._max_it, self.spec.integration_time_micros_limits[1]
+            self._max_it, 
+            self.spec.integration_time_micros_limits[1] * 10 ** -6
         ])
 
     def set_it(self, it):

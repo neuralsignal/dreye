@@ -138,11 +138,15 @@ class MeasuredSpectrum(Spectrum):
     def create_new_instance(self, values, **kwargs):
         """Any operation returns Signal instance and not Spectrum instance
         """
-
         try:
-            return Spectrum(values, **{**self.init_kwargs, **kwargs})
-        except DreyeUnitError:
-            return Signal(values, **{**self.init_kwargs, **kwargs})
+            return MeasuredSpectrum(
+                values, **{**self.init_kwargs, **kwargs}
+            )
+        except Exception:
+            try:
+                return Spectrum(values, **{**self.init_kwargs, **kwargs})
+            except DreyeUnitError:
+                return Signal(values, **{**self.init_kwargs, **kwargs})
 
     @property
     def smooth(self):

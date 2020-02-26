@@ -105,6 +105,13 @@ class AbstractOutput(AbstractSender):
 
     def channel_exists(self):
         return False
+    
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            f"object={self.object_name}, name={self.name}, "
+            f"max={self.max_boundary}, zero={self.zero_boundary})"
+        )
 
     @property
     def name(self):
@@ -174,7 +181,7 @@ class AbstractOutput(AbstractSender):
                 name=self.name,
                 zero_boundary=self.zero_boundary,
                 max_boundary=self.max_boundary,
-                units=self.units
+                units='uE'
             )
         elif spm is not None:
             assert isinstance(spm, SpectrumMeasurement)
@@ -189,7 +196,7 @@ class AbstractOutput(AbstractSender):
                     name=self.name,
                     zero_boundary=self.zero_boundary,
                     max_boundary=self.max_boundary,
-                    units=self.units
+                    units='uE'
                 )
 
                 assert spm == self._spm
@@ -240,6 +247,12 @@ class AbstractSystem(AbstractSender):
 
         # attributes calculated on the go
         self._spms = None
+        
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__} contains:\n" + 
+            "\n".join(f"{output}" for output in self)
+        )
 
     def __getitem__(self, key):
         output = self.output_series[key]
