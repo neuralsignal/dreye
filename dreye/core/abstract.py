@@ -57,6 +57,9 @@ class AbstractDomain(AbstractSequence):
         if value is None:
             return
 
+        if value == self.units:
+            return 
+
         # converts values if possible
         values = self.converting_values(value)
         self._units = values.units
@@ -374,7 +377,7 @@ class AbstractDomain(AbstractSequence):
         Return values as numpy array
         """
 
-        return np.array(self.values)
+        return np.array(self.values.magnitude)
 
 
 class AbstractSignal(AbstractDomain):
@@ -401,7 +404,7 @@ class AbstractSignal(AbstractDomain):
                     units,
                     *contexts,
                     domain=(
-                        np.expand_dims(np.array(domain), axis=axis)
+                        np.expand_dims(domain.magnitude, axis=axis)
                         * domain.units),
                 )
 
@@ -679,7 +682,7 @@ class AbstractSignal(AbstractDomain):
 
         assert self.ndim == 2
 
-        values = np.moveaxis(self, source, destination)
+        values = np.moveaxis(self.magnitude, source, destination)
 
         if int(source % 2) != int(destination % 2):
             domain_axis = self.other_axis

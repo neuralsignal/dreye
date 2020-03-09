@@ -497,6 +497,13 @@ class IlluminantBgCaptureTransformerMixin(CaptureTransformerMixin):
             **kwargs
         )
 
+        # equalize domains
+        self.illuminant, self.background = self.illuminant.equalize_domains(
+            self.background, equalize_dimensions=False
+        )
+        # equalize units
+        self.background.units = self.illuminant.units
+
     def signal_preprocess(self, signal):
         """preprocess signal before fitting
         """

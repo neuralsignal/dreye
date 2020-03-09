@@ -422,3 +422,6 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
                 )
 
         return signal
+
+
+# Binary noise
