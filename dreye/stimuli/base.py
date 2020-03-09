@@ -5,12 +5,14 @@ from abc import ABC, abstractmethod
 import inspect
 import importlib
 import warnings
+import random
 
 import numpy as np
 import pandas as pd
 
 from dreye.io import read_json, write_json
-from dreye.utilities import is_numeric
+from dreye.utilities import is_numeric, is_listlike
+from dreye.err import DreyeError
 
 
 DUR_KEY = 'dur'
@@ -174,6 +176,18 @@ class BaseStimulus(ABC):
         return self._stimulus
 
     @property
+    def other_shape(self):
+        """shape of stimulus (excluding time axis)
+        """
+
+        if self.time_axis is None:
+            return self.stimulus.shape
+        else:
+            shape = list(self.stimulus.shape)
+            shape.pop(self.time_axis)
+            return tuple(shape)
+
+    @property
     def timestamps(self):
         """timestamps of stimulus same size of first axis
         """
@@ -277,13 +291,119 @@ class BaseStimulus(ABC):
         return cls.from_dict(data)
 
 
-# TODO chained stimuli
-# init check if correct instance
-# shuffling of order option
+class ChainedStimuli:
+
+    def __init__(self, stimuli, shuffle=False, seed=None):
+
+        if isinstance(stimuli, self.__class__):
+            stimuli = list(stimuli.stimuli)
+        elif is_listlike(stimuli):
+            assert all(
+                isinstance(stim, BaseStimulus)
+                for stim in stimuli
+            ), "All stimuli must be subclass of BaseStimulus."
+            stimuli = list(stimuli)
+        else:
+            raise DreyeError('Stimuli must be ChainedStimuli or listlike.')
+
+        if seed is not None:
+            random.seed(seed)
+        if shuffle:
+            random.shuffle(stimuli)
+
+        assert all(
+            stimuli[0].time_axis == stim.time_axis
+            for stim in stimuli
+        )
+        assert all(
+            stimuli[0].other_shape == stim.other_shape
+            for stim in stimuli
+        )
+        # assert rates are the same
+        assert all(
+            stimuli[0].rate == stim.rate
+            for stim in stimuli
+        )
+
+        self._stimuli = stimuli
+
+    @property
+    def time_axis(self):
+        return self.stimuli[0].time_axis
+
+    @property
+    def stimuli(self):
+        return self._stimuli
+
+    @property
+    def events(self):
+        """combine dataframe
+        """
+        events = pd.DataFrame()
+        for idx, stim in enumerate(self.stimuli):
+            assert 'stim_index' not in stim.events
+            event = stim.events
+            event['stim_index'] = idx
+            events = events.append(event, ignore_index=True, sort=True)
+        # events = pd.concat([
+        #     stim.events for stim in self.stimuli
+        # ], ignore_index=True)
+        return events
+
+    @property
+    def metadata(self):
+        return [
+            stim.metadata
+            for stim in self.stimuli
+        ]
+
+    @property
+    def stimulus(self):
+        """concatenate along time axis
+        """
+        return np.concatenate([
+            stim.stimulus for stim in self.stimuli
+        ], axis=self.time_axis)
+
+    @property
+    def timestamps(self):
+        return np.concatenate([
+            stim.timestamps + (0 if idx == 0 else self.durations[idx-1])
+            for idx, stim in enumerate(self.stimuli)
+        ])
+
+    @property
+    def duration(self):
+        return np.sum(self.durations)
+
+    @property
+    def durations(self):
+        """array of duration for each stimulus
+        """
+        return np.array([
+            stim.duration
+            for stim in self.stimuli
+        ])
+
+    @property
+    def settings(self):
+        return [
+            stim.settings
+            for stim in self.stimuli
+        ]
+
+    def to_dict(self):
+        return self.stimuli
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data)
+
+    def save(self, filename):
+        write_json(filename, self.to_dict())
+
+    @classmethod
+    def load(cls, filename):
+        return cls.from_dict(read_json(filename))
+
 # have alist of all attributes
-# but also create complete events frame
-# add queue parameter to events frame!!! and to each metadata dict
-# and create complete stimulus (concatenate along time_axis)
-# signal array can vary!!!
-# no need to create complete
-# Chain chained stimuli
