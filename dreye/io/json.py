@@ -145,7 +145,7 @@ def deserializer(obj):
             return pd.DataFrame(ele)
         elif key == QUANT_PREFIX:
             return ele[0] * UREG(ele[1]).units
-        elif key == DR_PREFIX or key == DICTABLE_PREFIX:
+        elif (key == DR_PREFIX) or (key == DICTABLE_PREFIX):
             cls = pickle.loads(eval(ele[0]))
             return cls.from_dict(ele[1])
 
