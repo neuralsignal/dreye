@@ -175,13 +175,13 @@ class AbstractOutput(AbstractSender):
             n_steps
         )
 
-    def _assign_new_measurement(self, spm=None):
+    def _assign_new_measurement(self, spm=None, units='uE'):
         if self.mspectrum is not None and spm is None:
             self._spm = self.mspectrum.to_spectrum_measurement(
                 name=self.name,
                 zero_boundary=self.zero_boundary,
                 max_boundary=self.max_boundary,
-                units='uE'
+                units=units
             )
         elif spm is not None:
             assert isinstance(spm, SpectrumMeasurement)
@@ -196,7 +196,7 @@ class AbstractOutput(AbstractSender):
                     name=self.name,
                     zero_boundary=self.zero_boundary,
                     max_boundary=self.max_boundary,
-                    units='uE'
+                    units=units
                 )
 
                 assert spm == self._spm
