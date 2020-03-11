@@ -5,7 +5,8 @@ from dreye.stimuli.base import DUR_KEY, DELAY_KEY
 from dreye.stimuli.temporal.noise import WhiteNoiseStimulus, BrownNoiseStimulus
 from dreye.stimuli.chromatic.transformers import (
     CaptureTransformerMixin, LinearTransformCaptureTransformerMixin,
-    IlluminantCaptureTransformerMixin, IlluminantBgCaptureTransformerMixin
+    IlluminantCaptureTransformerMixin, IlluminantBgCaptureTransformerMixin,
+    SignalTransformerMixin
 )
 
 
@@ -16,6 +17,30 @@ def _add_fitted_random_signal(self):
     delay_idx = int(self.events[DELAY_KEY].iloc[0] * self.rate)
     random_signal = self.signal[delay_idx:dur_length+delay_idx]
     self.metadata['random_signal'] = random_signal
+
+
+class LEDWhiteNoiseStimulus(SignalTransformerMixin, WhiteNoiseStimulus):
+    time_axis = 0
+    channel_axis = 1
+    fit_only_uniques = False
+    add_to_events_mean = False
+    alter_events = True
+
+    def create(self):
+        super().create()
+        _add_fitted_random_signal(self)
+
+
+class LEDBrownNoiseStimulus(SignalTransformerMixin, BrownNoiseStimulus):
+    time_axis = 0
+    channel_axis = 1
+    fit_only_uniques = False
+    add_to_events_mean = False
+    alter_events = True
+
+    def create(self):
+        super().create()
+        _add_fitted_random_signal(self)
 
 
 class PRWhiteNoiseStimulus(CaptureTransformerMixin, WhiteNoiseStimulus):

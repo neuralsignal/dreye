@@ -4,8 +4,15 @@
 from dreye.stimuli.temporal.step import StepStimulus, RandomSwitchStimulus
 from dreye.stimuli.chromatic.transformers import (
     CaptureTransformerMixin, LinearTransformCaptureTransformerMixin,
-    IlluminantCaptureTransformerMixin, IlluminantBgCaptureTransformerMixin
+    IlluminantCaptureTransformerMixin, IlluminantBgCaptureTransformerMixin,
+    SignalTransformerMixin
 )
+
+
+class LEDStepStimulus(SignalTransformerMixin, StepStimulus):
+    time_axis = 0
+    channel_axis = 1
+    alter_events = True
 
 
 class PRStepStimulus(CaptureTransformerMixin, StepStimulus):
@@ -33,6 +40,12 @@ class IlluminantStepStimulus(
 class IlluminantBgStepStimulus(
     IlluminantBgCaptureTransformerMixin, StepStimulus
 ):
+    time_axis = 0
+    channel_axis = 1
+    alter_events = True
+
+
+class LEDRandomSwitchStimulus(SignalTransformerMixin, RandomSwitchStimulus):
     time_axis = 0
     channel_axis = 1
     alter_events = True

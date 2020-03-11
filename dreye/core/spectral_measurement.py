@@ -635,7 +635,7 @@ class SpectrumMeasurement(ClippedSignal, IrradianceMixin, MappingMixin):
         # TODO integral = spectrum.integral
         # TODO unit checking of spectrum and self
         spectrum = spectrum.copy()
-        spectrum.units = self.units
+        spectrum.units = self.units / UREG('nm')
 
         spectrum, normalized_sources = spectrum.equalize_domains(
             self.normalized_spectrum, equalize_dimensions=False)

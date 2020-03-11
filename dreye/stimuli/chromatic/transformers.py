@@ -12,7 +12,7 @@ from dreye.core.spectrum import AbstractSpectrum
 from dreye.utilities import has_units
 
 
-class CaptureTransformerMixin:
+class SignalTransformerMixin:
 
     time_axis = None
     channel_axis = None
@@ -23,33 +23,17 @@ class CaptureTransformerMixin:
 
     def __init__(
         self,
-        photoreceptor,
         spectrum_measurement,
-        background=None,
         *args,
-        fit_kwargs=None,
         **kwargs
     ):
-        """A Mixin class for transforming capture data using
-        an AbstractPhotoreceptor instance (use case: limited number of LEDs)
+        """A Mixin class for transforming LED intensity values
         """
 
-        assert isinstance(photoreceptor, AbstractPhotoreceptor), (
-            "Argument 'photoreceptor' must be (subclass) instance of an "
-            f"AbstractPhotoreceptor, but instance of '{type(photoreceptor)}'."
-        )
         assert isinstance(spectrum_measurement, SpectrumMeasurement), (
             "Argument 'spectrum_measurement' must be instance of "
             "SpectrumMeasurement, but instance of"
             f" '{type(spectrum_measurement)}'."
-        )
-        assert (
-            isinstance(background, AbstractSpectrum)
-            or (background is None)
-        ), (
-            "Argument 'background' must be instance of "
-            "Spectrum, but instance of "
-            f"'{type(background)}'"
         )
 
         assert isinstance(self.time_axis, int)
@@ -57,14 +41,9 @@ class CaptureTransformerMixin:
 
         # initialize mixin properties for settings file
         BaseStimulus.__init__(
-            self, photoreceptor=photoreceptor,
+            self,
             spectrum_measurement=spectrum_measurement,
-            background=background,
-            fit_kwargs=({} if fit_kwargs is None else fit_kwargs)
         )
-
-        if isinstance(background, AbstractSpectrum) and background.ndim == 2:
-            self.background = background.sum(axis=self.other_axis)
 
         super().__init__(*args, **kwargs)
 
@@ -121,21 +100,6 @@ class CaptureTransformerMixin:
         iterator = range(data.shape[-1])
 
         return iterator, data, data_shape
-
-    def signal_preprocess(self, signal):
-        """preprocess signal before fitting
-        """
-
-        return signal
-
-    def _add_pr_to_events(self):
-        """add opsin channels to events dataframe.
-        This is run after fitting (do not run externally)
-        """
-        self._add_to_events(
-            self.photoreceptor.sensitivity.labels, self.signal,
-            prefix='pr'
-        )
 
     def _add_to_events(self, labels, signal, prefix):
         """method used by _add_pr_to_events and _add_transform_to_events
@@ -201,6 +165,88 @@ class CaptureTransformerMixin:
         events = pd.DataFrame(events, index=self.events.index)
         # reassign events
         self._events = pd.concat([self.events, events], axis=1)
+
+    @property
+    def stimulus_signal(self):
+        return self.signal
+
+    def transform(self):
+
+        # reshape appropriately and iterate to map values
+        signal = self.forward_shape(self.stimulus_signal)
+        iterator, signal, signal_shape = self.iterator_shape(signal)
+        stimulus = np.zeros(signal.shape)
+
+        for idx in iterator:
+            stimulus[..., idx] = self.spectrum_measurement.map(
+                signal[..., idx]
+            )
+
+        # reshape back into correct form and assign to stimulus
+        self._stimulus = self.backward_shape(stimulus.reshape(signal_shape))
+        self._add_to_events(
+            self.spectrum_measurement.label_names, self.stimulus,
+            prefix='stimout'
+        )
+
+
+class CaptureTransformerMixin(SignalTransformerMixin):
+
+    def __init__(
+        self,
+        photoreceptor,
+        spectrum_measurement,
+        background=None,
+        *args,
+        fit_kwargs=None,
+        **kwargs
+    ):
+        """A Mixin class for transforming capture data using
+        an AbstractPhotoreceptor instance (use case: limited number of LEDs)
+        """
+
+        assert isinstance(photoreceptor, AbstractPhotoreceptor), (
+            "Argument 'photoreceptor' must be (subclass) instance of an "
+            f"AbstractPhotoreceptor, but instance of '{type(photoreceptor)}'."
+        )
+        assert (
+            isinstance(background, AbstractSpectrum)
+            or (background is None)
+        ), (
+            "Argument 'background' must be instance of "
+            "Spectrum, but instance of "
+            f"'{type(background)}'"
+        )
+
+        assert isinstance(self.time_axis, int)
+        assert isinstance(self.channel_axis, int)
+
+        # initialize mixin properties for settings file
+        BaseStimulus.__init__(
+            self, photoreceptor=photoreceptor,
+            background=background,
+            fit_kwargs=({} if fit_kwargs is None else fit_kwargs)
+        )
+
+        if isinstance(background, AbstractSpectrum) and background.ndim == 2:
+            self.background = background.sum(axis=self.other_axis)
+
+        super().__init__(spectrum_measurement, *args, **kwargs)
+
+    def signal_preprocess(self, signal):
+        """preprocess signal before fitting
+        """
+
+        return signal
+
+    def _add_pr_to_events(self):
+        """add opsin channels to events dataframe.
+        This is run after fitting (do not run externally)
+        """
+        self._add_to_events(
+            self.photoreceptor.sensitivity.labels, self.signal,
+            prefix='pr'
+        )
 
     def create_postprocess(self, skip_preprocess=False):
         """post processing after creating signal, metadata
@@ -283,23 +329,16 @@ class CaptureTransformerMixin:
         super().create()
         self.create_postprocess()
 
+    @property
+    def stimulus_signal(self):
+        return self.metadata['channel_weights']
+
     def transform(self):
-
-        # reshape appropriately and iterate to map values
-        signal = self.forward_shape(self.metadata['channel_weights'])
-        iterator, signal, signal_shape = self.iterator_shape(signal)
-        stimulus = np.zeros(signal.shape)
-
-        for idx in iterator:
-            stimulus[..., idx] = self.spectrum_measurement.map(
-                signal[..., idx]
-            )
-
-        # reshape back into correct form and assign to stimulus
-        self._stimulus = self.backward_shape(stimulus.reshape(signal_shape))
+        super().transform()
         self._add_to_events(
-            self.spectrum_measurement.label_names, self.stimulus,
-            prefix='stim'
+            self.spectrum_measurement.label_names,
+            self.stimulus_signal,
+            prefix='stimin'
         )
 
 
