@@ -143,7 +143,7 @@ class AbstractOutput(AbstractSender):
 
     @property
     def units(self):
-        return UREG(self._units)
+        return UREG(self._units).units
 
     @property
     def spm(self):
