@@ -3,6 +3,7 @@
 
 import time
 import os
+import sys
 import datetime
 
 import numpy as np
@@ -184,7 +185,7 @@ class NiDaqMxSystem(AbstractSystem):
 
     def send(
         self, values, rate=None, return_value=None,
-        trigger=None, trigger_rate=1,
+        trigger=None, trigger_rate=1, verbose=False
     ):
 
         if trigger is not None:
@@ -203,13 +204,25 @@ class NiDaqMxSystem(AbstractSystem):
         dt = float(convert_units(1 / rate, 's'))
         values = np.asarray(values, dtype=np.float64)
         grouped_values = self._group_values(values, rate)
+        length = len(grouped_values)
+        percentile = length // 100
+        if not percentile:
+            percentile = 1
 
-        for grouped_value in grouped_values:
+        if verbose:
+            sys.stdout.write('[')
+
+        for idx, grouped_value in enumerate(grouped_values):
             now = time.clock()
             # assumes sending does not take a lot of time
             self._send_value(grouped_value)
+            if verbose and not ((idx+1) % percentile):
+                sys.stdout.write('*')
             while time.clock() - now < dt:
                 pass
+
+        if verbose:
+            sys.stdout.write(']')
 
         if return_value is not None:
             # TODO append trigger if does not exist
