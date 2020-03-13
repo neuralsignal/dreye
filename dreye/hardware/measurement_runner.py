@@ -77,6 +77,7 @@ class MeasurementRunner:
             if output.zero_boundary > output.max_boundary:
                 spectrum_array = spectrum_array[:, ::-1]
                 values = values[::-1]
+                its = its[::-1]
             if verbose == 1:
                 sys.stdout.write('\n')
             if verbose:
