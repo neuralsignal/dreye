@@ -327,6 +327,12 @@ class ChainedStimuli:
 
         self._stimuli = stimuli
 
+    def __len__(self):
+        return len(self.stimuli)
+
+    def __iter__(self):
+        return iter(self.stimuli)
+
     @property
     def time_axis(self):
         return self.stimuli[0].time_axis
