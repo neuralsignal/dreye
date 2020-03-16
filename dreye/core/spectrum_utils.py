@@ -91,8 +91,8 @@ def create_gaussian_spectrum(
             / np.max(spectrum_array, axis=0, keepdims=True)
         )
     else:
-        spectrum_array *= intensity / np.trapz(
-            spectrum_array, np.squeeze(wavelengths), axis=0)[None]
+        spectrum_array *= intensity
+        # np.trapz(spectrum_array, np.squeeze(wavelengths), axis=0)[None]
 
     if add_background:
         spectrum_array += background
