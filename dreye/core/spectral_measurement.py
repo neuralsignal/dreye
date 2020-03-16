@@ -528,9 +528,9 @@ class SpectrumMeasurement(ClippedSignal, IrradianceMixin, MappingMixin):
         max = np.atleast_2d(self.bounds[1])
         if values.ndim == 1:
             if self.ndim == 2:
-                v = values[:, None]
-            else:
                 v = values[None, :]
+            else:
+                v = values[:, None]
         else:
             v = values
 
