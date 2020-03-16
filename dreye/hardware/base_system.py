@@ -181,6 +181,7 @@ class AbstractOutput(AbstractSender):
                 name=self.name,
                 zero_boundary=self.zero_boundary,
                 max_boundary=self.max_boundary,
+                zero_is_lower=self.zero_boundary < self.max_boundary,
                 units=units
             )
         elif spm is not None:
@@ -196,6 +197,7 @@ class AbstractOutput(AbstractSender):
                     name=self.name,
                     zero_boundary=self.zero_boundary,
                     max_boundary=self.max_boundary,
+                    zero_is_lower=self.zero_boundary < self.max_boundary,
                     units=units
                 )
 
