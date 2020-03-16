@@ -13,7 +13,7 @@ from dreye.core.spectrum import \
 from dreye.core.signal import ClippedSignal, Signal
 from dreye.core.domain import Domain
 from dreye.core.mixin import IrradianceMixin, MappingMixin
-from dreye.err import DreyeUnitError
+from dreye.err import DreyeUnitError, DreyeError
 
 
 class CalibrationSpectrum(AbstractSpectrum):
@@ -169,16 +169,11 @@ class MeasuredSpectrum(Spectrum):
 
         self = getattr(self, units)
 
-        # Normalization options?
-        labels = MeasuredNormalizedSpectrum(
-            self.mean(axis=self.other_axis),
-            labels=name
-        )
-
         spm = SpectrumMeasurement(
             values=self.integral,
             domain=self.inputs,
-            labels=labels,
+            labels=self.mean(axis=self.other_axis),
+            label_names=name,
             **kwargs
         )
 
@@ -221,6 +216,14 @@ class MeasuredNormalizedSpectrum(AbstractSpectrum):
             pass
         else:
             integral = np.expand_dims(integral, axis=self.domain_axis)
+
+        if (
+            self._zero_is_lower is None
+            and (self._max_boundary is None or self._zero_boundary is None)
+        ):
+            raise DreyeError(
+                "Must provide zero_is_lower or max and zero boundary."
+            )
 
         self._values = (
             self.magnitude
