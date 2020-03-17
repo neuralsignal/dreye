@@ -49,6 +49,9 @@ class SetStepMixin(SetBaselineMixin):
             if separate_channels:
                 _values = []
                 for index, ele in enumerate(values.values()):
+                    # ignore none elements and zero length elements
+                    if ele is None or len(ele) == 0:
+                        continue
                     __values = np.array(
                         [baseline_values]*len(ele)
                     ).astype(float)
@@ -94,6 +97,9 @@ class SetRandomStepMixin(SetBaselineMixin):
             channel_names = np.array(list(values.values()))
             # transform each element into numpy array
             for key, ele in values.items():
+                # ignore none elements and zero length elements
+                if ele is None or len(ele) == 0:
+                    continue
                 # convert element to numpy array
                 ele = np.array(ele)
                 values[key] = ele
