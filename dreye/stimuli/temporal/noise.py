@@ -249,7 +249,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
             scale=self.var
         )
 
-        total_frames = self.rate * self.stim_dur
+        total_frames = int(self.rate * self.stim_dur)
 
         return distribution.rvs(
             size=(total_frames, self.n_channels),
