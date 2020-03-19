@@ -275,13 +275,16 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         """
         # pause signal
         pause_signal = self.create_baseline(self.pause_dur)
+        stim_dur_signal = self.create_baseline(self.stim_dur)
         # create random signal and filter it
         random_signal = self.create_random_signal()
         # this will smooth over the transition
-        random_signal = np.vstack([pause_signal, random_signal, pause_signal])
+        random_signal = np.vstack(
+            [stim_dur_signal, random_signal, stim_dur_signal]
+        )
         random_signal = self.filter_signal(random_signal)
         random_signal = random_signal[
-            len(pause_signal):len(random_signal)-len(pause_signal)
+            len(stim_dur_signal):len(random_signal)-len(stim_dur_signal)
         ]
 
         # initialize metadata
