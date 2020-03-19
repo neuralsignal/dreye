@@ -227,13 +227,17 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         self.mean = np.array(self.mean)
         self.var = np.array(self.var)
         if minimum is None:
-            self.minimum = self.var * -10
+            self.minimum = self.mean - 5 * self.var
         else:
             self.minimum = np.array(self.minimum)
         if maximum is None:
-            self.maximum = self.var * 10
+            self.maximum = self.mean + 5 * self.var
         else:
             self.maximum = np.array(self.maximum)
+
+        if self.maximum == self.minimum:
+            self.maximum = self.minimum + 10**-5
+            self.minimum = self.minimum - 10**-5
 
     def create_random_signal(self):
         """create of truncated white noise signal
