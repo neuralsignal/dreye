@@ -280,7 +280,9 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         # this will smooth over the transition
         random_signal = np.vstack([pause_signal, random_signal, pause_signal])
         random_signal = self.filter_signal(random_signal)
-        random_signal = random_signal[len(pause_signal):-len(pause_signal)]
+        random_signal = random_signal[
+            len(pause_signal):len(random_signal)-len(pause_signal)
+        ]
 
         # initialize metadata
         metadata = dict(
