@@ -235,9 +235,9 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         else:
             self.maximum = np.array(self.maximum)
 
-        if self.maximum == self.minimum:
-            self.maximum = self.minimum + 10**-5
-            self.minimum = self.minimum - 10**-5
+        if np.all(self.maximum == self.minimum):
+            self.maximum += 10**-5
+            self.minimum -= 10**-5
 
     def create_random_signal(self):
         """create of truncated white noise signal
