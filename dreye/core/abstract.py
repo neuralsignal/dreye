@@ -58,7 +58,7 @@ class AbstractDomain(AbstractSequence):
             return
 
         if value == self.units:
-            return 
+            return
 
         # converts values if possible
         values = self.converting_values(value)
@@ -574,13 +574,13 @@ class AbstractSignal(AbstractDomain):
             if shared_axis is None:
                 shared_axis = self.domain_axis
 
-            assert self.shape[shared_axis] == other.shape[shared_axis]
-
             other_axis = (shared_axis + 1) % 2
 
             other, units = dissect_units(other)
 
             other = np.expand_dims(other, other_axis)
+
+            assert self.shape[shared_axis] == other.shape[shared_axis]
 
             if units is None:
                 return other

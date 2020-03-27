@@ -152,7 +152,7 @@ class AbstractPhotoreceptor(ABC):
         weights=None,
         return_res=False, inverse=False,
         respect_zero=None,
-        only_uniques=True,
+        only_uniques=False,
         **kwargs
     ):
         """
@@ -164,6 +164,7 @@ class AbstractPhotoreceptor(ABC):
             targets = self.inv_excitefunc(targets)
 
         if only_uniques:
+            # requires 2D targets and will not keep track of units
             targets, idcs = np.unique(targets, axis=0, return_inverse=True)
 
         x0 = self._init_x0(
