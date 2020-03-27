@@ -291,6 +291,9 @@ class AbstractSystem(AbstractSender):
     def outputs(self):
         return self._outputs
 
+    def __len__(self):
+        return len(self.outputs)
+
     def __iter__(self):
         return iter(self.outputs)
 
