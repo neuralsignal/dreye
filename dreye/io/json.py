@@ -14,12 +14,13 @@ import pickle
 import numpy as np
 import pandas as pd
 
-from dreye.utilities import AbstractSequence, asarray
+from dreye.utilities import AbstractSequence
 from dreye.constants import UREG
 from dreye.err import DreyeSerializerError
 
 
 ARRAY_PREFIX = '#array#'
+RECARRAY_PREFIX = '#recarray#'
 DTYPE_PREFIX = '#dtype#'
 SERIES_PREFIX = '#series#'
 DFRAME_PREFIX = '#frame#'
@@ -86,7 +87,9 @@ def serializer(obj):
     """serializer of numpy, pandas objects and dreye objects etc.
     """
 
-    if isinstance(obj, np.ndarray):
+    if isinstance(obj, np.ndarray) and obj.dtype.fields is not None:
+        obj = {RECARRAY_PREFIX: str(cloudpickle.dumps(obj))}
+    elif isinstance(obj, np.ndarray):
         obj = {ARRAY_PREFIX: obj.tolist()}
     elif isinstance(obj, pd.Series):
         obj = {SERIES_PREFIX: obj.to_dict()}
@@ -131,8 +134,10 @@ def deserializer(obj):
         return obj
 
     for key, ele in obj.items():
-        if key == ARRAY_PREFIX:
-            return asarray(ele)
+        if key == RECARRAY_PREFIX:
+            return pickle.loads(eval(ele))
+        elif key == ARRAY_PREFIX:
+            return np.array(ele)
         elif key == DTYPE_PREFIX:
             return np.dtype(ele)
         elif key == PINT_PREFIX:
