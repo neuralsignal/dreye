@@ -7,6 +7,7 @@ from dreye.core.spectrum import Spectrum
 from dreye.core.spectral_measurement import CalibrationSpectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.dummy_system import DummySystem
+from dreye.utilities import asarray
 
 
 class Spectrometer(AbstractSpectrometer):
@@ -27,7 +28,7 @@ class Spectrometer(AbstractSpectrometer):
         ).magnitude
         self.system = dummy_system
         self.noise_scale = noise_scale
-        self._wavelengths = np.array(wavelengths)
+        self._wavelengths = asarray(wavelengths)
         self._calibration = CalibrationSpectrum(
             np.ones(self._wavelengths.shape),
             wavelengths,
@@ -89,7 +90,7 @@ class Spectrometer(AbstractSpectrometer):
         rel_value = np.abs(value - zero_boundary)
         rel_value /= np.abs(zero_boundary - max_boundary)
         led *= rel_value
-        return np.array(led)
+        return asarray(led)
 
     def close(self):
         pass

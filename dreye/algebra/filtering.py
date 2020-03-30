@@ -57,7 +57,7 @@ class Filter1D:
         """
         """
 
-        arr = np.asarray(arr)
+        arr = asarray((arr)
 
         window = self.window
 

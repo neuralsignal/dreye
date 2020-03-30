@@ -13,6 +13,7 @@ from dreye.err import DreyeUnitError
 from dreye.utilities import (
     convert_units, diag_chunks, is_listlike, arange,
     is_numeric, is_uniform, array_domain, has_units,
+    asarray
 )
 from dreye.constants import UREG, ABSOLUTE_ACCURACY, DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractSignal, AbstractDomain
@@ -65,7 +66,7 @@ class UnpackDomainMixin(ABC):
                 else:
                     values = values.to(kwargs['units'])
 
-            values = np.array(values)
+            values = asarray(values)
 
             start, end, interval = array_domain(values,
                                                 uniform=is_uniform(values))
@@ -126,7 +127,7 @@ class UnpackDomainMixin(ABC):
 
         if is_listlike(interval):
             # TODO: dealing with tolerance
-            interval = np.array(interval)
+            interval = asarray(interval)
             interval_diff = (end - start) - np.sum(interval)
             if interval_diff > 0:
                 # TODO: raise warning
@@ -201,7 +202,7 @@ class UnpackSignalMixin(ABC):
                 axis=values.other_axis
             )
 
-            values = np.array(values).astype(dtype)
+            values = asarray(values).astype(dtype)
 
         elif isinstance(values, (pd.DataFrame, pd.Series)):
 
@@ -210,7 +211,7 @@ class UnpackSignalMixin(ABC):
                                               kwargs['domain_axis'],
                                               kwargs['labels']))
 
-            values = np.array(values).astype(dtype)
+            values = asarray(values).astype(dtype)
             kwargs['domain'] = cls.get_domain(kwargs['domain'], domain_units,
                                               domain_dtype, **domain_kwargs)
 
@@ -235,7 +236,7 @@ class UnpackSignalMixin(ABC):
                     )
                 )
 
-            values = np.array(values).astype(dtype)
+            values = asarray(values).astype(dtype)
 
         else:
             raise TypeError('values must be string or array-like.')
@@ -292,19 +293,19 @@ class UnpackSignalMixin(ABC):
 
         if domain is None:
             if domain_axis is None or domain_axis == 0:
-                domain = np.array(values.index)
+                domain = asarray(values.index)
             else:
                 assert isinstance(values, pd.DataFrame)
-                domain = np.array(values.columns)
+                domain = asarray(values.columns)
 
         if labels is None:
             if isinstance(values, pd.Series):
                 labels = values.name
             else:
                 if domain_axis is None or domain_axis == 0:
-                    labels = np.array(values.columns)
+                    labels = asarray(values.columns)
                 else:
-                    labels = np.array(values.index)
+                    labels = asarray(values.index)
 
         return {'domain': domain, 'domain_axis': domain_axis, 'labels': labels}
 
@@ -389,7 +390,7 @@ class MappingMixin(ABC):
 
         independent = independent | (self.ndim == 1)
 
-        values = np.array(convert_units(values, self.units))
+        values = asarray(convert_units(values, self.units))
         values = self.pre_mapping(values)
         assert values.ndim < 3
 
@@ -517,8 +518,8 @@ class MappingMixin(ABC):
                 domain_bounds[1], left=False
             )
 
-        X = np.array(domain)
-        y = np.array(self(domain))
+        X = asarray(domain)
+        y = asarray(self(domain))
 
         return X, y
 
@@ -610,8 +611,8 @@ class MappingMixin(ABC):
             lower = np.floor(expected_idcs).astype(int)
             left = expected_idcs - lower
 
-            upper_values = np.array(self.domain)[upper]
-            lower_values = np.array(self.domain)[lower]
+            upper_values = asarray(self.domain)[upper]
+            lower_values = asarray(self.domain)[lower]
 
             x0 = left * upper_values + (1 - left) * lower_values
 
