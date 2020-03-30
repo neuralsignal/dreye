@@ -14,7 +14,7 @@ from scipy import stats
 import scipy.signal
 
 from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY
-from dreye.utilities import convert_truncnorm_clip
+from dreye.utilities import convert_truncnorm_clip, asarray
 from dreye.algebra import Filter1D
 
 
@@ -224,16 +224,16 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
             self.channel_names = list(channel_names)
             assert len(self.channel_names) == n_channels
 
-        self.mean = np.array(self.mean)
-        self.var = np.array(self.var)
+        self.mean = asarray(self.mean)
+        self.var = asarray(self.var)
         if minimum is None:
             self.minimum = self.mean - 5 * self.var
         else:
-            self.minimum = np.array(self.minimum)
+            self.minimum = asarray(self.minimum)
         if maximum is None:
             self.maximum = self.mean + 5 * self.var
         else:
-            self.maximum = np.array(self.maximum)
+            self.maximum = asarray(self.maximum)
 
         if np.all(self.maximum == self.minimum):
             self.maximum += 10**-5
@@ -340,7 +340,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         """transform signal to stimulus to be sent
         """
 
-        self._stimulus = np.array(self.signal)
+        self._stimulus = asarray(self.signal)
 
 
 class BrownNoiseStimulus(WhiteNoiseStimulus):

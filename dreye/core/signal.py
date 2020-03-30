@@ -18,6 +18,7 @@ import pickle
 
 from dreye.utilities import (
     dissect_units, is_numeric, has_units, is_arraylike, convert_units,
+    asarray
 )
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
@@ -208,7 +209,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         """
 
         values, units = dissect_units(value)
-        values = np.array(values)
+        values = asarray(values)
 
         if units is not None and units != self.units:
             raise DimensionalityError(units, self.units)
@@ -225,7 +226,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         """
         """
 
-        return np.array([
+        return asarray([
             np.min(self.magnitude, axis=self.domain_axis),
             np.max(self.magnitude, axis=self.domain_axis)
         ]).T
@@ -320,7 +321,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         else:
             domain = convert_units(domain, domain_units, True)
 
-        values = self.interpolate(np.array(domain))
+        values = self.interpolate(asarray(domain))
 
         return self.create_new_instance(
             values,
@@ -353,10 +354,10 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         """
 
         if self.ndim == 1:
-            values = np.array(self) * np.array(self.domain.gradient)
+            values = asarray(self) * asarray(self.domain.gradient)
         else:
-            values = (np.array(self) * np.expand_dims(
-                np.array(self.domain.gradient), self.other_axis))
+            values = (asarray(self) * np.expand_dims(
+                asarray(self.domain.gradient), self.other_axis))
 
         return self.create_new_instance(
             values, units=self.units * self.domain.units)
@@ -367,10 +368,10 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         """
 
         if self.ndim == 1:
-            values = np.array(self) / np.array(self.domain.gradient)
+            values = asarray(self) / asarray(self.domain.gradient)
         else:
-            values = (np.array(self) / np.expand_dims(
-                np.array(self.domain.gradient), self.other_axis))
+            values = (asarray(self) / np.expand_dims(
+                asarray(self.domain.gradient), self.other_axis))
 
         return self.create_new_instance(
             values, units=self.units / self.domain.units)
@@ -641,7 +642,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             raise NotImplementedError('inplace concatenation')
 
         domain = self.domain
-        self_values = np.array(self)  # self.magnitude?
+        self_values = asarray(self)  # self.magnitude?
 
         if isinstance(signal, AbstractSignal):
             # checks dimensionality, appends domain, converts units
@@ -655,11 +656,11 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             assert self.other_len == signal.other_len
             # check labels, handling of different labels?
 
-            other_values = np.array(signal.convert_to(self.units))
+            other_values = asarray(signal.convert_to(self.units))
 
         elif is_arraylike(signal):
             # handles units, checks other shape, extends domain
-            other_values = np.array(convert_units(signal, self.units))
+            other_values = asarray(convert_units(signal, self.units))
 
             if self.ndim == 2:
                 assert self.other_len == other_values.shape[self.other_axis]
@@ -713,19 +714,19 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         if self.ndim == 1:
             self = self.expand_dims(1)
 
-        self_values = np.array(self)
+        self_values = asarray(self)
 
         if isinstance(signal, AbstractSignal):
             # equalizing domains
             self, signal = self.equalize_domains(signal)
             # check units
-            other_values = np.array(signal.convert_to(self.units))
+            other_values = asarray(signal.convert_to(self.units))
             # handle labels
             labels = self.concat_labels(signal.labels, left)
 
         elif is_arraylike(signal):
             # check if it has units
-            other_values = np.array(convert_units(signal, self.units))
+            other_values = asarray(convert_units(signal, self.units))
             # handle labels
             assert labels is not None, "must provide labels"
             labels = self.concat_labels(labels, left)

@@ -7,8 +7,11 @@ import warnings
 import numpy as np
 from pint import DimensionalityError
 
-from dreye.utilities import (is_uniform, array_domain, dissect_units,
-                             is_numeric, array_equal, has_units, is_arraylike)
+from dreye.utilities import (
+    is_uniform, array_domain, dissect_units,
+    is_numeric, array_equal, has_units, is_arraylike,
+    asarray
+)
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractDomain
@@ -235,7 +238,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
 
         values, units = dissect_units(values)
-        values = np.array(values)
+        values = asarray(values)
 
         if units is not None and units != self.units:
             raise DimensionalityError(units, self.units)
@@ -503,12 +506,12 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
         if isinstance(domain, AbstractDomain):
             domain = domain.convert_to(self.units)
-            domain = np.array(domain)
+            domain = asarray(domain)
         elif is_arraylike(domain):
-            domain = np.array(domain)
+            domain = asarray(domain)
             assert domain.ndim == 1, "domain must be one-dimensional."
         elif is_numeric(domain):
-            domain = np.array([domain])
+            domain = asarray([domain])
         else:
             raise TypeError(f'appending of type: {type(domain)}.')
 
@@ -541,12 +544,12 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         assert self.is_uniform, "domain must be uniform"
 
         if left:
-            return np.array([
+            return asarray([
                 self.start - (length - idx) * self.interval
                 for idx in range(length)
             ])
         else:
-            return np.array([
+            return asarray([
                 self.end + self.interval * (idx+1)
                 for idx in range(length)
             ])

@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from dreye.io import read_json, write_json
-from dreye.utilities import is_numeric, is_listlike
+from dreye.utilities import is_numeric, is_listlike, asarray
 from dreye.err import DreyeError
 
 
@@ -351,9 +351,6 @@ class ChainedStimuli:
             event = stim.events
             event['stim_index'] = idx
             events = events.append(event, ignore_index=True, sort=True)
-        # events = pd.concat([
-        #     stim.events for stim in self.stimuli
-        # ], ignore_index=True)
         return events
 
     @property
@@ -386,7 +383,7 @@ class ChainedStimuli:
     def durations(self):
         """array of duration for each stimulus
         """
-        return np.array([
+        return asarray([
             stim.duration
             for stim in self.stimuli
         ])

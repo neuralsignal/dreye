@@ -5,7 +5,7 @@ utility functions for spectrum measurements
 import numpy as np
 
 # dreye modules
-from dreye.utilities import has_units, is_numeric
+from dreye.utilities import has_units, is_numeric, asarray
 from dreye.constants import UREG
 from dreye.core.domain import Domain
 from dreye.core.signal import Signal
@@ -49,7 +49,7 @@ def convert_measurement(
     if not is_numeric(integration_time):
         assert signal.ndim == 2
         integration_time = np.expand_dims(
-            np.array(integration_time), signal.domain_axis
+            asarray(integration_time), signal.domain_axis
         ) * integration_time.units
 
     # units are tracked

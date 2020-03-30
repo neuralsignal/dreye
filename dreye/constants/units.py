@@ -36,7 +36,7 @@ c = pint.Context('flux')
 
 def gradient(domain):
 
-    return np.gradient(np.array(domain)) * domain.units
+    return np.gradient(asarray(domain)) * domain.units
 
 
 c.add_transformation(

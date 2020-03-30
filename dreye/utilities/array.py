@@ -14,7 +14,16 @@ import numpy as np
 
 from dreye.constants import DEFAULT_FLOAT_DTYPE, \
     RELATIVE_ACCURACY, ABSOLUTE_ACCURACY
-from dreye.utilities.common import round_to_significant, digits_to_decimals
+from dreye.utilities.common import (
+    round_to_significant, digits_to_decimals, dissect_units
+)
+
+
+def asarray(x):
+    """always return array, but dissect units before if necessary
+    """
+    x, _ = dissect_units(x)
+    return np.asarray(x)
 
 
 def array_equal(x, y):
@@ -56,7 +65,7 @@ def closest_indexes(a, b):
         Closest :math:`a` variable element indexes.
     Examples
     --------
-    >>> a = np.array([24.31357115, 63.62396289, 55.71528816,
+    >>> a = asarray([24.31357115, 63.62396289, 55.71528816,
     ...               62.70988028, 46.84480573, 25.40026416])
     >>> print(closest_indexes(a, 63))
     [3]
@@ -115,7 +124,7 @@ def spacing(array, unique=True, sorted=False, axis=None):
     --------
     Uniformly spaced variable:
 
-    >>> y = np.array([1, 2, 3, 4, 5])
+    >>> y = asarray([1, 2, 3, 4, 5])
     >>> spacing(y)
     array([ 1.])
     >>> spacing(y, False)
@@ -123,14 +132,14 @@ def spacing(array, unique=True, sorted=False, axis=None):
 
     Non-uniformly spaced variable:
 
-    >>> y = np.array([1, 2, 3, 4, 8])
+    >>> y = asarray([1, 2, 3, 4, 8])
     >>> spacing(y)
     array([ 1.,  4.])
     >>> spacing(y, False)
     array([ 1.,  1.,  1.,  4.])
     """
 
-    array = np.asarray(array, DEFAULT_FLOAT_DTYPE)
+    array = asarray(array, DEFAULT_FLOAT_DTYPE)
 
     if axis is None:
         # set axis -1 for the rest
@@ -175,13 +184,13 @@ def is_uniform(array, sorted=False, axis=None, is_array_diff=False):
     --------
     Uniformly spaced variable:
 
-    >>> a = np.array([1, 2, 3, 4, 5])
+    >>> a = asarray([1, 2, 3, 4, 5])
     >>> is_uniform(a)
     True
 
     Non-uniformly spaced variable:
 
-    >>> a = np.array([1, 2, 3.1415, 4, 5])
+    >>> a = asarray([1, 2, 3.1415, 4, 5])
     >>> is_uniform(a)
     False
     """
@@ -324,7 +333,7 @@ def as_float(a):
     attribute while the later will pass the :math:`a` variable as is.
     Examples
     --------
-    >>> as_float(np.array([1]))
+    >>> as_float(asarray([1]))
     1.0
     >>> as_float(np.arange(10))
     array([ 0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9.])
@@ -333,4 +342,4 @@ def as_float(a):
     try:
         return DEFAULT_FLOAT_DTYPE(a)
     except TypeError:
-        return np.asarray(a, DEFAULT_FLOAT_DTYPE)
+        return asarray(a, DEFAULT_FLOAT_DTYPE)

@@ -6,7 +6,7 @@ or fitting particular spectra.
 import numpy as np
 from scipy.stats import norm
 
-from dreye.utilities import is_numeric
+from dreye.utilities import is_numeric, asarray
 from dreye.core.spectrum import Spectrum
 from dreye.core.spectral_measurement import SpectrumMeasurement
 
@@ -55,14 +55,14 @@ def create_gaussian_spectrum(
     elif isinstance(background, Spectrum):
         background = background.convert_to(units)(wavelengths)
 
-    wavelengths = np.array(wavelengths)
-    centers = np.array(centers)
-    std = np.array(std)
+    wavelengths = asarray(wavelengths)
+    centers = asarray(centers)
+    std = asarray(std)
     assert is_numeric(intensity)
     assert wavelengths.ndim == 1
 
     if background is not None:
-        background = np.array(background)
+        background = asarray(background)
         assert background.ndim == 1
         assert background.shape == wavelengths.shape
 
