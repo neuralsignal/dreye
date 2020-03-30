@@ -8,6 +8,7 @@ Defines units and set unit registry.
 import pint
 import numpy as np
 
+
 UREG = pint.UnitRegistry()
 """
 Standard unit registry as defined by pint package.
@@ -36,7 +37,7 @@ c = pint.Context('flux')
 
 def gradient(domain):
 
-    return np.gradient(asarray(domain)) * domain.units
+    return np.gradient(domain.magnitude) * domain.units
 
 
 c.add_transformation(

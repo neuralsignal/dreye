@@ -19,11 +19,11 @@ from dreye.utilities.common import (
 )
 
 
-def asarray(x):
+def asarray(x, *args, **kwargs):
     """always return array, but dissect units before if necessary
     """
     x, _ = dissect_units(x)
-    return np.asarray(x)
+    return np.asarray(x, *args, **kwargs)
 
 
 def array_equal(x, y):
