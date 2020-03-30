@@ -5,7 +5,7 @@ from itertools import product
 import numpy as np
 import pandas as pd
 
-from dreye.utilities import is_numeric
+from dreye.utilities import is_numeric, asarray
 
 
 class SetBaselineMixin:
@@ -19,11 +19,11 @@ class SetBaselineMixin:
 
         # check if baseline_values are correct size
         if is_numeric(baseline_values):
-            baseline_values = np.array(
+            baseline_values = asarray(
                 [baseline_values] * len(channel_names)
             )
         else:
-            baseline_values = np.array(baseline_values)
+            baseline_values = asarray(baseline_values)
             assert len(channel_names) == len(baseline_values)
 
         return baseline_values.astype(float)
@@ -37,13 +37,13 @@ class SetStepMixin(SetBaselineMixin):
 
         # convert values into pandas dataframe object
         if is_numeric(values):
-            channel_names = np.array([0])
+            channel_names = asarray([0])
             baseline_values = self._set_baseline_values(
                 baseline_values, channel_names)
-            values = np.array([values]).astype(float)
+            values = asarray([values]).astype(float)
 
         elif isinstance(values, dict):
-            channel_names = np.array(list(values.keys()))
+            channel_names = asarray(list(values.keys()))
             baseline_values = self._set_baseline_values(
                 baseline_values, channel_names)
             if separate_channels:
@@ -52,21 +52,21 @@ class SetStepMixin(SetBaselineMixin):
                     # ignore none elements and zero length elements
                     if ele is None or len(ele) == 0:
                         continue
-                    __values = np.array(
+                    __values = asarray(
                         [baseline_values]*len(ele)
                     ).astype(float)
-                    __values[:, index] = np.array(ele).astype(float)
+                    __values[:, index] = asarray(ele).astype(float)
                     _values.extend(__values.tolist())
                 values = _values
             else:
                 values = list(product(*values.values()))
 
         elif not isinstance(values, pd.DataFrame):
-            values = np.array(values)
+            values = asarray(values)
             if values.ndim > 1:
                 channel_names = np.arange(values.shape[1])
             else:
-                channel_names = np.array([0])
+                channel_names = asarray([0])
             baseline_values = self._set_baseline_values(
                 baseline_values, channel_names)
 
@@ -76,7 +76,7 @@ class SetStepMixin(SetBaselineMixin):
                 baseline_values, channel_names)
 
         return pd.DataFrame(
-            np.array(values).astype(float), columns=channel_names
+            asarray(values).astype(float), columns=channel_names
         ), baseline_values
 
 
@@ -94,37 +94,37 @@ class SetRandomStepMixin(SetBaselineMixin):
                 assert isinstance(values_probs, dict), \
                     'values probs must be dict'
 
-            channel_names = np.array(list(values.values()))
+            channel_names = asarray(list(values.values()))
             # transform each element into numpy array
             for key, ele in values.items():
                 # ignore none elements and zero length elements
                 if ele is None or len(ele) == 0:
                     continue
                 # convert element to numpy array
-                ele = np.array(ele)
+                ele = asarray(ele)
                 values[key] = ele
 
                 # check values probs array
                 if values_probs.get(key, None) is None:
                     values_probs[key] = np.ones(len(ele))/len(ele)
                 else:
-                    values_prob = np.array(values_probs[key])
+                    values_prob = asarray(values_probs[key])
                     values_prob = values_prob / np.sum(values_prob)
                     assert len(values_prob) == len(ele), \
                         'values prob not same length as values.'
                     values_probs[key] = values_prob
 
         else:
-            channel_names = np.array([0])
+            channel_names = asarray([0])
 
-            values = np.array(values)
+            values = asarray(values)
             assert values.ndim == 1, \
                 'if array-like values must be one-dimensional'
 
             if values_probs is None:
                 values_probs = np.ones(len(values))/len(values)
             else:
-                values_probs = np.array(values_probs) / np.sum(values_probs)
+                values_probs = asarray(values_probs) / np.sum(values_probs)
                 assert len(values_probs) == len(values), \
                     'values prob not same length as values.'
 

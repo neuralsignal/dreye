@@ -14,7 +14,7 @@ import pickle
 import numpy as np
 import pandas as pd
 
-from dreye.utilities import AbstractSequence
+from dreye.utilities import AbstractSequence, asarray
 from dreye.constants import UREG
 from dreye.err import DreyeSerializerError
 
@@ -132,7 +132,7 @@ def deserializer(obj):
 
     for key, ele in obj.items():
         if key == ARRAY_PREFIX:
-            return np.array(ele)
+            return asarray(ele)
         elif key == DTYPE_PREFIX:
             return np.dtype(ele)
         elif key == PINT_PREFIX:

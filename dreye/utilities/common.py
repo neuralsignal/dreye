@@ -64,7 +64,11 @@ def has_units(value):
     """
     """
 
-    return hasattr(value, 'units') and hasattr(value, 'to')
+    return (
+        hasattr(value, 'units')
+        and hasattr(value, 'to')
+        and hasattr(value, 'magnitude')
+    )
 
 
 def convert_units(value, units, optional=True):
@@ -93,9 +97,10 @@ def dissect_units(value):
     """
     """
 
+    # TODO check if UREG.Quantity is necessary
     if isinstance(value, UREG.Quantity):
         return value.magnitude, value.units
-    elif hasattr(value, 'magnitude') and has_units(value):
+    elif has_units(value):
         return value.magnitude, value.units
     else:
         return value, None

@@ -11,7 +11,7 @@ import pandas as pd
 
 from dreye.err import DreyeError
 from dreye.hardware.base_system import AbstractOutput, AbstractSystem
-from dreye.utilities import convert_units
+from dreye.utilities import convert_units, asarray
 
 # HARDWARE API IMPORTS
 try:
@@ -81,7 +81,7 @@ class NiDaqMxOutput(AbstractOutput):
     def send(self, values, rate=None, return_value=None):
         dt = float(convert_units(1 / rate, 's'))
         self.open()
-        for value in np.asarray(values).astype(np.float64):
+        for value in asarray(values).astype(np.float64):
             now = time.clock()
             # assumes sending does not take a lot of time
             self.send_value(value)
@@ -122,9 +122,9 @@ class NiDaqMxSystem(AbstractSystem):
             for output in self
         ]
         if self.trigger is None:
-            return np.array(devices)
+            return asarray(devices)
         else:
-            return np.array(devices + [self.trigger.device.name])
+            return asarray(devices + [self.trigger.device.name])
 
     @property
     def object_order(self):
@@ -133,9 +133,9 @@ class NiDaqMxSystem(AbstractSystem):
             for output in self
         ]
         if self.trigger is None:
-            return np.array(objects)
+            return asarray(objects)
         else:
-            return np.array(objects + [self.trigger.object_name])
+            return asarray(objects + [self.trigger.object_name])
 
     def open(self):
         # create task
@@ -202,7 +202,7 @@ class NiDaqMxSystem(AbstractSystem):
         self.open()
 
         dt = float(convert_units(1 / rate, 's'))
-        values = np.asarray(values, dtype=np.float64)
+        values = asarray(values, dtype=np.float64)
         grouped_values = self._group_values(values, rate)
         length = len(grouped_values)
         percentile = length // 100
@@ -253,20 +253,20 @@ class NiDaqMxSystem(AbstractSystem):
             _v = [v.astype(np.float64) for v in _v]
             grouped_values[n] = _v
 
-        return np.array(grouped_values)
+        return asarray(grouped_values)
 
     def _group_value(self, value):
         grouped_value = []
         for n, device in enumerate(self.unique_devices):
             _v = value[self.device_order == device]
             grouped_value.append(_v)
-        return np.array(grouped_value)
+        return asarray(grouped_value)
 
     def _send_value(self, grouped_value):
         for writer, value in zip(self.writers, grouped_value):
             writer.write_one_sample(value)
 
     def send_value(self, value):
-        value = np.asarray(value, dtype=np.float64)
+        value = asarray(value, dtype=np.float64)
         grouped_value = self._group_value(value)
         self._send_value(grouped_value)
