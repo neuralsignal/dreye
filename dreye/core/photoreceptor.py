@@ -8,7 +8,7 @@ from scipy.optimize import lsq_linear, least_squares
 from dreye.core.spectrum import AbstractSpectrum
 from dreye.core.spectral_sensitivity import AbstractSensitivity
 from dreye.core.spectral_measurement import SpectrumMeasurement
-from dreye.utilities import get_units
+from dreye.utilities import get_units, asarray
 
 
 class AbstractPhotoreceptor(ABC):
@@ -225,8 +225,8 @@ class AbstractPhotoreceptor(ABC):
         A_units = get_units(A)
 
         # for scalar target convert to numpy array
-        A = np.array(A)
-        targets = np.atleast_2d(np.array(targets))
+        A = asarray(A)
+        targets = np.atleast_2d(asarray(targets))
 
         if x0 is not None:
             assert len(x0) == len(targets)
@@ -234,7 +234,7 @@ class AbstractPhotoreceptor(ABC):
             self._weights = np.ones(targets.shape[1])
         else:
             assert len(weights) == targets.shape[1]
-            self._weights = np.array(weights)
+            self._weights = asarray(weights)
 
         # for targets, where all values are positive or negative
         # reset the min or max bounds respectively to respect_zero
@@ -268,7 +268,7 @@ class AbstractPhotoreceptor(ABC):
                 res_ = method(
                     A,
                     target,
-                    np.array(x0[idx]),
+                    asarray(x0[idx]),
                     bounds=bounds,
                     **kwargs
                 )
@@ -283,7 +283,7 @@ class AbstractPhotoreceptor(ABC):
         del(self._weights)
 
         if return_res:
-            return x, np.array(res)
+            return x, asarray(res)
         else:
             return x
 

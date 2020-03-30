@@ -377,7 +377,7 @@ class AbstractDomain(AbstractSequence):
         Return values as numpy array
         """
 
-        return np.array(self.values.magnitude)
+        return self.values.magnitude
 
 
 class AbstractSignal(AbstractDomain):

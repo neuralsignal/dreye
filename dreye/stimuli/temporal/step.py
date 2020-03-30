@@ -10,7 +10,7 @@ from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY
 from dreye.stimuli.mixin import (
     SetBaselineMixin, SetStepMixin, SetRandomStepMixin
 )
-from dreye.utilities import is_numeric, convert_truncnorm_clip
+from dreye.utilities import is_numeric, convert_truncnorm_clip, asarray
 
 
 class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
@@ -33,7 +33,7 @@ class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
         """transform signal to stimulus to be sent
         """
 
-        self._stimulus = np.array(self.signal)
+        self._stimulus = asarray(self.signal)
 
 
 class StepStimulus(AbstractStepStimulus, SetStepMixin):
@@ -136,7 +136,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
                 row[DUR_KEY] = dur
                 row['pause'] = pause
                 df = pd.DataFrame([row] * self.repetitions)
-                df['repeat'] = np.array(df.index)
+                df['repeat'] = asarray(df.index)
                 events = events.append(df, ignore_index=True, sort=False)
 
         if self.randomize:
@@ -152,7 +152,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
             _events['iter'] = n + 1
             events = events.append(_events, ignore_index=True, sort=False)
 
-        delays = np.cumsum(np.array(events[[DUR_KEY, 'pause']]).sum(1))
+        delays = np.cumsum(asarray(events[[DUR_KEY, 'pause']]).sum(1))
         delays -= delays[0]
         delays += self.start_delay
 
@@ -190,11 +190,11 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
             events.loc[index, DELAY_KEY] = true_delay
             # change signal to step change
             if self.func is None:
-                signal[tbool] = np.array(row[self.values.columns])[None, :]
+                signal[tbool] = asarray(row[self.values.columns])[None, :]
             else:
                 signal[tbool] = self.func(
                     np.arange(tbool.size) / self.rate,
-                    np.array(row[self.values.columns])
+                    asarray(row[self.values.columns])
                 )
 
         return signal

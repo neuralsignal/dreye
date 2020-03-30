@@ -6,7 +6,7 @@ import numpy as np
 from scipy.optimize import lsq_linear
 
 # dreye modules
-from dreye.utilities import has_units, dissect_units, is_numeric
+from dreye.utilities import has_units, dissect_units, is_numeric, asarray
 from dreye.constants import UREG
 from dreye.core.spectrum import \
     AbstractSpectrum, Spectrum
@@ -211,7 +211,7 @@ class MeasuredNormalizedSpectrum(AbstractSpectrum):
             **kwargs
         )
 
-        integral = np.array(self.integral)
+        integral = asarray(self.integral)
         if integral.shape == () or integral.shape == (0, ):
             pass
         else:
@@ -250,18 +250,18 @@ class MeasuredNormalizedSpectrum(AbstractSpectrum):
         """
 
         if self._zero_is_lower is None:
-            truth = np.array([True]*self.other_len)
+            truth = asarray([True]*self.other_len)
             notnan = ~(
                 np.isnan(self.zero_boundary) | np.isnan(self.max_boundary)
             )
             truth[notnan] = (self.zero_boundary < self.max_boundary)[notnan]
             return truth
         elif self._zero_is_lower is True:
-            return np.array([True]*self.other_len)
+            return asarray([True]*self.other_len)
         elif self._zero_is_lower is False:
-            return np.array([False]*self.other_len)
+            return asarray([False]*self.other_len)
         else:
-            zero_is_lower = np.array(self._zero_is_lower)
+            zero_is_lower = asarray(self._zero_is_lower)
             assert self.other_len == zero_is_lower.size
             return zero_is_lower
 
@@ -282,9 +282,9 @@ class MeasuredNormalizedSpectrum(AbstractSpectrum):
                     zero_boundary.to(self.boundary_units)
                 )[0]
             if not isinstance(zero_boundary, np.ndarray):
-                zero_boundary = np.array(zero_boundary)
+                zero_boundary = asarray(zero_boundary)
             if zero_boundary.shape in ((), (0, )):
-                zero_boundary = np.array([zero_boundary])
+                zero_boundary = asarray([zero_boundary])
             assert self.other_len == zero_boundary.size
             return zero_boundary
 
@@ -305,9 +305,9 @@ class MeasuredNormalizedSpectrum(AbstractSpectrum):
                     max_boundary.to(self.boundary_units)
                 )[0]
             if not isinstance(max_boundary, np.ndarray):
-                max_boundary = np.array(max_boundary)
+                max_boundary = asarray(max_boundary)
             if max_boundary.shape in ((), (0, )):
-                max_boundary = np.array([max_boundary])
+                max_boundary = asarray([max_boundary])
             assert self.other_len == max_boundary.size
             return max_boundary
 
@@ -571,7 +571,7 @@ class SpectrumMeasurement(ClippedSignal, IrradianceMixin, MappingMixin):
         """
 
         if self.ndim == 2:
-            return np.array([self.lower_boundary, self.upper_boundary]).T
+            return asarray([self.lower_boundary, self.upper_boundary]).T
         else:
             return np.squeeze([self.lower_boundary, self.upper_boundary])
 
@@ -643,8 +643,8 @@ class SpectrumMeasurement(ClippedSignal, IrradianceMixin, MappingMixin):
         spectrum, normalized_sources = spectrum.equalize_domains(
             self.normalized_spectrum, equalize_dimensions=False)
 
-        b = np.array(spectrum)
-        A = np.array(normalized_sources)
+        b = asarray(spectrum)
+        A = asarray(normalized_sources)
 
         res = lsq_linear(A, b, bounds=self.bounds)
 
