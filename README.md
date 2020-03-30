@@ -1,4 +1,4 @@
-# dreye
+# [WIP] dreye
 
 ## DR(osophila)EYE: color vision package for model organisms
 
