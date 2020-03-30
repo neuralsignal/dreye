@@ -35,13 +35,17 @@ class MeasurementRunner:
     def run(self, verbose=0):
         if verbose:
             sys.stdout.write(
-                '\n-----------STARTING MEASUREMENTS-------------\n'
+                '\n---------------------STARTING MEASUREMENTS--------'
+                '---------------\n'
             )
+        # reset spms
+        self.system._spms = None
         # iterate over system devices
         for n, output in enumerate(self.system):
             if verbose:
                 sys.stdout.write(
-                    f'\n---------------------------------------------'
+                    f'\n---------------------------------------'
+                    '--------------------------'
                     f'\nStarting measurement for {output.name}.\n'
                 )
             output.open()
@@ -55,14 +59,11 @@ class MeasurementRunner:
             if verbose:
                 sys.stdout.write(
                     f'sending {len(values)} values\n'
-                    '==============================================\n'
+                    '========================================='
+                    '========================\n'
                 )
             # substitute with tqdm?
             for idx, value in enumerate(values):
-                if verbose > 1:
-                    sys.stdout.write(f'number {idx}: value {value}\n')
-                elif verbose:
-                    sys.stdout.write('.')
                 output.send_value(value)
                 spectrum_array[:, idx], its[idx] = (
                     self.spectrometer.perform_measurement(
@@ -70,6 +71,13 @@ class MeasurementRunner:
                         return_it=True, verbose=verbose
                     )
                 )
+                if verbose > 1:
+                    photons_per_sec = np.sum(spectrum_array[:, idx])/its[idx]
+                    sys.stdout.write(
+                        f'step {idx}: {value*output.units} '
+                        f'== {photons_per_sec} photons/second\n')
+                elif verbose:
+                    sys.stdout.write('.')
             # remove background zero from the rest
             if self.remove_zero:
                 spectrum_array -= spectrum_array[:, :1]
@@ -82,9 +90,11 @@ class MeasurementRunner:
                 sys.stdout.write('\n')
             if verbose:
                 sys.stdout.write(
-                    f'=============================================='
+                    f'==================================='
+                    '=============================='
                     f'\nFinished measurement for "{output.name}".'
-                    '\n---------------------------------------------\n'
+                    '\n------------------------------------'
+                    '-----------------------------\n'
                 )
             # zero output device
             output._zero()
@@ -115,7 +125,8 @@ class MeasurementRunner:
 
         if verbose:
             sys.stdout.write(
-                '\n---------MEASUREMENTS FINISHED----------\n'
+                '\n---------------------MEASUREMENTS FINISHED--------'
+                '---------------\n'
             )
 
         return self
