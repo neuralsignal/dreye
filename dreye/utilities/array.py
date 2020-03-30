@@ -281,7 +281,7 @@ def arange(start, stop=None, step=1, dtype=None, error='ignore'):
         stop = start
         start = 0
 
-    num = round((step + stop - start) / step)
+    num = int(np.round((step + stop - start) / step, 0))
 
     range_, interval = np.linspace(start, stop, num, dtype=dtype, retstep=True)
 
