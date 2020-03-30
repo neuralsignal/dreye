@@ -4,6 +4,8 @@
 import numpy as np
 from scipy import signal
 
+from dreye.utilities import asarray
+
 
 class Filter1D:
     """filter class
@@ -57,7 +59,7 @@ class Filter1D:
         """
         """
 
-        arr = asarray((arr)
+        arr = asarray(arr)
 
         window = self.window
 
