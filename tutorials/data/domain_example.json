@@ -1,0 +1,8 @@
+{
+    "start": -1000.0,
+    "end": 2000.0,
+    "interval": 100.0,
+    "units": "millisecond",
+    "dtype": "float64",
+    "contexts": []
+}

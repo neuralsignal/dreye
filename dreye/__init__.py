@@ -28,3 +28,7 @@ Sub-packages
 -   recovery?
 -   spectral: SpectralDistribution, Filter, Opsin
 """
+
+# import all core elements and constants
+from dreye.core import *
+from dreye.constants import *

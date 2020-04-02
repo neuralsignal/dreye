@@ -12,6 +12,7 @@ from dreye.utilities import (
     is_numeric, array_equal, has_units, is_arraylike,
     asarray
 )
+from dreye.err import DreyeError
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractDomain
@@ -151,11 +152,11 @@ class Domain(AbstractDomain, UnpackDomainMixin):
             raise TypeError(
                 'start attribute: {0} is not numeric'.format(value))
 
-        # elif value < self._start:
-        #     raise ValueError((
-        #         'start attribute: {0} value '
-        #         'below previous start value {1}'
-        #     ).format(value, self._start))
+        elif value < self._start and not self.is_uniform:
+            raise DreyeError((
+                'start attribute: {0} value '
+                'below previous start value {1}'
+            ).format(value, self._start))
 
         else:
             self._start = self.dtype(value)
@@ -185,11 +186,11 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         elif not is_numeric(value):
             raise TypeError('end attribute: {0} is not numeric'.format(value))
 
-        # elif value > self._end:
-        #     raise ValueError((
-        #         'end attribute: {0} value '
-        #         'above previous end value {1}'
-        #     ).format(value, self._end))
+        elif value > self._end and not self.is_uniform:
+            raise DreyeError((
+                'end attribute: {0} value '
+                'above previous end value {1}'
+            ).format(value, self._end))
 
         else:
             self._end = self.dtype(value)
@@ -357,7 +358,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
                                ' equalization operation'))
         # check that both domains are uniform
         if not (self.is_uniform and other.is_uniform) and interval is None:
-            raise TypeError(
+            raise DreyeError(
                 'Domains must be uniform for operations on signal classes, '
                 'if domains are not equal.')
 

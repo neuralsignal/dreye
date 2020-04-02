@@ -361,6 +361,7 @@ class SpectrumMeasurement(ClippedSignal, IrradianceMixin, MappingMixin):
     """
 
     # TODO implement concat labels method
+    # TODO change working
 
     init_args = ClippedSignal.init_args + (
         'mapping_method',

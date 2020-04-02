@@ -30,15 +30,19 @@ def array_equal(x, y):
     """Determine if two arrays are equal
     """
 
-    # TODO decide if to use allclose with global tolerance defined
+    # asarrays
+    x = asarray(x)
+    y = asarray(y)
+
     if x.shape != y.shape:
         return False
     else:
+        x[x == 0] = ABSOLUTE_ACCURACY
+        y[y == 0] = ABSOLUTE_ACCURACY
         xtol = np.min(digits_to_decimals(x, RELATIVE_ACCURACY))
         ytol = np.min(digits_to_decimals(y, RELATIVE_ACCURACY))
         rtol = 10**np.min([xtol, ytol])
         return np.allclose(x, y, rtol=rtol, atol=ABSOLUTE_ACCURACY)
-    # return np.array_equal(x, y)
 
 
 def unique_significant(x, digits=RELATIVE_ACCURACY, **kwargs):

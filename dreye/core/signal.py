@@ -18,7 +18,7 @@ import pickle
 
 from dreye.utilities import (
     dissect_units, is_numeric, has_units, is_arraylike, convert_units,
-    asarray
+    asarray, array_equal
 )
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
@@ -75,20 +75,22 @@ class Signal(AbstractSignal, UnpackSignalMixin):
                  'domain_axis', 'labels', 'contexts')
     domain_class = Domain
 
-    def __init__(self,
-                 values,
-                 domain=None,
-                 domain_axis=None,
-                 units=None,
-                 domain_units=None,
-                 labels=None,
-                 dtype=DEFAULT_FLOAT_DTYPE,
-                 domain_dtype=None,
-                 interpolator=None,
-                 interpolator_kwargs=None,
-                 contexts=None,
-                 domain_kwargs=None,
-                 **kwargs):
+    def __init__(
+        self,
+        values,
+        domain=None,
+        domain_axis=None,
+        units=None,
+        domain_units=None,
+        labels=None,
+        dtype=DEFAULT_FLOAT_DTYPE,
+        domain_dtype=None,
+        interpolator=None,
+        interpolator_kwargs=None,
+        contexts=None,
+        domain_kwargs=None,
+        **kwargs
+    ):
 
         if isinstance(dtype, str):
             dtype = np.dtype(dtype).type
@@ -106,7 +108,8 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             interpolator_kwargs=interpolator_kwargs,
             contexts=contexts,
             domain_kwargs=domain_kwargs,
-            **kwargs)
+            **kwargs
+        )
 
         self._values = values
         self._units = units
@@ -766,7 +769,16 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
         return self.domain_concat(signal, *args, **kwargs)
 
-    # TODO def __eq__(self, other)
+    def __eq__(self, other):
+
+        if self.__class__ != other.__class__:
+            return False
+
+        return (
+            (self.units == other.units)
+            and (self.domain == other.domain)
+            and array_equal(asarray(self), asarray(other))
+        )
 
 
 class ClippedSignal(Signal, CheckClippingValueMixin):

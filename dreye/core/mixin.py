@@ -9,7 +9,7 @@ from scipy.optimize import root, least_squares
 from scipy.interpolate import interp1d
 from sklearn.isotonic import IsotonicRegression
 
-from dreye.err import DreyeUnitError
+from dreye.err import DreyeUnitError, DreyeError
 from dreye.utilities import (
     convert_units, diag_chunks, is_listlike, arange,
     is_numeric, is_uniform, array_domain, has_units,
@@ -134,18 +134,18 @@ class UnpackDomainMixin(ABC):
                 # raise ValueError('Intervals given smaller than range')
                 interval = np.append(interval, interval_diff)
             elif interval_diff < 0:
-                raise ValueError('Intervals given bigger than range.')
+                raise DreyeError('Intervals given bigger than range.')
 
             values = np.append(start, start + np.cumsum(interval))
             values = values.astype(dtype)
             interval = interval.astype(dtype)
 
             if values.size != np.unique(values).size:
-                raise ValueError('values are non-unique: {0}'.format(values))
+                raise DreyeError('values are non-unique: {0}'.format(values))
 
         elif is_numeric(interval):
             if interval > end - start:
-                raise ValueError(('interval attribute: value '
+                raise DreyeError(('interval attribute: value '
                                   '{0} bigger than range {1}').format(
                                       interval, end - start))
 
@@ -153,7 +153,7 @@ class UnpackDomainMixin(ABC):
             interval = dtype(interval)
 
         else:
-            raise TypeError(('interval not type numeric or '
+            raise DreyeError(('interval not type numeric or '
                              'array-like: {0}').format(type(interval)))
 
         return values, interval

@@ -65,17 +65,6 @@ class AbstractDomain(AbstractSequence):
         self._units = values.units
         self.values = values
 
-    # TODO: many issues at the moment
-    # def to(self, units, copy=True):
-    #     """
-    #     """
-    #
-    #     if copy:
-    #         self = self.copy()
-    #
-    #     self.units = units
-    #     return self
-
     def convert_to(self, units, copy=True):
         """
         """
