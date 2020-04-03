@@ -504,19 +504,19 @@ class MeasuredSpectraContainer:
     @property
     def uE(self):
         return self.__class__(
-            [ele.uE for ele in self], 'uE'
+            [ele.uE for ele in self]
         )
 
     @property
     def irradiance(self):
         return self.__class__(
-            [ele.irradiance for ele in self], 'irradiance'
+            [ele.irradiance for ele in self]
         )
 
     @property
     def photonflux(self):
         return self.__class__(
-            [ele.photonflux for ele in self], 'photonflux'
+            [ele.photonflux for ele in self]
         )
 
     def fit(self, spectrum, return_res=False, return_fit=False, units=True):
