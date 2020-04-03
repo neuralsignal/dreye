@@ -467,7 +467,7 @@ class IlluminantCaptureTransformerMixin(
         )
 
         # convert to same units
-        illuminant = illuminant.convert_to(background.units)
+        illuminant = illuminant.to(background.units)
 
         BaseStimulus.__init__(
             self, illuminant=illuminant
@@ -517,7 +517,7 @@ class IlluminantBgCaptureTransformerMixin(CaptureTransformerMixin):
         )
 
         # convert to same units - TODO depends if normalized spectrum or not
-        # illuminant = illuminant.convert_to(background.units)
+        # illuminant = illuminant.to(background.units)
 
         BaseStimulus.__init__(
             self, illuminant=illuminant,

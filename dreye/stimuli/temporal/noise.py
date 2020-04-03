@@ -399,13 +399,13 @@ class BrownNoiseStimulus(WhiteNoiseStimulus):
         # using truncnorm from parent class
         signal = super().create_random_signal()
 
-        # broadcastable mean
+        # _broadcastable mean
         mean = np.atleast_2d(self.mean)
 
         # brownian part (removing mean drift)
         signal = np.cumsum(signal - mean, axis=0) + mean
 
-        # fit max and min to shape of signal for broadcasting
+        # fit max and min to shape of signal for _broadcasting
         max = np.atleast_2d(self.maximum)
         min = np.atleast_2d(self.minimum)
 

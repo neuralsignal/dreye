@@ -11,7 +11,8 @@ from .common import (
     around, digits_to_decimals, round_to_significant,
     has_units, convert_units, dissect_units, is_numeric,
     is_integer, is_string, is_listlike, is_arraylike,
-    is_jsoncompatible, get_units
+    is_jsoncompatible, get_units, get_values,
+    _convert_get_val_opt
 )
 from .stats import (
     sample_truncated_distribution, convert_truncnorm_clip
@@ -32,6 +33,8 @@ __all__ = [
     'as_float',
     'asarray',
     # common
+    'get_values',
+    '_convert_get_val_opt',
     'around',
     'digits_to_decimals',
     'round_to_significant',

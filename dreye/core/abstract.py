@@ -14,24 +14,17 @@ import copy
 import numpy as np
 
 # package imports
-from dreye.utilities import dissect_units, AbstractSequence, is_arraylike
+from dreye.err import DreyeError, DreyeUnitError
+from dreye.utilities import (
+    dissect_units, AbstractSequence, is_arraylike, has_units,
+    convert_units
+)
 from dreye.constants import UREG
 
 
 class AbstractDomain(AbstractSequence):
 
     convert_attributes = ()
-
-    def convert_units(self, domain, copy=True):
-        """convert domain to self units
-        """
-
-        if copy:
-            domain = domain.copy()
-
-        domain.units = self.units
-
-        return domain
 
     def copy(self):
         """
@@ -61,11 +54,11 @@ class AbstractDomain(AbstractSequence):
             return
 
         # converts values if possible
-        values = self.converting_values(value)
+        values = self._converting_values(value)
         self._units = values.units
-        self.values = values
+        self.values = values.magnitude
 
-    def convert_to(self, units, copy=True):
+    def to(self, units, copy=True):
         """
         """
 
@@ -76,30 +69,62 @@ class AbstractDomain(AbstractSequence):
         return self
 
     @staticmethod
-    def convert_values(values, units, contexts):
+    def _convert_values(
+        values, units, contexts, domain=None, axis=None, unitless=False
+    ):
 
         if contexts is None:
             contexts = ()
         elif isinstance(contexts, str):
             contexts = (contexts, )
 
-        return values.to(units, *contexts)
+        try:
+            values = values.to(units, *contexts)
+        except TypeError:
+            if values.ndim == 1:
+                values = values.to(units, *contexts, domain=domain)
+            else:
+                values = values.to(
+                    units,
+                    *contexts,
+                    domain=(
+                        np.expand_dims(domain.magnitude, axis=axis)
+                        * domain.units),
+                )
 
-    def converting_values(self, units):
-        """
-        """
+        if unitless:
+            return values.magnitude
+        else:
+            return values
+
+    def _convert_other_attrs(self, units):
 
         # any other attributes to be converted will be converted
         for attr in self.convert_attributes:
+            # attr
             if getattr(self, attr) is None:
                 continue
 
+            value = getattr(self, attr)
+            unitless = False
+            if not has_units(value):
+                value = value * self.units
+                unitless = True
+
             setattr(
                 self, '_' + attr,
-                self.convert_values(getattr(self, attr), units, self.contexts)
+                self._convert_values(
+                    value, units, self.contexts, unitless=unitless
+                )
             )
 
-        return self.convert_values(self.values, units, self.contexts)
+    def _converting_values(self, units):
+        """
+        """
+
+        self._convert_other_attrs(units)
+
+        return self._convert_values(self.values, units, self.contexts)
 
     @property
     def contexts(self):
@@ -125,16 +150,7 @@ class AbstractDomain(AbstractSequence):
         """
         """
 
-        return self.values.magnitude
-
-    @magnitude.setter
-    def magnitude(self, values):
-        """
-        """
-
-        # this will ignore units when setting new values
-        values, units = dissect_units(values)
-        self.values = values
+        return self._values
 
     @abstractmethod
     def equalize_domains(self, other):
@@ -163,18 +179,18 @@ class AbstractDomain(AbstractSequence):
         pass
 
     @staticmethod
-    def other_handler(other):
+    def _other_handler(other):
 
         if isinstance(other, str):
             other = UREG(other)
 
         return dissect_units(other)
 
-    def factor_function(self, other, operation, **kwargs):
+    def _factor_function(self, other, operation, **kwargs):
         """operator function for multiplications and divisions
         """
 
-        other_magnitude, other_units = self.other_handler(other)
+        other_magnitude, other_units = self._other_handler(other)
 
         new = getattr(self.magnitude, operation)(other_magnitude)
 
@@ -183,131 +199,140 @@ class AbstractDomain(AbstractSequence):
         else:
             new_units = getattr(self.units, operation)(other_units)
 
-        return self.create_new_instance(new * new_units, **kwargs)
+        return self._create_new_instance(new * new_units, **kwargs)
 
-    def sum_function(self, other, operation, **kwargs):
+    def _sum_function(self, other, operation, **kwargs):
         """operator function for additions and subtractions
         """
 
-        other_magnitude, other_units = self.other_handler(other)
+        other_magnitude, other_units = self._other_handler(other)
 
-        if other_units is None:
-            other_units = UREG(None).units
-
-        # convert units if possible
-        other_magnitude = (other_magnitude * other_units).to(
-            self.units).magnitude
+        if other_units is None or (other_units == self.units):
+            pass
+        else:
+            # convert units if possible
+            other_magnitude = other.to(self.units).magnitude
 
         new = getattr(self.magnitude, operation)(other_magnitude)
 
-        return self.create_new_instance(new * self.units, **kwargs)
+        return self._create_new_instance(new * self.units, **kwargs)
 
-    def simple_function(self, other, operation, **kwargs):
+    def _simple_function(self, other, operation, **kwargs):
         """operator function for opeartions without unit handling.
         That is other must have unit None
         """
 
-        other_magnitude, other_units = self.other_handler(other)
+        other_magnitude, other_units = self._other_handler(other)
 
         if other_units is None:
             pass
-        else:
-            assert other_units == UREG(None)
+        elif other_units != UREG(None).units:
+            raise DreyeUnitError(
+                f'{operation} requires unitless values.'
+            )
 
         new = getattr(self.magnitude, operation)(other_magnitude)
+        new_units = getattr(self.units, operation)(other_magnitude)
 
-        return self.create_new_instance(new * self.units, **kwargs)
+        return self._create_new_instance(new * new_units, **kwargs)
 
-    def single_function(self, operation, **kwargs):
+    def _single_function(self, operation, **kwargs):
         """
         """
 
-        return self.create_new_instance(
-            getattr(self.magnitude, operation)() * self.units, **kwargs)
+        return self._create_new_instance(
+            getattr(self.magnitude, operation)() * self.units,
+            **kwargs
+        )
 
-    def create_new_instance(self, values, **kwargs):
-        """
+    @property
+    @abstractmethod
+    def _class_new_instance(self):
+        pass
+
+    def _create_new_instance(self, values, **kwargs):
+        """create new instance given a numpy.array
         """
 
-        return self.__class__(values, **kwargs)
+        return self._class_new_instance(values, **kwargs)
 
     def __mul__(self, other):
         """
         """
 
-        return self.factor_function(other, '__mul__')
+        return self._factor_function(other, '__mul__')
 
     def __div__(self, other):
         """
         """
 
-        return self.factor_function(other, '__div__')
+        return self._factor_function(other, '__div__')
 
     def __rdiv__(self, other):
         """
         """
 
-        return self.factor_function(other, '__rdiv__')
+        return self._factor_function(other, '__rdiv__')
 
     def __truediv__(self, other):
         """
         """
 
-        return self.factor_function(other, '__truediv__')
+        return self._factor_function(other, '__truediv__')
 
     def __rtruediv__(self, other):
         """
         """
 
-        return self.factor_function(other, '__rtruediv__')
+        return self._factor_function(other, '__rtruediv__')
 
     def __floordiv__(self, other):
         """
         """
 
-        return self.factor_function(other, '__floordiv__')
+        return self._factor_function(other, '__floordiv__')
 
     def __add__(self, other):
         """
         """
 
-        return self.sum_function(other, '__add__')
+        return self._sum_function(other, '__add__')
 
     def __sub__(self, other):
         """
         """
 
-        return self.sum_function(other, '__sub__')
+        return self._sum_function(other, '__sub__')
 
     def __pow__(self, other):
         """
         """
 
-        return self.simple_function(other, '__pow__')
+        return self._simple_function(other, '__pow__')
 
     def __mod__(self, other):
         """
         """
 
-        return self.sum_function(other, '__mod__')
+        return self._sum_function(other, '__mod__')
 
     def __pos__(self):
         """
         """
 
-        return self.single_function('__pos__')
+        return self._single_function('__pos__')
 
     def __neg__(self):
         """
         """
 
-        return self.single_function('__neg__')
+        return self._single_function('__neg__')
 
     def __abs__(self):
         """
         """
 
-        return self.single_function('__abs__')
+        return self._single_function('__abs__')
 
     def __iter__(self):
         """
@@ -349,17 +374,21 @@ class AbstractDomain(AbstractSequence):
 
         return self.values.__getitem__(key)
 
-    def __getattr__(self, name):
-        """
-        """
+    def __setitem__(self, key, value):
+        value = convert_units(value, self.units)
+        self._values[key] = value
 
-        try:
-            return super().__getattr__(name)
-        except AttributeError as e:
-            if hasattr(self.values, name):
-                return getattr(self.values, name)
-            # raise exception
-            raise e
+    @property
+    def ndim(self):
+        return self.magnitude.ndim
+
+    @property
+    def shape(self):
+        return self.magnitude.shape
+
+    @property
+    def size(self):
+        return self.magnitude.size
 
     def asarray(self):
         """
@@ -373,49 +402,19 @@ class AbstractSignal(AbstractDomain):
     """Abstract class for signal class
     """
 
-    convert_attributes = ()
-
-    @staticmethod
-    def convert_values(values, units, contexts, domain=None, axis=None):
-
-        if contexts is None:
-            contexts = ()
-        elif isinstance(contexts, str):
-            contexts = (contexts, )
-
-        try:
-            return values.to(units, *contexts)
-        except TypeError:
-            if values.ndim == 1:
-                return values.to(units, *contexts, domain=domain)
-            else:
-                return values.to(
-                    units,
-                    *contexts,
-                    domain=(
-                        np.expand_dims(domain.magnitude, axis=axis)
-                        * domain.units),
-                )
-
-    def converting_values(self, units):
+    def _converting_values(self, units):
         """
         """
 
-        # any other attributes to be converted will be converted
-        for attr in self.convert_attributes:
-            if getattr(self, attr) is None:
-                continue
+        self._convert_other_attrs(units)
 
-            setattr(
-                self, '_' + attr,
-                self.convert_values(getattr(self, attr), units, self.contexts)
-            )
-
-        return self.convert_values(self.values,
-                                   units,
-                                   self.contexts,
-                                   domain=self.domain.values,
-                                   axis=self.other_axis)
+        return self._convert_values(
+            self.values,
+            units,
+            self.contexts,
+            domain=self.domain.values,
+            axis=self.other_axis
+        )
 
     @abstractmethod
     def domain_class(self):
@@ -467,31 +466,24 @@ class AbstractSignal(AbstractDomain):
         pass
 
     @property
+    @abstractmethod
     def other_axis(self):
-        """
-        """
-
-        if self.ndim == 1:
-            return None  # self.domain_axis TODO: behavior
-        else:
-            return (self.domain_axis + 1) % 2
+        pass
 
     @property
+    @abstractmethod
     def other_len(self):
-        """
-        """
-
-        if self.ndim == 1:
-            return 1
-        else:
-            return self.shape[self.other_axis]
+        pass
 
     @property
+    @abstractmethod
     def domain_len(self):
-        """
-        """
+        pass
 
-        return self.shape[self.domain_axis]
+    @property
+    @abstractmethod
+    def T(self):
+        pass
 
     @abstractmethod
     def init_args(self):
@@ -502,25 +494,15 @@ class AbstractSignal(AbstractDomain):
 
         return {arg: getattr(self, arg) for arg in self.init_args}
 
-    @property
-    def T(self):
-        """
-        """
-
-        if self.ndim == 1:
-            return self.copy()
-        else:
-            return self.create_new_instance(self.magnitude.T,
-                                            units=self.units,
-                                            domain_axis=self.other_axis)
-
-    def create_new_instance(self, values, **kwargs):
-        """
+    def _create_new_instance(self, values, **kwargs):
+        """create instance from numpy.array
         """
 
-        return self.__class__(values, **{**self.init_kwargs, **kwargs})
+        return self._class_new_instance(
+            values, **{**self.init_kwargs, **kwargs}
+        )
 
-    def instance_handler(self, other):
+    def _instance_handler(self, other):
         """
         """
 
@@ -547,7 +529,7 @@ class AbstractSignal(AbstractDomain):
 
         return self, other, labels
 
-    def broadcast(self, other, shared_axis=None):
+    def _broadcast(self, other, shared_axis=None):
         """
         """
 
@@ -590,20 +572,20 @@ class AbstractSignal(AbstractDomain):
         """equalize domains for both instances
         """
 
-        # TODO warning when cutting off non-zeros
-
         labels = self.labels
 
         if equalize_dimensions:
-            self, other, labels = self.equalize_dimensionality(other)
+            self, other, labels = self._equalize_dimensionality(other)
 
         if self.domain != other.domain:
 
-            domain = self.domain.equalize_domains(other.domain,
-                                                  interval=interval,
-                                                  start=start,
-                                                  end=end,
-                                                  **kwargs)
+            domain = self.domain.equalize_domains(
+                other.domain,
+                interval=interval,
+                start=start,
+                end=end,
+                **kwargs
+            )
 
             self = self(domain)
             other = other(domain)
@@ -613,7 +595,7 @@ class AbstractSignal(AbstractDomain):
         else:
             return self, other
 
-    def equalize_dimensionality(self, other):
+    def _equalize_dimensionality(self, other):
         """
         """
 
@@ -623,21 +605,21 @@ class AbstractSignal(AbstractDomain):
             if other.ndim == 1:
                 pass
             else:
-                self = self.expand_dims(other.other_axis)
+                self = self._expand_dims(other.other_axis)
                 labels = other.labels
 
         if other.ndim == 1:
             if self.ndim == 1:
                 pass
             else:
-                other = other.expand_dims(self.other_axis)
+                other = other._expand_dims(self.other_axis)
 
         if self.domain_axis != other.domain_axis:
             other = other.moveaxis(other.domain_axis, self.domain_axis)
 
         return self, other, labels
 
-    def expand_dims(self, axis):
+    def _expand_dims(self, axis):
         """
         """
 
@@ -647,7 +629,7 @@ class AbstractSignal(AbstractDomain):
         labels = self.labels
         if is_arraylike(labels):
             if isinstance(labels, AbstractSignal):
-                labels = labels.expand_dims(0)
+                labels = labels._expand_dims(0)
             else:
                 labels = (labels,)
 
@@ -656,72 +638,69 @@ class AbstractSignal(AbstractDomain):
         elif axis == 1:
             domain_axis = 0
         else:
-            raise ValueError('can only expand dimension for axis 0 or 1.')
+            raise DreyeError('can only expand dimension for axis 0 or 1.')
 
         values = np.expand_dims(self.magnitude, axis)
 
-        return self.create_new_instance(values,
-                                        domain_axis=domain_axis,
-                                        units=self.units,
-                                        labels=labels)
+        self = self.copy()
+        self._values = values
+        self._labels = labels
+        self._domain_axis = domain_axis
+        return self
 
+    @abstractmethod
     def moveaxis(self, source, destination):
-        """
-        """
+        pass
 
-        assert self.ndim == 2
-
-        values = np.moveaxis(self.magnitude, source, destination)
-
-        if int(source % 2) != int(destination % 2):
-            domain_axis = self.other_axis
-        else:
-            domain_axis = self.domain_axis
-
-        return self.create_new_instance(values,
-                                        domain_axis=domain_axis,
-                                        units=self.units)
-
-    def factor_function(self, other, operation):
+    def _factor_function(self, other, operation):
         """operator function for multiplications and divisions
         """
 
-        self, other, labels = self.instance_handler(other)
+        self, other, labels = self._instance_handler(other)
 
-        # try with super()
-        return AbstractDomain.factor_function(self,
-                                              other,
-                                              operation,
-                                              labels=labels)
+        return AbstractDomain._factor_function(
+            self,
+            other,
+            operation,
+            labels=labels
+        )
 
-    def sum_function(self, other, operation):
+    def _sum_function(self, other, operation):
         """operator function for additions and subtractions
         """
 
-        self, other, labels = self.instance_handler(other)
+        self, other, labels = self._instance_handler(other)
 
-        return AbstractDomain.sum_function(self,
-                                           other,
-                                           operation,
-                                           labels=labels)
+        return AbstractDomain._sum_function(
+            self,
+            other,
+            operation,
+            labels=labels)
 
-    def simple_function(self, other, operation):
+    def _simple_function(self, other, operation):
         """operator function for opeartions without unit handling.
         That is other must have unit None
         """
 
-        self, other, labels = self.instance_handler(other)
+        self, other, labels = self._instance_handler(other)
 
-        return AbstractDomain.simple_function(self,
-                                              other,
-                                              operation,
-                                              labels=labels)
+        return AbstractDomain._simple_function(
+            self,
+            other,
+            operation,
+            labels=labels
+        )
 
-    def single_function(self, operation):
+    def _single_function(self, operation):
         """
         """
 
-        return super().simple_function(operation)
+        return super()._simple_function(operation)
+
+    def _flip_axes_assignment(self):
+        """only used internally
+        """
+        self._domain_axis = self.other_axis
 
     @abstractmethod
     def concat_labels(self, labels, left=False):

@@ -16,7 +16,7 @@ from dreye.err import DreyeError
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractDomain
-from dreye.core.mixin import UnpackDomainMixin, CheckClippingValueMixin
+from dreye.core.unpack_mixin import UnpackDomainMixin
 
 
 class Domain(AbstractDomain, UnpackDomainMixin):
@@ -54,7 +54,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     [arithmetical operations]
     load
     save
-    unpack
+    _unpack
     asarray
 
     Examples
@@ -63,43 +63,41 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     Domain(start=0, end=1, interval=0.1, units=second)
     """
 
-    _required = ('start', 'end', 'interval', 'units', 'dtype', 'contexts')
-    _all = _required + ('values', )
+    @property
+    def _class_new_instance(self):
+        return Domain
 
-    def __init__(self,
-                 start=None,
-                 end=None,
-                 interval=None,
-                 units=None,
-                 values=None,
-                 dtype=DEFAULT_FLOAT_DTYPE,
-                 contexts=None,
-                 **kwargs):
+    def __init__(
+        self,
+        start=None,
+        end=None,
+        interval=None,
+        units=None,
+        values=None,
+        dtype=DEFAULT_FLOAT_DTYPE,
+        contexts=None,
+    ):
 
         if isinstance(dtype, str):
             dtype = np.dtype(dtype).type
 
-        values, kwargs = self.unpack(values=values,
-                                     start=start,
-                                     end=end,
-                                     interval=interval,
-                                     units=units,
-                                     dtype=dtype,
-                                     contexts=contexts,
-                                     **kwargs)
+        values, start, end, interval, contexts, dtype, units = self._unpack(
+            values=values,
+            start=start,
+            end=end,
+            interval=interval,
+            units=units,
+            dtype=dtype,
+            contexts=contexts,
+        )
 
         self._values = values
-        self._units = kwargs.pop('units')
-
-        for key, value in kwargs.items():
-            if key in self.convert_attributes:
-                if value is None:
-                    pass
-                elif has_units(value):
-                    value = value.to(self.units)
-                else:
-                    value = value * self.units
-            setattr(self, '_' + key, value)
+        self._units = units
+        self._start = start
+        self._end = end
+        self._contexts = contexts
+        self._interval = interval
+        self._dtype = dtype
 
     @property
     def dtype(self):
@@ -125,7 +123,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         self._dtype = value
         self._start = self._dtype(self.start)
         self._end = self._dtype(self.end)
-        self._values, self._interval = self.create_values(
+        self._values, self._interval = self._create_values(
             self.start, self.end, self.interval, self._dtype)
 
     @property
@@ -160,7 +158,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
         else:
             self._start = self.dtype(value)
-            self._values, self._interval = self.create_values(
+            self._values, self._interval = self._create_values(
                 self._start, self.end, self.interval, self.dtype)
 
     @property
@@ -194,7 +192,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
         else:
             self._end = self.dtype(value)
-            self._values, self._interval = self.create_values(
+            self._values, self._interval = self._create_values(
                 self.start, self._end, self.interval, self.dtype)
 
     @property
@@ -202,7 +200,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
         """
 
-        return self._interval  # * self.units
+        return self._interval
 
     @interval.setter
     def interval(self, value):
@@ -219,7 +217,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
         else:
 
-            self._values, self._interval = self.create_values(
+            self._values, self._interval = self._create_values(
                 self.start, self.end, value, self.dtype)
 
     @property
@@ -228,7 +226,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
 
         if self._values is None:
-            self._values, self._interval = self.create_values(
+            self._values, self._interval = self._create_values(
                 self.start, self.end, self.interval, self.dtype)
 
         return self._values * self.units
@@ -249,7 +247,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         self._start = start
         self._end = end
 
-        self._values, self._interval = self.create_values(
+        self._values, self._interval = self._create_values(
             start, end, interval,
             np.dtype(values.dtype).type)
 
@@ -315,7 +313,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
         return (
             "Domain(start={0}, end={1}, interval={2}, units={3}, dtype={4})"
-        ).format(*(self.get_standard(key) for key in self._required))
+        ).format(self.start, self.end, self.interval, self.units, self.dtype)
 
     def enforce_uniformity(self, method=np.mean, on_gradient=True, copy=True):
         """
@@ -385,7 +383,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         return domain
 
     @classmethod
-    def load(cls, filename, dtype=None):
+    def load(cls, filename, dtype=DEFAULT_FLOAT_DTYPE):
         """
         Load domain instance.
 
@@ -401,91 +399,31 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         return cls.from_dict(data, dtype)
 
     @classmethod
-    def from_dict(cls, data, dtype=None):
+    def from_dict(cls, data, dtype=DEFAULT_FLOAT_DTYPE):
         """build class from dictionary
         """
 
-        if dtype is not None:
-            data['dtype'] = dtype
+        return cls(
+            data['values'],
+            units=data['units'],
+            dtype=dtype
+        )
 
-        set_keys = set(data.keys())
-        set_required = set(cls._required)
-
-        assert not set_required - set_keys, (
-            "data in JSON does not contain all required keys:"
-            " must contain {0}, but only contains {1}").format(
-                set_required, set_keys)
-
-        return cls(**data)
-
-    def to_dict(self, json_compatible=True):
+    def to_dict(self):
         """
         Return instance as a dictionary.
-
-        Parameters
-        ----------
-        json_compatible : bool, optional
-            If True, will return dictionary that is json compatible and only
-            contains these keys: {0}. The default is False.
 
         Returns
         -------
 
         Examples
         --------
-        """.format(self._required)
-
-        if json_compatible:
-            return {key: self.get_standard(key) for key in self._required}
-
-        else:
-            return {key: getattr(self, key) for key in self._all}
-
-    def get_standard(self, name):
-        """
-        Return attribute as standard python type.
-
-        Parameters
-        ----------
-        name : str
-            name of attribute.
         """
 
-        attribute = getattr(self, name)
-        return self.to_standard(attribute)
-
-    @staticmethod
-    def to_standard(attribute):
-        """
-        Return attribute as standard python type (i.e. without units and
-        not as a ndarray).
-
-        Parameters
-        ----------
-        attribute : quantity or unit
-            Quantity or unit type to convert.
-        """
-
-        if hasattr(attribute, 'magnitude'):
-            attribute = attribute.magnitude
-
-        if isinstance(attribute, np.ndarray):
-            return attribute.tolist()
-        elif attribute is None:
-            return attribute
-        elif isinstance(attribute, (Number, list, tuple, dict)):
-            return attribute
-        elif isinstance(attribute, type):
-            return attribute.__name__
-        else:
-            return str(attribute)
-
-    def to_tuple(self):
-        """
-        Return {0} as a tuple and standard pythonic types.
-        """.format(self._required)
-
-        return (self.get_standard(key) for key in self._required)
+        return {
+            'values': self.magnitude.tolist(),
+            'units': str(self.units)
+        }
 
     def save(self, filename):
         """
@@ -497,7 +435,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
             location of JSON file.
         """
 
-        data = self.to_dict(True)
+        data = self.to_dict()
 
         write_json(filename, data)
 
@@ -506,7 +444,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
 
         if isinstance(domain, AbstractDomain):
-            domain = domain.convert_to(self.units)
+            domain = domain.to(self.units)
             domain = asarray(domain)
         elif is_arraylike(domain):
             domain = asarray(domain)
@@ -561,49 +499,3 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
 
         return np.gradient(self.magnitude) * self.units
-
-
-class ClippedDomain(Domain, CheckClippingValueMixin):
-    """
-    """
-
-    _required = Domain._required + (
-        'domain_min', 'domain_max')
-    convert_attributes = Domain.convert_attributes + (
-        'domain_min', 'domain_max')
-
-    def __init__(self,
-                 start=None,
-                 end=None,
-                 interval=None,
-                 units=None,
-                 values=None,
-                 dtype=DEFAULT_FLOAT_DTYPE,
-                 contexts=None,
-                 domain_min=None,
-                 domain_max=None):
-
-        super().__init__(
-            start=start,
-            end=end,
-            interval=interval,
-            units=units,
-            values=values,
-            dtype=dtype,
-            contexts=contexts,
-            domain_min=domain_min,
-            domain_max=domain_max
-        )
-
-        self._check_clip_value(self.domain_min)
-        self._check_clip_value(self.domain_max)
-
-    @property
-    def domain_min(self):
-
-        return self._domain_min
-
-    @property
-    def domain_max(self):
-
-        return self._domain_max

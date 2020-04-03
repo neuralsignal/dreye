@@ -83,6 +83,16 @@ def convert_units(value, units, optional=True):
     return value
 
 
+def _convert_get_val_opt(value, units=None):
+
+    if has_units(value) and units is not None:
+        return value.to(units).magnitude
+    elif has_units(value):
+        return value.magnitude
+    else:
+        return value
+
+
 def get_units(value):
     """
     """
@@ -97,13 +107,16 @@ def dissect_units(value):
     """
     """
 
-    # TODO check if UREG.Quantity is necessary
     if isinstance(value, UREG.Quantity):
         return value.magnitude, value.units
     elif has_units(value):
         return value.magnitude, value.units
     else:
         return value, None
+
+
+def get_values(value):
+    return dissect_units(value)[0]
 
 
 def is_numeric(value):

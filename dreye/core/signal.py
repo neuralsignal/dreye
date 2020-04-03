@@ -12,23 +12,24 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
-from pint import DimensionalityError
 import cloudpickle
 import pickle
 
 from dreye.utilities import (
-    dissect_units, is_numeric, has_units, is_arraylike, convert_units,
-    asarray, array_equal
+    is_numeric, has_units, is_arraylike, convert_units,
+    asarray, array_equal, is_listlike, get_values
 )
+from dreye.err import DreyeError
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractDomain, AbstractSignal
-from dreye.core.mixin import UnpackSignalMixin, CheckClippingValueMixin
+from dreye.core.unpack_mixin import UnpackSignalMixin
 from dreye.core.domain import Domain
 from dreye.algebra.filtering import Filter1D
+from dreye.core.plotting import SignalPlottingMixin
 
 
-class Signal(AbstractSignal, UnpackSignalMixin):
+class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
     """
     Defines the base class for continuous signals (unit-aware).
 
@@ -66,14 +67,23 @@ class Signal(AbstractSignal, UnpackSignalMixin):
     to_dict
     load
     save
-    unpack
+    _unpack
     plot
     dot # only along domain axis
     """
 
-    init_args = ('domain', 'interpolator', 'interpolator_kwargs', 'dtype',
-                 'domain_axis', 'labels', 'contexts')
+    init_args = (
+        'domain', 'interpolator', 'interpolator_kwargs', 'dtype',
+        'domain_axis', 'labels', 'contexts', 'attrs',
+        'domain_min', 'domain_max', 'signal_min', 'signal_max',
+        'name'
+    )
     domain_class = Domain
+    convert_attributes = ('signal_min', 'signal_max')
+
+    @property
+    def _class_new_instance(self):
+        return Signal
 
     def __init__(
         self,
@@ -84,18 +94,20 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         domain_units=None,
         labels=None,
         dtype=DEFAULT_FLOAT_DTYPE,
-        domain_dtype=None,
+        domain_dtype=DEFAULT_FLOAT_DTYPE,
         interpolator=None,
         interpolator_kwargs=None,
         contexts=None,
         domain_kwargs=None,
-        **kwargs
+        domain_min=None,
+        domain_max=None,
+        signal_min=None,
+        signal_max=None,
+        attrs=None,
+        name=None
     ):
 
-        if isinstance(dtype, str):
-            dtype = np.dtype(dtype).type
-
-        values, units, kwargs = self.unpack(
+        values, dtype, container = self._unpack(
             values,
             units=units,
             domain_units=domain_units,
@@ -108,23 +120,52 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             interpolator_kwargs=interpolator_kwargs,
             contexts=contexts,
             domain_kwargs=domain_kwargs,
-            **kwargs
+            attrs=attrs,
+            domain_min=domain_min,
+            domain_max=domain_max,
+            signal_min=signal_min,
+            signal_max=signal_max,
+            name=name
         )
-
+        self._dtype = dtype
         self._values = values
-        self._units = units
+        self._units = container['units']
 
-        for key, value in kwargs.items():
-            if key in self.convert_attributes:
-                if value is None:
-                    pass
-                elif has_units(value):
-                    value = value.to(self.units)
-                else:
-                    value = value * self.units
-            setattr(self, '_' + key, value)
+        for key, value in container.items():
+            if key in self.init_args:
+                setattr(self, '_' + key, value)
 
+        # set interpolate to None
         self._interpolate = None
+        # check signal min and max values
+        self._check_clip_value(self._signal_min)
+        self._check_clip_value(self._signal_max)
+
+    @property
+    def domain_min(self):
+        return self._domain_min
+
+    @property
+    def domain_max(self):
+        return self._domain_max
+
+    @property
+    def signal_min(self):
+        return self._signal_min
+
+    @property
+    def signal_max(self):
+        return self._signal_max
+
+    @property
+    def attrs(self):
+        if self._attrs is None:
+            self._attrs = {}
+        return self._attrs
+
+    @property
+    def name(self):
+        return self._name
 
     def to_dict(self, add_pickled_class=True):
         dictionary = {
@@ -182,7 +223,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
         self._dtype = value
         self.domain.dtype = value
-        self.values = value(self.values)
+        self._values = value(self._values)
 
     @property
     def domain(self):
@@ -190,14 +231,6 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         """
 
         return self._domain
-
-    @domain.setter
-    def domain(self, value):
-        """
-        """
-
-        # same as interpolating
-        self(value)
 
     @property
     def values(self):
@@ -208,21 +241,12 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
     @values.setter
     def values(self, value):
-        """
-        """
-
-        values, units = dissect_units(value)
-        values = asarray(values)
-
-        if units is not None and units != self.units:
-            raise DimensionalityError(units, self.units)
-
-        values, labels = self.check_values(values, self.domain,
-                                           self.domain_axis, self.labels)
-
-        self._values = values
-        self._labels = labels
-        self._interpolate = None
+        if has_units(value):
+            value = value.to(self.units)
+        value = asarray(value)
+        if not value.shape == self.shape:
+            raise DreyeError('Array for values assignment must be same shape.')
+        self._values = value
 
     @property
     def boundaries(self):
@@ -284,11 +308,33 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
         if self._interpolate is None:
 
-            self._interpolate = self.interpolator(self.domain.asarray(),
-                                                  self.magnitude,
-                                                  **self.interpolator_kwargs)
+            interp = self.interpolator(
+                self.domain.magnitude,
+                self.magnitude,
+                **self.interpolator_kwargs
+            )
+
+            def clip_wrapper(*args, **kwargs):
+                return self._clip_values(
+                    interp(*args, **kwargs),
+                    get_values(self.signal_min),
+                    get_values(self.signal_max)
+                )
+
+            self._interpolate = clip_wrapper
 
         return self._interpolate
+
+    @staticmethod
+    def _clip_values(values, a_min, a_max):
+        if a_min is None and a_max is None:
+            return values
+        else:
+            return np.clip(
+                values,
+                a_min=a_min,
+                a_max=a_max
+            )
 
     @property
     def labels(self):
@@ -304,34 +350,97 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
         return self._domain_axis
 
+    @property
+    def other_axis(self):
+        """
+        """
+
+        if self.ndim == 1:
+            return None  # self.domain_axis TODO: behavior
+        else:
+            return (self.domain_axis + 1) % 2
+
+    @property
+    def other_len(self):
+        """
+        """
+
+        if self.ndim == 1:
+            return 1
+        else:
+            return self.shape[self.other_axis]
+
+    @property
+    def domain_len(self):
+        """
+        """
+
+        return self.shape[self.domain_axis]
+
+    @property
+    def T(self):
+        """
+        """
+
+        if self.ndim == 1:
+            return self.copy()
+        else:
+            self = self.copy()
+            self._values = self.magnitude.T
+            self._flip_axes_assignment()
+            return self
+
+    def moveaxis(self, source, destination):
+        """
+        """
+
+        assert self.ndim == 2
+
+        values = np.moveaxis(self.magnitude, source, destination)
+        self = self.copy()
+        self._values = values
+
+        if int(source % 2) != int(destination % 2):
+            self._flip_axes_assignment()
+
+        return self
+
     def __call__(self, domain):
         """
         """
 
-        # TODO more automated way of keeping track of units?
-
         domain_units = self.domain.units
 
         if isinstance(domain, AbstractDomain):
-            if self.domain == domain.convert_to(self.domain.units):
-                self = self.copy()
-                self.domain.units = domain.units
-                return self
-
             domain_units = domain.units
-            domain = self.domain.convert_units(domain)
-            # OR domain = domain.convert_to(self.domain.units)
+            domain = domain.to(self.domain.units)
         else:
             domain = convert_units(domain, domain_units, True)
 
+        # check domain min and max (must be bigger than this range)
+        if self.domain_min is not None:
+            domain_min = self.domain_min.to(domain_units).magnitude
+            if np.min(asarray(domain)) > domain_min:
+                raise DreyeError(
+                    'Interpolation domain above domain minimum.'
+                )
+        if self.domain_max is not None:
+            domain_max = self.domain_max.to(domain_units).magnitude
+            if np.max(asarray(domain)) < domain_max:
+                raise DreyeError(
+                    'Interpolation domain below domain maximum.'
+                )
+
         values = self.interpolate(asarray(domain))
 
-        return self.create_new_instance(
-            values,
-            domain=domain,
-            domain_units=domain_units,
-            units=self.units,
-        )
+        # for single value simply return quantity instance
+        if (values.ndim < self.ndim) or values.shape[self.domain_axis] == 1:
+            return values * self.units
+        else:
+            self = self.copy()
+            self._values = values
+            self._domain = self.domain_class(domain, units=domain_units)
+            return self
 
     @property
     def integral(self):
@@ -349,7 +458,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         """
         """
 
-        return self / self.broadcast(self.integral, self.other_axis)
+        return self / self._broadcast(self.integral, self.other_axis)
 
     @property
     def piecewise_integral(self):
@@ -362,7 +471,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             values = (asarray(self) * np.expand_dims(
                 asarray(self.domain.gradient), self.other_axis))
 
-        return self.create_new_instance(
+        return self._create_new_instance(
             values, units=self.units * self.domain.units)
 
     @property
@@ -376,7 +485,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             values = (asarray(self) / np.expand_dims(
                 asarray(self.domain.gradient), self.other_axis))
 
-        return self.create_new_instance(
+        return self._create_new_instance(
             values, units=self.units / self.domain.units)
 
     @property
@@ -384,7 +493,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         """
         """
 
-        return self.create_new_instance(
+        return self._create_new_instance(
             np.gradient(self.magnitude,
                         self.domain.magnitude,
                         axis=self.domain_axis),
@@ -392,7 +501,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         )
 
     @property
-    def nanless(self):
+    def nanless(self, copy=True):
         """
         """
 
@@ -425,10 +534,11 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
             values = np.moveaxis(values, 0, self.other_axis)
 
-        return self.create_new_instance(
-            values,
-            units=self.units,
-        )
+        if copy:
+            self = self.copy()
+
+        self._values = values
+        return self
 
     def enforce_uniformity(self, method=np.mean, on_gradient=True):
         """enforce uniform domain (interpolate)
@@ -441,12 +551,11 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         return self(domain)
 
     def window_filter(
-        self, domain_interval, method, extrapolate=False, **method_args
+        self, domain_interval,
+        method='savgol', extrapolate=False, copy=True, **method_args
     ):
         """Filter Signal instance using filter1d
         """
-
-        # TODO implement savgol filter
 
         assert self.domain.is_uniform, (
             "signal domain must be uniform for filtering"
@@ -463,12 +572,14 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
         if method == 'savgol':
 
+            method_args['polyorder'] = method_args.get('polyorder', 2)
+            method_args['axis'] = method_args.get('axis', self.domain_axis)
+
             M = M + ((M+1) % 2)
 
             values = savgol_filter(self.magnitude, M, **method_args)
 
         elif extrapolate:
-            # TODO smooth interpolation? - small savgol?
             # create filter instance
             filter1d = Filter1D(method, M, **method_args)
 
@@ -496,7 +607,11 @@ class Signal(AbstractSignal, UnpackSignalMixin):
                 mode='same'
             )
 
-        return self.create_new_instance(values, units=self.units)
+        if copy:
+            self = self.copy()
+
+        self._values = values
+        return self
 
     def dot(self, other, pandas=False, units=True):
         """Return dot product of two signal instances.
@@ -516,7 +631,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
         dot_array = np.dot(self_values, other_values)
 
-        if units:
+        if units and not pandas:
             dot_array = dot_array * new_units
 
         if pandas:
@@ -564,23 +679,29 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             return 1
 
         # covariance is two dimensional
-        # TODO check if it keeps up with the units
+        if units:
+            units = cov.units
+        else:
+            units = 1
+        cov = cov.magnitude
         var = np.diag(cov)
         corr = cov / np.sqrt(var * var)
-        return corr
+        return corr * units
 
-    def numpy_estimator(self,
-                        func,
-                        axis=None,
-                        weight=None,
-                        keepdims=False,
-                        **kwargs):
+    def numpy_estimator(
+        self,
+        func,
+        axis=None,
+        weight=None,
+        keepdims=False,
+        **kwargs
+    ):
         """General method for using mean, sum, etc.
         """
 
         if weight is not None:
-            # TODO broadcasting and label handling
-            self, weight, labels = self.instance_handler(weight)
+            # TODO _broadcasting and label handling
+            self, weight, labels = self._instance_handler(weight)
 
             self = self * weight
 
@@ -588,14 +709,16 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
         if (axis == self.other_axis) and (self.ndim == 2):
             if keepdims:
-                return self.create_new_instance(values,
-                                                units=self.units,
-                                                labels=None)
+                return self._create_new_instance(
+                    values,
+                    units=self.units,
+                    labels=None)
             else:
-                return self.create_new_instance(values,
-                                                units=self.units,
-                                                labels=None,
-                                                domain_axis=0)
+                return self._create_new_instance(
+                    values,
+                    units=self.units,
+                    labels=None,
+                    domain_axis=0)
         else:
             return values * self.units
 
@@ -635,23 +758,42 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
         return self.numpy_estimator(np.nanstd, *args, **kwargs)
 
+    def min(self, *args, **kwargs):
+        """
+        """
+
+        return self.numpy_estimator(np.min, *args, **kwargs)
+
+    def nanmin(self, *args, **kwargs):
+        """
+        """
+
+        return self.numpy_estimator(np.nanmin, *args, **kwargs)
+
+    def max(self, *args, **kwargs):
+        """
+        """
+
+        return self.numpy_estimator(np.max, *args, **kwargs)
+
+    def nanmax(self, *args, **kwargs):
+        """
+        """
+
+        return self.numpy_estimator(np.nanmax, *args, **kwargs)
+
     def domain_concat(self, signal, left=False, copy=True):
         """appends along domain axis
         """
 
-        # needs to do domain checking or first append domain
-        # dealing with interpolator?
-        if not copy:
-            raise NotImplementedError('inplace concatenation')
-
         domain = self.domain
-        self_values = asarray(self)  # self.magnitude?
+        self_values = self.magnitude
 
         if isinstance(signal, AbstractSignal):
             # checks dimensionality, appends domain, converts units
             assert self.ndim == signal.ndim
 
-            domain = domain.append(signal.domain, left=left, copy=copy)
+            domain = domain.append(signal.domain, left=left)
 
             if self.domain_axis != signal.domain_axis:
                 signal = signal.T
@@ -659,7 +801,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             assert self.other_len == signal.other_len
             # check labels, handling of different labels?
 
-            other_values = asarray(signal.convert_to(self.units))
+            other_values = asarray(signal.to(self.units))
 
         elif is_arraylike(signal):
             # handles units, checks other shape, extends domain
@@ -670,7 +812,7 @@ class Signal(AbstractSignal, UnpackSignalMixin):
 
             domain = domain.extend(
                 other_values.shape[self.domain_axis],
-                left=left, copy=copy
+                left=left
             )
 
         else:
@@ -691,10 +833,12 @@ class Signal(AbstractSignal, UnpackSignalMixin):
                 axis=self.domain_axis
             )
 
-        return self.create_new_instance(
-            values, units=self.units,
-            domain=domain
-        )
+        if copy:
+            self = self.copy()
+
+        self._values = values
+        self._domain = domain
+        return self
 
     def concat_labels(self, labels, left=False):
         """
@@ -711,31 +855,33 @@ class Signal(AbstractSignal, UnpackSignalMixin):
         """
         """
 
-        if not copy:
-            raise NotImplementedError('inplace concatenation')
-
         if self.ndim == 1:
-            self = self.expand_dims(1)
-
-        self_values = asarray(self)
+            self = self._expand_dims(1)
 
         if isinstance(signal, AbstractSignal):
             # equalizing domains
             self, signal = self.equalize_domains(signal)
+            self_values = self.magnitude
             # check units
-            other_values = asarray(signal.convert_to(self.units))
+            other_values = asarray(signal.to(self.units))
             # handle labels
             labels = self.concat_labels(signal.labels, left)
 
         elif is_arraylike(signal):
+            # self numpy array
+            self_values = self.magnitude
             # check if it has units
             other_values = asarray(convert_units(signal, self.units))
             # handle labels
-            assert labels is not None, "must provide labels"
+            if labels is None:
+                labels = [
+                    str(i)
+                    for i in range(other_values.shape[self.other_axis])
+                ]
             labels = self.concat_labels(labels, left)
 
         else:
-            raise TypeError(
+            raise DreyeError(
                 f"other axis contenation with type: {type(signal)}")
 
         if left:
@@ -752,10 +898,12 @@ class Signal(AbstractSignal, UnpackSignalMixin):
                 axis=self.other_axis
             )
 
-        return self.create_new_instance(
-            values, units=self.units,
-            labels=labels
-        )
+        if copy:
+            self = self.copy()
+
+        self._values = values
+        self._labels = labels
+        return self
 
     def concat(self, signal, *args, **kwargs):
         """concatenates two signals
@@ -780,109 +928,14 @@ class Signal(AbstractSignal, UnpackSignalMixin):
             and array_equal(asarray(self), asarray(other))
         )
 
-
-class ClippedSignal(Signal, CheckClippingValueMixin):
-    """Same as signal, but signal will be clipped when interpolating.
-    For example, for a spectral distribution the values can never be above
-    or below zero.
-    """
-
-    init_args = Signal.init_args + ('signal_min', 'signal_max')
-    convert_attributes = ('signal_min', 'signal_max')
-
-    def __init__(
-        self,
-        values,
-        domain=None,
-        domain_axis=None,
-        units=None,
-        domain_units=None,
-        labels=None,
-        dtype=DEFAULT_FLOAT_DTYPE,
-        domain_dtype=None,
-        interpolator=None,
-        interpolator_kwargs=None,
-        contexts=None,
-        signal_min=None,
-        signal_max=None,
-        **kwargs
-    ):
-
-        super().__init__(
-            values=values,
-            domain=domain,
-            domain_axis=domain_axis,
-            units=units,
-            domain_units=domain_units,
-            labels=labels,
-            dtype=dtype,
-            domain_dtype=domain_dtype,
-            interpolator=interpolator,
-            interpolator_kwargs=interpolator_kwargs,
-            contexts=contexts,
-            signal_min=signal_min,
-            signal_max=signal_max,
-            **kwargs
-        )
-
-        if self.signal_min is None and self.signal_max is None:
-            self._signal_min = 0 * self.units
-
-        self._check_clip_value(self.signal_min)
-        self._check_clip_value(self.signal_max)
-
-    @property
-    def signal_min(self):
+    def _check_clip_value(self, value):
         """
         """
 
-        return self._signal_min
-
-    @property
-    def signal_max(self):
-        """
-        """
-
-        return self._signal_max
-
-    @signal_min.setter
-    def signal_min(self, value):
-        """
-        """
-
-        if value is None:
-            pass
-        else:
-            value = convert_units(value, self.units)
-            if has_units(value):
-                self._signal_min = value
+        if is_listlike(value):
+            if self.ndim == 2:
+                assert len(value) == self.other_len
             else:
-                self._signal_min = value * self.units
-
-    @signal_max.setter
-    def signal_max(self, value):
-        """
-        """
-
-        if value is None:
-            pass
-        else:
-            value = convert_units(value, self.units)
-            if has_units(value):
-                self._signal_max = value
-            else:
-                self._signal_max = value * self.units
-
-    @property
-    def interpolate(self):
-        """
-        """
-
-        interp = super().interpolate
-
-        def clip_wrapper(*args, **kwargs):
-            return np.clip(interp(*args, **kwargs),
-                           a_min=dissect_units(self.signal_min)[0],
-                           a_max=dissect_units(self.signal_max)[0])
-
-        return clip_wrapper
+                if len(value) != self.other_len:
+                    raise ValueError('signal is one-dimensional '
+                                     'but clipping is list-like.')

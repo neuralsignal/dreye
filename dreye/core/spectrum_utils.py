@@ -53,7 +53,7 @@ def create_gaussian_spectrum(
             'must provide background if filter or add_background is True.'
         )
     elif isinstance(background, Spectrum):
-        background = background.convert_to(units)(wavelengths)
+        background = background.to(units)(wavelengths)
 
     wavelengths = asarray(wavelengths)
     centers = asarray(centers)

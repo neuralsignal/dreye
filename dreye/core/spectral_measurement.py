@@ -4,16 +4,19 @@
 # third party modules
 import numpy as np
 from scipy.optimize import lsq_linear
+from scipy.interpolate import interp1d
+from sklearn.isotonic import IsotonicRegression
 
 # dreye modules
-from dreye.utilities import has_units, dissect_units, is_numeric, asarray
+from dreye.utilities import (
+    has_units, is_numeric, asarray,
+    _convert_get_val_opt
+)
 from dreye.constants import UREG
-from dreye.core.spectrum import \
-    AbstractSpectrum, Spectrum
-from dreye.core.signal import ClippedSignal, Signal
+from dreye.core.spectrum import AbstractSpectrum, Spectrum
+from dreye.core.signal import Signal
 from dreye.core.domain import Domain
-from dreye.core.mixin import IrradianceMixin, MappingMixin
-from dreye.err import DreyeUnitError, DreyeError
+from dreye.err import DreyeError
 
 
 class CalibrationSpectrum(AbstractSpectrum):
@@ -21,73 +24,51 @@ class CalibrationSpectrum(AbstractSpectrum):
     Units must be convertible to microjoule
     """
 
-    init_args = AbstractSpectrum.init_args + ('area',)
-
     def __init__(
         self,
         values,
         domain=None,
-        area=None,
         units='microjoule',
         labels=None,
-        interpolator=None,
-        interpolator_kwargs=None,
+        area=None,
         area_units='cm ** 2',
         **kwargs
     ):
 
-        # TODO unit checking
-        if area is None:
-            assert isinstance(values, CalibrationSpectrum)
-            area = values.area
-        else:
-            assert is_numeric(area)
+        if area is None and not isinstance(values, CalibrationSpectrum):
+            raise DreyeError(
+                'Must provide Area for calibration spectrum.'
+            )
 
-        if not has_units(area):
-            area = area * UREG(area_units)
-        else:
+        super().__init__(
+            values=values,
+            domain=domain,
+            units=units,
+            labels=labels,
+            **kwargs
+        )
+
+        # set area key in attribute
+        area = self.attrs.get('area', area)
+        if not is_numeric(area):
+            raise DreyeError('area must be a numeric value.')
+        elif has_units(area):
             area = area.to(area_units)
-
-        super().__init__(values=values,
-                         domain=domain,
-                         units=units,
-                         labels=labels,
-                         interpolator=interpolator,
-                         interpolator_kwargs=interpolator_kwargs,
-                         area=area,
-                         **kwargs)
-
-        assert self.ndim == 1, \
-            "calibration spectrum must always be one dimensional"
-
-    def create_new_instance(self, values, **kwargs):
-        """Any operation returns Signal instance and not Spectrum instance
-        """
-
-        if values.ndim == 2:
-
-            kwargs.pop('area', None)
-            init_kwargs = self.init_kwargs
-            init_kwargs.pop('area', None)
-
-            try:
-                return AbstractSpectrum(values, **{**init_kwargs, **kwargs})
-            except DreyeUnitError:
-                return Signal(values, **{**init_kwargs, **kwargs})
         else:
-            try:
-                return CalibrationSpectrum(
-                    values, **{**self.init_kwargs, **kwargs}
-                )
-            except DreyeUnitError:
-                return Signal(values, **{**self.init_kwargs, **kwargs})
+            area = area * UREG(area_units)
+        self.attrs['area'] = area
+
+        if self.ndim != 1:
+            raise DreyeError(
+                "Calibration spectrum must always be one dimensional"
+            )
 
     @property
     def area(self):
         """
         """
 
-        return self._area
+        return self.attrs['area']
 
 
 class MeasuredSpectrum(Spectrum):
@@ -105,56 +86,81 @@ class MeasuredSpectrum(Spectrum):
     values : 2D
     """
 
-    # TODO concat_labels method
-
     def __init__(
-        self,
-        values,
-        domain=None,
-        labels=None,
-        units=None,
-        domain_axis=None,
-        interpolator=None,
-        interpolator_kwargs=None,
+        self, *args,
+        zero_boundary=None,
+        max_boundary=None,
+        zero_is_lower=None,
+        label_units=None,
         **kwargs
     ):
-        # checks that labels is a domain
-        if hasattr(values, 'labels') and labels is None:
-            labels = values.labels
 
-        assert isinstance(labels, Domain)
+        super().__init__(*args, **kwargs)
 
-        super().__init__(values=values,
-                         domain=domain,
-                         units=units,
-                         labels=labels,
-                         domain_axis=domain_axis,
-                         interpolator=interpolator,
-                         interpolator_kwargs=interpolator_kwargs,
-                         **kwargs)
-
-        assert self.ndim == 2
-
-    def create_new_instance(self, values, **kwargs):
-        """Any operation returns Signal instance and not Spectrum instance
-        """
-        try:
-            return MeasuredSpectrum(
-                values, **{**self.init_kwargs, **kwargs}
-            )
-        except Exception:
+        if not self.ndim == 2:
+            raise DreyeError('MeasuredSpectrum must be two-dimensional.')
+        if not isinstance(self.labels, Domain):
             try:
-                return Spectrum(values, **{**self.init_kwargs, **kwargs})
-            except DreyeUnitError:
-                return Signal(values, **{**self.init_kwargs, **kwargs})
+                self._labels = Domain(self.labels, units=label_units)
+            except Exception:
+                raise DreyeError(
+                    'Labels must be domain or be able'
+                    ' to be made into domain.'
+                )
+        elif label_units is not None:
+            self._labels = self.labels.to(label_units)
+
+        if self.name is None:
+            raise DreyeError(
+                'name variable must be provided for the MeasuredSpectrum class'
+            )
+
+        if zero_boundary is not None:
+            self.attrs['zero_boundary'] = zero_boundary
+        if max_boundary is not None:
+            self.attrs['max_boundary'] = max_boundary
+        if zero_is_lower is not None:
+            self.attrs['zero_is_lower'] = zero_is_lower
+
+        # convert to correct units, but only return value
+        self.attrs['zero_boundary'] = _convert_get_val_opt(
+            self.attrs['zero_boundary'], self.labels.units
+        )
+        self.attrs['max_boundary'] = _convert_get_val_opt(
+            self.attrs['max_boundary'], self.labels.units
+        )
+
+        if (
+            self.attrs['zero_is_lower'] is None
+            and (
+                self.attrs['max_boundary'] is None
+                or self.attrs['zero_boundary'] is None
+            )
+        ):
+            raise DreyeError(
+                "Must provide zero_is_lower or max and zero boundary."
+            )
+
+        if self.attrs['zero_is_lower'] is None:
+            self.attrs['zero_is_lower'] = (
+                self.zero_boundary < self.max_boundary
+            )
 
     @property
-    def smooth(self):
-        """
-        """
+    def boundary_units(self):
+        return self.labels.units
 
-        signal = super().smooth
-        return self.__class__(signal)
+    @property
+    def zero_is_lower(self):
+        return self.attrs['zero_is_lower']
+
+    @property
+    def zero_boundary(self):
+        return self.attrs['zero_boundary']
+
+    @property
+    def max_boundary(self):
+        return self.attrs['max_boundary']
 
     @property
     def inputs(self):
@@ -163,471 +169,321 @@ class MeasuredSpectrum(Spectrum):
 
         return self._labels
 
-    def to_spectrum_measurement(self, name, units='uE', **kwargs):
-        """
-        """
 
-        self = getattr(self, units)
-
-        spm = SpectrumMeasurement(
-            values=self.integral,
-            domain=self.inputs,
-            labels=self.mean(axis=self.other_axis),
-            label_names=name,
-            **kwargs
-        )
-
-        return getattr(spm, units)
-
-
-class MeasuredNormalizedSpectrum(AbstractSpectrum):
-    init_args = AbstractSpectrum.init_args + (
-        'zero_boundary', 'max_boundary', 'zero_is_lower',
-        'boundary_units'
-    )
-
-    def __init__(
-        self,
-        values,
-        domain=None,
-        labels=None,
-        zero_boundary=None,
-        max_boundary=None,
-        zero_is_lower=None,
-        boundary_units=None,
-        units=None,
-        **kwargs
-    ):
-
-        super().__init__(
-            values=values,
-            domain=domain,
-            labels=labels,
-            zero_boundary=zero_boundary,
-            max_boundary=max_boundary,
-            zero_is_lower=zero_is_lower,
-            units=units,
-            boundary_units=boundary_units,
-            **kwargs
-        )
-
-        integral = asarray(self.integral)
-        if integral.shape == () or integral.shape == (0, ):
-            pass
-        else:
-            integral = np.expand_dims(integral, axis=self.domain_axis)
-
-        if (
-            self._zero_is_lower is None
-            and (self._max_boundary is None or self._zero_boundary is None)
-        ):
-            raise DreyeError(
-                "Must provide zero_is_lower or max and zero boundary."
-            )
-
-        self._values = (
-            self.magnitude
-            / integral
-        )
-        self._units = 1 / self.domain.units
-
-    @property
-    def boundary_units(self):
-        return self._boundary_units
-
-    @boundary_units.setter
-    def boundary_units(self, value):
-        if value is None:
-            return
-        if has_units(value):
-            self._boundary_units = value.units
-        else:
-            self._boundary_units = UREG(str(value)).units
-
-    @property
-    def zero_is_lower(self):
-        """
-        """
-
-        if self._zero_is_lower is None:
-            truth = asarray([True]*self.other_len)
-            notnan = ~(
-                np.isnan(self.zero_boundary) | np.isnan(self.max_boundary)
-            )
-            truth[notnan] = (self.zero_boundary < self.max_boundary)[notnan]
-            return truth
-        elif self._zero_is_lower is True:
-            return asarray([True]*self.other_len)
-        elif self._zero_is_lower is False:
-            return asarray([False]*self.other_len)
-        else:
-            zero_is_lower = asarray(self._zero_is_lower)
-            assert self.other_len == zero_is_lower.size
-            return zero_is_lower
-
-    @zero_is_lower.setter
-    def zero_is_lower(self, value):
-        raise NotImplementedError('zero is lower setter')
-
-    @property
-    def zero_boundary(self):
-        if self._zero_boundary is None:
-            return np.nan * np.ones(self.other_len)
-        else:
-            zero_boundary = self._zero_boundary
-            if has_units(zero_boundary):
-                if self.boundary_units is None:
-                    self._boundary_units = zero_boundary.units
-                zero_boundary = dissect_units(
-                    zero_boundary.to(self.boundary_units)
-                )[0]
-            if not isinstance(zero_boundary, np.ndarray):
-                zero_boundary = asarray(zero_boundary)
-            if zero_boundary.shape in ((), (0, )):
-                zero_boundary = asarray([zero_boundary])
-            assert self.other_len == zero_boundary.size
-            return zero_boundary
-
-    @zero_boundary.setter
-    def zero_boundary(self, value):
-        raise NotImplementedError('zero boundary setter')
-
-    @property
-    def max_boundary(self):
-        if self._max_boundary is None:
-            return np.nan * np.ones(self.other_len)
-        else:
-            max_boundary = self._max_boundary
-            if has_units(max_boundary):
-                if self.boundary_units is None:
-                    self._boundary_units = max_boundary.units
-                max_boundary = dissect_units(
-                    max_boundary.to(self.boundary_units)
-                )[0]
-            if not isinstance(max_boundary, np.ndarray):
-                max_boundary = asarray(max_boundary)
-            if max_boundary.shape in ((), (0, )):
-                max_boundary = asarray([max_boundary])
-            assert self.other_len == max_boundary.size
-            return max_boundary
-
-    @max_boundary.setter
-    def max_boundary(self, value):
-        raise NotImplementedError('max boundary setter')
-
-    def other_concat(self, signal, *args, left=False, **kwargs):
-        assert isinstance(signal, MeasuredNormalizedSpectrum)
-        assert signal.boundary_units == self.boundary_units
-        new_signal = super().other_concat(
-            signal, *args, left=left, **kwargs
-        )
-
-        # handle signals
-        if left:
-            signal1 = signal
-            signal2 = self
-        else:
-            signal1 = self
-            signal2 = signal
-        new_signal._zero_boundary = np.concatenate([
-            signal1.zero_boundary, signal2.zero_boundary
-        ])
-        new_signal._max_boundary = np.concatenate([
-            signal1.max_boundary, signal2.max_boundary
-        ])
-        new_signal._zero_is_lower = np.concatenate([
-            signal1.zero_is_lower, signal2.zero_is_lower
-        ])
-
-        return new_signal
-
-
-class SpectrumMeasurement(ClippedSignal, IrradianceMixin, MappingMixin):
-    """
-    Subclass of Signal that also stores a spectrum associated to a
-    spectrum measurement. Can also store multiple measured spectra.
-    Assumes spectrum does not change with intensity.
-
-    Methods
-    -------
-    fit # fitting spectrum with a set of spectra
-    conversion to photonflux
-
-    Parameters
-    ----------
-    values : 1D or 2D
-    spectrum : 1D or 2D
-    wavelengths : 1D
+class MeasuredSpectraContainer:
+    """Container for measured spectra
     """
 
-    # TODO implement concat labels method
-    # TODO change working
+    def __init__(self, measured_spectra, units='uE'):
+        self._measured_spectra = measured_spectra
+        self._check_list()
+        self._init_attrs()
+        self._measured_spectra = [
+            getattr(ele, units)
+            if str(units) != str(ele.units)
+            else ele
+            for ele in self
+        ]
+        self._units = UREG(str(units)).units
 
-    init_args = ClippedSignal.init_args + (
-        'mapping_method',
-    )
-    irradiance_integrated = True
+    @property
+    def units(self):
+        return self._units
 
-    def __init__(
-        self,
-        values,
-        domain=None,
-        labels=None,
-        label_names=None,
-        mapping_method=None,
-        zero_boundary=None,
-        max_boundary=None,
-        zero_is_lower=None,
-        units=None,
-        **kwargs
-    ):
+    def _init_attrs(self):
+        self._zero_is_lower = None
+        self._zero_boundary = None
+        self._max_boundary = None
+        self._intensities_list = None
+        self._intensities = None
+        self._normalized_spectrum_list = None
+        self._normalized_spectrum = None
+        self._mapper = None
+
+    def map(self, values, pre_kwargs={}, post_kwargs={}):
         """
+
+        Parameters
+        ----------
+        values : array-like
+            samples x channels in intensity units set.
         """
 
-        units = self.get_units(values, units)
+        values = asarray(values)
+        values = self.pre_mapping(values, **pre_kwargs)
+        assert values.ndim < 3
 
-        if labels is None:
-            assert isinstance(values, SpectrumMeasurement)
-            labels = values.labels
-        else:
-            assert isinstance(labels, AbstractSpectrum)
+        x = self.mapper(np.atleast_2d(values))
 
-            if labels.ndim == 2:
-                labels = labels.moveaxis(labels.other_axis, 0)
+        if values.ndim == 1:
+            x = x[0]
 
-        labels = MeasuredNormalizedSpectrum(
-            labels, labels=label_names,
-            zero_boundary=zero_boundary,
-            max_boundary=max_boundary,
-            zero_is_lower=zero_is_lower,
+        return self.post_mapping(x, **post_kwargs)
+
+    @property
+    def mapper(self):
+        if self._mapper is None:
+            mappers = []
+            for idx, ele in self:
+                mappers.append(self._get_single_mapper(idx, ele))
+
+            def mapper_func(x):
+                y = np.zeros(x.shape)
+                for idx in range(x.shape[1]):
+                    y[:, idx] = mappers[idx](x[:, idx])
+                return y
+
+            self._mapper = mapper_func
+
+        return self._mapper
+
+    def _get_single_mapper(self, idx, ele):
+        """mapping using isotonic regression
+        """
+
+        signal = self.intensities_list[idx]
+        domain = signal.domain
+        lower, upper = self.domain_bounds[idx]
+
+        if lower < domain.start:
+            domain = domain.append(lower, left=True)
+        if upper > domain.end:
+            domain = domain.eppend(upper, left=False)
+
+        y = signal(domain).magnitude
+        x = domain.magnitude
+
+        isoreg = IsotonicRegression(
+            y_min=self.bounds[0][idx],
+            y_max=self.bounds[1][idx],
+            increasing=ele.zero_is_lower
         )
 
-        # TODO monotonicity warnings
-        if 'interpolator' not in kwargs:
-            # default is to not have a bounds error here
-            interp_kwargs = kwargs.get('interpolator_kwargs', {})
-            interp_kwargs['bounds_error'] = interp_kwargs.get(
-                'bounds_error', False)
-            interp_kwargs['fill_value'] = interp_kwargs.get(
-                'fill_value', 'extrapolate'
-            )
-
-            kwargs['interpolator_kwargs'] = interp_kwargs
-
-        # replaces signal min and max
-        kwargs['signal_min'] = None
-        kwargs['signal_max'] = None
-
-        super().__init__(
-            values=values,
-            domain=domain,
-            labels=labels,
-            units=units,
-            mapping_method=mapping_method,
-            **kwargs
+        new_y = isoreg.fit_transform(x, y)
+        return interp1d(
+            new_y, x,
+            bounds_error=False,
+            fill_value=(lower, upper)
         )
 
-        # set the correct units
-        self.labels.boundary_units = self.domain.units
+    def post_mapping(self, x, units=False, **kwargs):
+        """
+        """
 
-        signal_min = np.zeros(self.zero_boundary.shape)
-        signal_min[np.isnan(self.zero_boundary)] = np.atleast_1d(np.min(
-            self.magnitude, axis=self.domain_axis
-        ))[np.isnan(self.zero_boundary)]
-        self.signal_min = signal_min
-        # max signal
-        self.signal_max = np.max(self.magnitude, axis=self.domain_axis)
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        truth = self.shape == other.shape
-        if not truth:
-            return False
-        truth = np.allclose(
-            self.magnitude, other.magnitude, equal_nan=True)
-        if not truth:
-            return False
-        truth = self.labels.shape == other.labels.shape
-        if not truth:
-            return False
-        truth = np.allclose(
-            self.labels.magnitude, self.labels.magnitude, equal_nan=True)
-        if not truth:
-            return False
-        truth = self.domain == other.domain
-        if not truth:
-            return False
-        truth = np.all(self.label_names == other.label_names)
-        if not truth:
-            return False
-        truth = np.all(self.signal_min == other.signal_min)
-        if not truth:
-            return False
-        truth = np.all(self.signal_max == other.signal_max)
-        if not truth:
-            return False
-        truth = np.all(self.zero_boundary == other.zero_boundary)
-        if not truth:
-            return False
-        truth = np.all(self.max_boundary == other.max_boundary)
-        if not truth:
-            return False
-        truth = self.units == other.units
-        if not truth:
-            return False
-        truth = self.domain.units == other.domain.units
-        if not truth:
-            return False
-
-        return truth
-
-    @property
-    def label_names(self):
-        return self.labels.labels
-
-    def _iso_increasing(self, idx=None):
-        if idx is None:
-            return bool(self.zero_is_lower)
+        if units:
+            units = self.intensities.domain.units
         else:
-            return self.zero_is_lower[idx]
+            units = 1
 
-    @property
-    def zero_is_lower(self):
-        """
-        """
-
-        return self.labels.zero_is_lower
-
-    @property
-    def zero_boundary(self):
-        return self.labels.zero_boundary
-
-    @property
-    def max_boundary(self):
-        return self.labels.max_boundary
-
-    @property
-    def mapping_method(self):
-        """
-        """
-
-        return self._mapping_method
-
-    def concat_labels(self, labels, left=False):
-        """
-        """
-
-        assert self.ndim == 2
-        assert isinstance(labels, MeasuredNormalizedSpectrum)
-        assert self.labels.boundary_units == labels.boundary_units
-        new_labels = self.labels.concat(labels, left=left)
-        return new_labels
+        return np.clip(
+            x,
+            a_min=self.lower_boundary[None, :],
+            a_max=self.upper_boundary[None, :]
+        ) * units
 
     def pre_mapping(self, values):
-        """
-        """
-
         min = np.atleast_2d(self.bounds[0])
         max = np.atleast_2d(self.bounds[1])
-        if values.ndim == 1:
-            if self.ndim == 2:
-                v = values[None, :]
-            else:
-                v = values[:, None]
-        else:
-            v = values
 
-        truth = np.all(v >= min)
-        truth &= np.all(v <= max)
+        truth = np.all(np.atleast_2d(values) >= min)
+        truth &= np.all(np.atleast_2d(values) <= max)
         assert truth, 'some values to be mapped are out of bounds.'
 
         return values
 
-    def post_mapping(self, x, units=True, **kwargs):
-        """
-        """
+    @property
+    def intensities_list(self):
+        if self._intensities_list is None:
+            self._intensities_list = [
+                Signal(
+                    ele.integral,
+                    domain=ele.labels,
+                    labels=ele.name,
+                )
+                for ele in self
+            ]
 
-        # TODO implement mapping_method
-        if units:
-            units = self.domain.units
-        else:
-            units = 1
+        return self._intensities_list
 
-        if self.mapping_method is None:
-            # TODO test broadcasting
-            return np.clip(
-                x,
-                a_min=self.lower_boundary[None, :],
-                a_max=self.upper_boundary[None, :]
-            ) * units
+    @property
+    def intensities(self):
+        # will only work if domain and values have same units
+        if self._intensities is None:
+            signal = self.intensities_list[0]
+            # TODO if only one element
+            for ele in self.intensities_list[1:]:
+                signal = signal.concat(ele)
+            self._intensities = signal
+        return self._intensities
 
-        else:
-            raise NameError(
-                f'mapping method {self.mapping_method} does not exit')
+    @property
+    def zero_is_lower(self):
+        if self._zero_is_lower is None:
+            self._zero_is_lower = np.array([
+                ele.zero_is_lower for ele in self
+            ])
+        return self._zero_is_lower
+
+    @property
+    def zero_boundary(self):
+        if self._zero_boundary is None:
+            self._zero_boundary = np.array([
+                ele.zero_boundary
+                if ele is not None
+                else np.nan
+                for ele in self
+            ])
+
+        return self._zero_boundary
+
+    @property
+    def max_boundary(self):
+        if self._max_boundary is None:
+            self._max_boundary = np.array([
+                ele.max_boundary
+                if ele is not None
+                else np.nan
+                for ele in self
+            ])
+
+        return self._max_boundary
+
+    @property
+    def starts(self):
+        return np.array([
+            ele.labels.start for ele in self
+        ])
+
+    @property
+    def ends(self):
+        return np.array([
+            ele.labels.end for ele in self
+        ])
+
+    @property
+    def bounds(self):
+
+        bounds = np.array([
+            [np.max(ele.magnitude), np.min(ele.magnitude)]
+            for ele in self.intensities_list
+        ])
+
+        bounds[~np.isnan(self.zero_boundary), 0] = 0
+
+        return tuple(bounds.T)
 
     @property
     def domain_bounds(self):
-        """
-        """
-
-        if self.ndim == 2:
-            return asarray([self.lower_boundary, self.upper_boundary]).T
-        else:
-            return np.squeeze([self.lower_boundary, self.upper_boundary])
+        return np.array([self.lower_boundary, self.upper_boundary]).T
 
     @property
     def lower_boundary(self):
-        """
-        """
         lower_boundary = np.zeros(self.zero_is_lower.shape)
         lower_boundary[self.zero_is_lower] = \
             self.zero_boundary[self.zero_is_lower]
         lower_boundary[~self.zero_is_lower] = \
             self.max_boundary[~self.zero_is_lower]
-        lower_boundary[np.isnan(lower_boundary)] = self.domain.start
+        lower_boundary[np.isnan(lower_boundary)] = self.starts[
+            np.isnan(lower_boundary)]
         return lower_boundary
 
     @property
     def upper_boundary(self):
-        """
-        """
         upper_boundary = np.zeros(self.zero_is_lower.shape)
         upper_boundary[~self.zero_is_lower] = \
             self.zero_boundary[~self.zero_is_lower]
         upper_boundary[self.zero_is_lower] = \
             self.max_boundary[self.zero_is_lower]
-        upper_boundary[np.isnan(upper_boundary)] = self.domain.end
+        upper_boundary[np.isnan(upper_boundary)] = self.ends[
+            np.isnan(upper_boundary)]
         return upper_boundary
 
     @property
-    def spectrum(self):
-        """
-        """
-
-        return self.labels
+    def normalized_spectrum_list(self):
+        if self._normalized_spectrum_list is None:
+            ele_list = []
+            for ele in self:
+                ele = ele.mean(axis=ele.other_axis)
+                ele_list.append(
+                    ele.normalized_signal
+                )
+            self._normalized_spectrum_list = ele_list
+        return self._normalized_spectrum_list
 
     @property
     def normalized_spectrum(self):
-        """
-        """
-
-        # TODO any units?
-        # wavelength x different sources
-        return self.labels.moveaxis(0, -1)
+        if self._normalized_spectrum is None:
+            signal = self.normalized_spectrum_list[0]
+            # TODO if only one element
+            for ele in self.normalized_spectrum_list[1:]:
+                signal = signal.concat(ele)
+            self._normalized_spectrum = signal
+        return self._normalized_spectrum
 
     @property
-    def bounds(self):
-        """
-        """
+    def wavelengths(self):
+        return self.normalized_spectrum.domain
 
-        bounds = list(self.boundaries.T)
+    def __iter__(self):
+        return iter(self._measured_spectra)
 
-        # TODO change
-        if self.zero_boundary is not None:
-            bounds[0] *= 0
+    def len(self):
+        return len(self._measured_spectra)
 
-        return bounds
+    def append(self, value):
+        self._measured_spectra.append(value)
+        self._check_list()
+        self._init_attrs()
+
+    def extend(self, value):
+        self._measured_spectra.extend(value)
+        self._check_list()
+        self._init_attrs()
+
+    def pop(self, index):
+        self._measured_spectra.pop(index)
+        self._check_list()
+        self._init_attrs()
+
+    def popkey(self, key):
+        index = self.names.index(key)
+        self.pop(index)
+
+    @property
+    def names(self):
+        return [ele.name for ele in self]
+
+    def _check_list(self):
+        if not isinstance(self._measured_spectra, list):
+            raise DreyeError(
+                'measured_spectra must be a list '
+                'of MeasuredSpectrum instances.')
+        if not all(
+            isinstance(ele, MeasuredSpectrum)
+            for ele in self._measured_spectra
+        ):
+            raise DreyeError(
+                'not all elements of measured_spectra are '
+                'of a MeasuredSpectrum instance.'
+            )
+
+    @property
+    def uE(self):
+        return self.__class__(
+            [ele.uE for ele in self], 'uE'
+        )
+
+    @property
+    def irradiance(self):
+        return self.__class__(
+            [ele.irradiance for ele in self], 'irradiance'
+        )
+
+    @property
+    def photonflux(self):
+        return self.__class__(
+            [ele.photonflux for ele in self], 'photonflux'
+        )
 
     def fit(self, spectrum, return_res=False, return_fit=False, units=True):
         """
@@ -636,8 +492,6 @@ class SpectrumMeasurement(ClippedSignal, IrradianceMixin, MappingMixin):
         assert isinstance(spectrum, Spectrum)
         assert spectrum.ndim == 1
 
-        # TODO integral = spectrum.integral
-        # TODO unit checking of spectrum and self
         spectrum = spectrum.copy()
         spectrum.units = self.units / UREG('nm')
 

@@ -5,104 +5,85 @@ Spectrum
 Inherits signal class to build Spectrum class.
 """
 
-from dreye.core.signal import ClippedSignal, Signal
-from dreye.core.mixin import IrradianceMixin
-from dreye.constants import DEFAULT_FLOAT_DTYPE
+from dreye.core.signal import Signal
+from dreye.constants import DEFAULT_FLOAT_DTYPE, UREG
 from dreye.err import DreyeUnitError
-from dreye.utilities import dissect_units
+from dreye.utilities import has_units
 
 
-class AbstractSpectrum(ClippedSignal):
+class AbstractSpectrum(Signal):
     """abstract class for spectra
     """
 
-    convert_attributes = ()
-    init_args = ClippedSignal.init_args + (
-        'smoothing_window', 'smoothing_method', 'smoothing_args',)
+    @property
+    def _class_new_instance(self):
+        return AbstractSpectrum
 
     def __init__(
-            self,
-            values,
-            domain=None,
-            domain_axis=None,
-            units=None,
-            labels=None,
-            interpolator=None,
-            interpolator_kwargs=None,
-            smoothing_window=None,
-            smoothing_method=None,
-            smoothing_args=None,
-            **kwargs  # because of create instance
+        self,
+        values,
+        domain=None,
+        domain_axis=None,
+        units=None,
+        domain_units='nm',
+        labels=None,
+        dtype=DEFAULT_FLOAT_DTYPE,
+        domain_dtype=DEFAULT_FLOAT_DTYPE,
+        interpolator=None,
+        interpolator_kwargs=None,
+        contexts='flux',
+        domain_kwargs=None,
+        domain_min=None,
+        domain_max=None,
+        signal_min=None,
+        signal_max=None,
+        attrs=None,
+        smoothing_method=None,
+        smoothing_window=None,
+        smoothing_args=None,
+        name=None
     ):
-
-        # hacky way to take care of create instance method
-        _kwargs = {}
-        for key, value in kwargs.items():
-            if key not in AbstractSpectrum.init_args:
-                _kwargs[key] = value
-
-        # ignore domain units
-        _kwargs.pop('domain_units', None)
+        # enforces nm units for domain and provides default flux context
 
         super().__init__(
-            values=values,
+            values,
+            units=units,
+            domain_units=domain_units,
+            dtype=dtype,
+            domain_dtype=domain_dtype,
             domain=domain,
             domain_axis=domain_axis,
-            units=units,
-            domain_units='nm',
             labels=labels,
             interpolator=interpolator,
             interpolator_kwargs=interpolator_kwargs,
-            dtype=DEFAULT_FLOAT_DTYPE,
-            domain_dtype=DEFAULT_FLOAT_DTYPE,
-            contexts='flux',
-            # always the case this is why convert_attributes is empty
-            signal_min=0,
-            signal_max=None,
-            smoothing_method=smoothing_method,
-            smoothing_window=smoothing_window,
-            smoothing_args=smoothing_args,
-            **_kwargs
+            contexts=contexts,
+            domain_kwargs=domain_kwargs,
+            attrs=attrs,
+            domain_min=domain_min,
+            domain_max=domain_max,
+            signal_min=signal_min,
+            signal_max=signal_max,
+            name=name
         )
+
+        if smoothing_method is not None:
+            self.attrs.update({'smoothing_method', smoothing_method})
+        if smoothing_window is not None:
+            self.attrs.update({'smoothing_window', smoothing_window})
+        if smoothing_args is not None:
+            self.attrs.update({'smoothing_args', smoothing_args})
 
     @property
     def smoothing_args(self):
-        """
-        """
-
-        if self._smoothing_args is None:
-            return {}
-        else:
-            return self._smoothing_args
+        return self.attrs.get('smoothing_args', {})
 
     @property
     def smoothing_window(self):
-        """
-        """
-
-        if self._smoothing_window is None:
-            return 1
-        else:
-            return self._smoothing_window
+        return self.attrs.get('smoothing_window', 1)
 
     @property
     def smoothing_method(self):
-        """
-        """
-
-        if self._smoothing_method is None:
-            return 'boxcar'
-        else:
-            return self._smoothing_method
-
-    def create_new_instance(self, values, **kwargs):
-        """Any operation returns Signal instance and not Spectrum instance
-        """
-
-        try:
-            return self.__class__(values, **{**self.init_kwargs, **kwargs})
-        except DreyeUnitError:
-            return Signal(values, **{**self.init_kwargs, **kwargs})
+        return self.attrs.get('smoothing_method', 'boxcar')
 
     @property
     def smooth(self):
@@ -124,7 +105,7 @@ class AbstractSpectrum(ClippedSignal):
         return self.domain
 
 
-class Spectrum(AbstractSpectrum, IrradianceMixin):
+class Spectrum(AbstractSpectrum):
     """
     Subclass of signal class to represent light spectra.
     Units must be irradiance or photon flux. wavelengths must be in nm.
@@ -135,55 +116,79 @@ class Spectrum(AbstractSpectrum, IrradianceMixin):
     conversion to photonflux
     """
 
-    irradiance_integrated = False
+    def __init__(
+        self,
+        values,
+        domain=None,
+        domain_axis=None,
+        units=None,
+        **kwargs
+    ):
 
-    def __init__(self,
-                 values,
-                 domain=None,
-                 domain_axis=None,
-                 units=None,
-                 labels=None,
-                 interpolator=None,
-                 interpolator_kwargs=None,
-                 **kwargs):
+        units = self._get_units(values, units)
 
-        units = self.get_units(values, units)
-
-        super().__init__(values=values,
-                         domain=domain,
-                         domain_axis=domain_axis,
-                         units=units,
-                         labels=labels,
-                         interpolator=interpolator,
-                         interpolator_kwargs=interpolator_kwargs,
-                         **kwargs)
+        super().__init__(
+            values=values,
+            domain=domain,
+            domain_axis=domain_axis,
+            units=units,
+            **kwargs
+        )
 
     @property
     def normalized_spectrum(self):
         """
         """
+        signal = self.normalized_signal
+        signal._units = UREG(None).units
+        return signal
 
-        return NormalizedSpectrum(self)
-
-
-class NormalizedSpectrum(AbstractSpectrum):
-    """Class to store normalized spectra (i.e. sum to one).
-    units will be in 1/nm.
-    """
-
-    def __init__(self, *args, **kwargs):
-
-        super().__init__(*args, **kwargs)
-
-        values, units = dissect_units(self.normalized_signal)
-        self._values = values
-        self._units = units
-
-    def create_new_instance(self, values, **kwargs):
-        """Any operation returns Signal instance and not Spectrum instance
+    @classmethod
+    def _get_units(cls, values, units):
+        """
         """
 
-        try:
-            return AbstractSpectrum(values, **{**self.init_kwargs, **kwargs})
-        except DreyeUnitError:
-            return Signal(values, **{**self.init_kwargs, **kwargs})
+        if units is None:
+            if not has_units(values):
+                units = 'spectral_irradiance'
+            else:
+                units = values.units
+        cls._check_units(units)
+        return units
+
+    @classmethod
+    def _check_units(cls, units):
+        """
+        """
+
+        if not isinstance(units, str):
+            units = str(units)
+
+        truth_value = UREG(units).check('[mass] / [length] / [time] ** 3')
+        truth_value |= UREG(units).check('[mass] / [time] ** 3')
+        truth_value |= UREG(units).check('[mass] * [length] / [time] ** 3')
+        truth_value |= UREG(units).check(
+            '[substance] / [length] ** 2 / [time]')
+        truth_value |= UREG(units).check(
+            '[substance] / [length] ** 3 / [time]')
+
+        if not truth_value:
+            raise DreyeUnitError('No irradiance convertible units.')
+
+    @property
+    def photonflux(self):
+        """
+        """
+        return self.to('spectralphotonflux')
+
+    @property
+    def uE(self):
+        """
+        """
+        return self.to('microspectralphotonflux')
+
+    @property
+    def irradiance(self):
+        """
+        """
+        return self.to('spectralirradiance')
