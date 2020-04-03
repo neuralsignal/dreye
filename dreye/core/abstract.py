@@ -626,13 +626,6 @@ class AbstractSignal(AbstractDomain):
         assert self.ndim == 1, \
             'can only expand dimension of one dimensional signal.'
 
-        labels = self.labels
-        if is_arraylike(labels):
-            if isinstance(labels, AbstractSignal):
-                labels = labels._expand_dims(0)
-            else:
-                labels = (labels,)
-
         if axis == 0:
             domain_axis = 1
         elif axis == 1:
@@ -644,7 +637,7 @@ class AbstractSignal(AbstractDomain):
 
         self = self.copy()
         self._values = values
-        self._labels = labels
+        self._labels = (self.labels,)
         self._domain_axis = domain_axis
         return self
 

@@ -13,7 +13,7 @@ from dreye.core.spectrum import AbstractSpectrum
 from dreye.core.spectral_measurement import CalibrationSpectrum
 from dreye.core.measurement_utils import (
     create_calibration_spectrum, convert_measurement,
-    create_measured_spectrum, create_spectrum_measurement
+    create_measured_spectrum, create_measured_spectra
 )
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.err import DreyeError

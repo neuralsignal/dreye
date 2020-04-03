@@ -9,7 +9,7 @@ from dreye.constants import UREG
 from dreye.io.json import write_json, read_json
 from dreye.utilities import is_numeric, is_listlike
 from dreye.core.spectral_measurement import (
-    SpectrumMeasurement, MeasuredSpectrum
+    MeasuredSpectraContainer, MeasuredSpectrum
 )
 from dreye.err import DreyeError
 
@@ -42,7 +42,7 @@ class AbstractSender(ABC):
 
     def map(self, values):
         if self.spm is None:
-            raise DreyeError('Need to assign a SpectrumMeasurement.')
+            raise DreyeError('Need to assign a MeasuredSpectraContainer.')
 
         return self.spm.map(values)
 
@@ -87,20 +87,18 @@ class AbstractOutput(AbstractSender):
 
     def __init__(
         self, object_name, name, max_boundary, zero_boundary, units,
-        spm=None, mspectrum=None
+        mspectrum=None
     ):
         assert isinstance(object_name, str)
         assert isinstance(name, str)
         assert is_numeric(max_boundary)
         assert is_numeric(zero_boundary)
         assert isinstance(units, str)
-        assert isinstance(spm, SpectrumMeasurement) or spm is None
         self._name = name
         self._object_name = object_name
         self._max_boundary = max_boundary
         self._zero_boundary = zero_boundary
         self._units = units
-        self._spm = spm
         self._mspectrum = mspectrum
 
     def channel_exists(self):
@@ -151,10 +149,6 @@ class AbstractOutput(AbstractSender):
             self._assign_new_measurement()
         return self._spm
 
-    @spm.setter
-    def spm(self, value):
-        self._assign_new_measurement(value)
-
     @property
     def mspectrum(self):
         return self._mspectrum
@@ -175,33 +169,9 @@ class AbstractOutput(AbstractSender):
             n_steps
         )
 
-    def _assign_new_measurement(self, spm=None, units='uE'):
-        if self.mspectrum is not None and spm is None:
-            self._spm = self.mspectrum.to_spectrum_measurement(
-                name=self.name,
-                zero_boundary=self.zero_boundary,
-                max_boundary=self.max_boundary,
-                zero_is_lower=self.zero_boundary < self.max_boundary,
-                units=units
-            )
-        elif spm is not None:
-            assert isinstance(spm, SpectrumMeasurement)
-            assert spm.ndim == 1
-            assert float(self.zero_boundary) == float(spm.zero_boundary)
-            assert float(self.max_boundary) == float(spm.max_boundary)
-            assert str(self.name) == str(spm.label_names)
-            self._spm = spm
-
-            if self.mspectrum is not None:
-                spm = self.mspectrum.to_spectrum_measurement(
-                    name=self.name,
-                    zero_boundary=self.zero_boundary,
-                    max_boundary=self.max_boundary,
-                    zero_is_lower=self.zero_boundary < self.max_boundary,
-                    units=units
-                )
-
-                assert spm == self._spm
+    def _assign_new_measurement(self, units='uE'):
+        if self.mspectrum is not None:
+            self._spm = self.mspectrum.to_measured_spectra(units=units)
 
     def to_dict(self):
         dictionary = {
@@ -209,7 +179,6 @@ class AbstractOutput(AbstractSender):
             "max_boundary": self._max_boundary,
             "zero_boundary": self._zero_boundary,
             "units": self._units,
-            "spm": self._spm,
             "mspectrum": self._mspectrum,
             "object_name": self._object_name
         }
@@ -303,15 +272,10 @@ class AbstractSystem(AbstractSender):
     @property
     def spms(self):
         if self._spms is None:
-            for n, output in enumerate(self):
-                if output.spm is None:
-                    break
-                if n == 0:
-                    spms = output.spm
-                else:
-                    spms = spms.concat(output.spm)
-            else:
-                self._spms = spms
+            container = [output.mspectrum for output in self]
+            if all([ele is not None for ele in container]):
+                # TODO units
+                self._spms = MeasuredSpectraContainer(container)
         return self._spms
 
     @property

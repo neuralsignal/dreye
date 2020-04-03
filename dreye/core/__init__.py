@@ -5,10 +5,10 @@ from .signal import Signal
 from .domain import Domain
 # from .spectrum import Spectrum
 # from .spectral_measurement import AbstractSpectrum, \
-#     CalibrationSpectrum, MeasuredSpectrum, SpectrumMeasurement
+#     CalibrationSpectrum, MeasuredSpectrum, MeasuredSpectraContainer
 # from .measurement_utils import convert_measurement, \
 #     create_calibration_spectrum, create_measured_spectrum, \
-#     create_spectrum_measurement
+#     create_measured_spectra
 # from .spectrum_utils import \
 #     fit_background, create_gaussian_spectrum
 # from .spectral_sensitivity import RelativeOpsinSensitivity, \
@@ -28,10 +28,10 @@ from .domain import Domain
 #     'convert_measurement',
 #     'create_calibration_spectrum',
 #     'create_measured_spectrum',
-#     'create_spectrum_measurement',
+#     'create_measured_spectra',
 #     'CalibrationSpectrum',
 #     'MeasuredSpectrum',
-#     'SpectrumMeasurement',
+#     'MeasuredSpectraContainer',
 #     # sensitivity
 #     'RelativeOpsinSensitivity',
 #     'AbsoluteOpsinSensitivity',

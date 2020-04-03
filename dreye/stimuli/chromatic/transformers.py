@@ -7,7 +7,7 @@ import pandas as pd
 from dreye.err import DreyeError
 from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY
 from dreye.core.photoreceptor import AbstractPhotoreceptor
-from dreye.core.spectral_measurement import SpectrumMeasurement
+from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.core.spectrum import AbstractSpectrum
 from dreye.utilities import has_units
 
@@ -23,17 +23,17 @@ class SignalTransformerMixin:
 
     def __init__(
         self,
-        spectrum_measurement,
+        measured_spectra,
         *args,
         **kwargs
     ):
         """A Mixin class for transforming LED intensity values
         """
 
-        assert isinstance(spectrum_measurement, SpectrumMeasurement), (
-            "Argument 'spectrum_measurement' must be instance of "
-            "SpectrumMeasurement, but instance of"
-            f" '{type(spectrum_measurement)}'."
+        assert isinstance(measured_spectra, MeasuredSpectraContainer), (
+            "Argument 'measured_spectra' must be instance of "
+            "MeasuredSpectraContainer, but instance of"
+            f" '{type(measured_spectra)}'."
         )
 
         assert isinstance(self.time_axis, int)
@@ -42,7 +42,7 @@ class SignalTransformerMixin:
         # initialize mixin properties for settings file
         BaseStimulus.__init__(
             self,
-            spectrum_measurement=spectrum_measurement,
+            measured_spectra=measured_spectra,
         )
 
         super().__init__(*args, **kwargs)
@@ -178,14 +178,14 @@ class SignalTransformerMixin:
         stimulus = np.zeros(signal.shape)
 
         for idx in iterator:
-            stimulus[..., idx] = self.spectrum_measurement.map(
+            stimulus[..., idx] = self.measured_spectra.map(
                 signal[..., idx]
             )
 
         # reshape back into correct form and assign to stimulus
         self._stimulus = self.backward_shape(stimulus.reshape(signal_shape))
         self._add_to_events(
-            self.spectrum_measurement.label_names, self.stimulus,
+            self.measured_spectra.names, self.stimulus,
             prefix='stimout'
         )
 
@@ -195,7 +195,7 @@ class CaptureTransformerMixin(SignalTransformerMixin):
     def __init__(
         self,
         photoreceptor,
-        spectrum_measurement,
+        measured_spectra,
         background=None,
         *args,
         fit_kwargs=None,
@@ -231,7 +231,7 @@ class CaptureTransformerMixin(SignalTransformerMixin):
         if isinstance(background, AbstractSpectrum) and background.ndim == 2:
             self.background = background.sum(axis=self.other_axis)
 
-        super().__init__(spectrum_measurement, *args, **kwargs)
+        super().__init__(measured_spectra, *args, **kwargs)
 
     def signal_preprocess(self, signal):
         """preprocess signal before fitting
@@ -257,7 +257,7 @@ class CaptureTransformerMixin(SignalTransformerMixin):
 
         # get normalized channel x LED matrix
         A = self.photoreceptor.get_A(
-            self.spectrum_measurement,
+            self.measured_spectra,
             self.background,
             units=units
         )
@@ -280,7 +280,7 @@ class CaptureTransformerMixin(SignalTransformerMixin):
         for idx in iterator:
             x = self.photoreceptor.fit_qs(
                 signal[..., idx], A,
-                bounds=self.spectrum_measurement.bounds,
+                bounds=self.measured_spectra.bounds,
                 units=units,
                 return_res=False,
                 inverse=True,
@@ -336,7 +336,7 @@ class CaptureTransformerMixin(SignalTransformerMixin):
     def transform(self):
         super().transform()
         self._add_to_events(
-            self.spectrum_measurement.label_names,
+            self.measured_spectra.names,
             self.stimulus_signal,
             prefix='stimin'
         )
@@ -437,7 +437,7 @@ class IlluminantCaptureTransformerMixin(
         self,
         illuminant,
         photoreceptor,
-        spectrum_measurement,
+        measured_spectra,
         background=None,
         **kwargs
     ):
@@ -446,10 +446,10 @@ class IlluminantCaptureTransformerMixin(
             "Argument 'photoreceptor' must be (subclass) instance of an "
             f"AbstractPhotoreceptor, but instance of '{type(photoreceptor)}'."
         )
-        assert isinstance(spectrum_measurement, SpectrumMeasurement), (
-            "Argument 'spectrum_measurement' must be instance of "
-            "SpectrumMeasurement, but instance of"
-            f" '{type(spectrum_measurement)}'."
+        assert isinstance(measured_spectra, MeasuredSpectraContainer), (
+            "Argument 'measured_spectra' must be instance of "
+            "MeasuredSpectraContainer, but instance of"
+            f" '{type(measured_spectra)}'."
         )
         assert (
             isinstance(background, AbstractSpectrum)
@@ -484,7 +484,7 @@ class IlluminantCaptureTransformerMixin(
         super().__init__(
             linear_transform=linear_transform,
             photoreceptor=photoreceptor,
-            spectrum_measurement=spectrum_measurement,
+            measured_spectra=measured_spectra,
             background=background,
             **kwargs
         )
@@ -496,7 +496,7 @@ class IlluminantBgCaptureTransformerMixin(CaptureTransformerMixin):
         self,
         illuminant,
         photoreceptor,
-        spectrum_measurement,
+        measured_spectra,
         background=None,
         bg_func=None,
         **kwargs
@@ -531,7 +531,7 @@ class IlluminantBgCaptureTransformerMixin(CaptureTransformerMixin):
 
         super().__init__(
             photoreceptor=photoreceptor,
-            spectrum_measurement=spectrum_measurement,
+            measured_spectra=measured_spectra,
             background=background,
             **kwargs
         )

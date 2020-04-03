@@ -72759,9 +72759,9 @@
             ]
         },
         "fit_kwargs": {},
-        "spectrum_measurement": {
+        "measured_spectra": {
             "#dreye#": [
-                "b'\\x80\\x04\\x95;\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x1fdreye.core.spectral_measurement\\x94\\x8c\\x13SpectrumMeasurement\\x94\\x93\\x94.'",
+                "b'\\x80\\x04\\x95;\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x1fdreye.core.spectral_measurement\\x94\\x8c\\x13MeasuredSpectraContainer\\x94\\x93\\x94.'",
                 {
                     "values": {
                         "#array#": [
@@ -74163,7 +74163,7 @@
                         ]
                     },
                     "mapping_method": null,
-                    "pickled_class": "b'\\x80\\x04\\x95;\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x1fdreye.core.spectral_measurement\\x94\\x8c\\x13SpectrumMeasurement\\x94\\x93\\x94.'"
+                    "pickled_class": "b'\\x80\\x04\\x95;\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x1fdreye.core.spectral_measurement\\x94\\x8c\\x13MeasuredSpectraContainer\\x94\\x93\\x94.'"
                 }
             ]
         },

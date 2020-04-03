@@ -712,12 +712,12 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
                 return self._create_new_instance(
                     values,
                     units=self.units,
-                    labels=None)
+                    labels=self.name)
             else:
                 return self._create_new_instance(
                     values,
                     units=self.units,
-                    labels=None,
+                    labels=self.name,
                     domain_axis=0)
         else:
             return values * self.units

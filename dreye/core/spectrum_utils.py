@@ -8,20 +8,20 @@ from scipy.stats import norm
 
 from dreye.utilities import is_numeric, asarray
 from dreye.core.spectrum import Spectrum
-from dreye.core.spectral_measurement import SpectrumMeasurement
+from dreye.core.spectral_measurement import MeasuredSpectraContainer
 
 
 def fit_background(
-    spectrum_measurement, background, return_fit=True, units=True,
+    measured_spectra, background, return_fit=True, units=True,
     **kwargs
 ):
     """fit background spectrum to measurement of light sources.
     """
 
-    assert isinstance(spectrum_measurement, SpectrumMeasurement)
+    assert isinstance(measured_spectra, MeasuredSpectraContainer)
     assert isinstance(background, Spectrum)
 
-    return spectrum_measurement.fit(
+    return measured_spectra.fit(
         background, return_fit=return_fit, units=units, **kwargs)
 
 

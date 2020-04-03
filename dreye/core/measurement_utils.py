@@ -113,13 +113,13 @@ def create_measured_spectrum(
     )
 
 
-def create_spectrum_measurement(
-    *args, meas_kwargs={},
+def create_measured_spectra(
+    *args, units='uE',
     **kwargs
 ):
     """convenience function
     """
 
-    return create_measured_spectrum(*args, **kwargs).to_spectrum_measurement(
-        **meas_kwargs
+    return create_measured_spectrum(*args, **kwargs).to_measured_spectra(
+        units=units
     )

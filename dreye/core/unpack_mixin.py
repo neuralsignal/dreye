@@ -412,7 +412,7 @@ class UnpackSignalMixin(ABC):
         #     else:
         #         values = values[:, None]
 
-        elif hasattr(labels, '__len__') and values.ndim == 2:
+        elif values.ndim == 2:
             assert len(labels) == values.shape[(domain_axis + 1) % 2], (
                 f"labels are of length {len(labels)}, "
                 f"but other axis is of length "

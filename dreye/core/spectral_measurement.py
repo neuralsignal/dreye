@@ -169,22 +169,41 @@ class MeasuredSpectrum(Spectrum):
 
         return self._labels
 
+    def to_measured_spectra(self, units='uE'):
+        return MeasuredSpectraContainer([self], units=units)
+
 
 class MeasuredSpectraContainer:
     """Container for measured spectra
     """
 
-    def __init__(self, measured_spectra, units='uE'):
+    def __init__(self, measured_spectra, units=None):
         self._measured_spectra = measured_spectra
         self._check_list()
         self._init_attrs()
-        self._measured_spectra = [
-            getattr(ele, units)
-            if str(units) != str(ele.units)
-            else ele
-            for ele in self
-        ]
-        self._units = UREG(str(units)).units
+        # equalize units
+        if units is None and len(set([ele.units for ele in self])) == 1:
+            pass
+        else:
+            if units is None:
+                units = 'uE'
+            self._measured_spectra = [
+                getattr(ele, units)
+                for ele in self
+            ]
+
+        self._units = self._measured_spectra[0].units
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.names})"
+
+    def to_dict(self):
+        return self._measured_spectra
+
+    @classmethod
+    def from_dict(cls, data):
+        # TODO unit saving
+        return cls(data)
 
     @property
     def units(self):
@@ -224,7 +243,7 @@ class MeasuredSpectraContainer:
     def mapper(self):
         if self._mapper is None:
             mappers = []
-            for idx, ele in self:
+            for idx, ele in enumerate(self):
                 mappers.append(self._get_single_mapper(idx, ele))
 
             def mapper_func(x):
@@ -266,12 +285,20 @@ class MeasuredSpectraContainer:
             fill_value=(lower, upper)
         )
 
-    def post_mapping(self, x, units=False, **kwargs):
+    @property
+    def domain_units(self):
+        # TODO
+        units = [ele.labels.units for ele in self]
+        if len(set(units)) > 1:
+            raise DreyeError('Input units do not match.')
+        return units[0]
+
+    def post_mapping(self, x, units=True, **kwargs):
         """
         """
 
         if units:
-            units = self.intensities.domain.units
+            units = self.domain_units
         else:
             units = 1
 
@@ -310,9 +337,11 @@ class MeasuredSpectraContainer:
         # will only work if domain and values have same units
         if self._intensities is None:
             signal = self.intensities_list[0]
-            # TODO if only one element
-            for ele in self.intensities_list[1:]:
-                signal = signal.concat(ele)
+            if len(self.intensities_list) == 1:
+                signal = signal._expand_dims(1)
+            else:
+                for ele in self.intensities_list[1:]:
+                    signal = signal.concat(ele)
             self._intensities = signal
         return self._intensities
 
@@ -364,7 +393,7 @@ class MeasuredSpectraContainer:
     def bounds(self):
 
         bounds = np.array([
-            [np.max(ele.magnitude), np.min(ele.magnitude)]
+            [np.min(ele.magnitude), np.max(ele.magnitude)]
             for ele in self.intensities_list
         ])
 
@@ -410,13 +439,18 @@ class MeasuredSpectraContainer:
             self._normalized_spectrum_list = ele_list
         return self._normalized_spectrum_list
 
+    def __getitem__(self, key):
+        return self._measured_spectra[key]
+
     @property
     def normalized_spectrum(self):
         if self._normalized_spectrum is None:
             signal = self.normalized_spectrum_list[0]
-            # TODO if only one element
-            for ele in self.normalized_spectrum_list[1:]:
-                signal = signal.concat(ele)
+            if len(self.normalized_spectrum_list) == 1:
+                signal = signal._expand_dims(1)
+            else:
+                for ele in self.normalized_spectrum_list[1:]:
+                    signal = signal.concat(ele)
             self._normalized_spectrum = signal
         return self._normalized_spectrum
 
@@ -493,7 +527,7 @@ class MeasuredSpectraContainer:
         assert spectrum.ndim == 1
 
         spectrum = spectrum.copy()
-        spectrum.units = self.units / UREG('nm')
+        spectrum.units = self.units
 
         spectrum, normalized_sources = spectrum.equalize_domains(
             self.normalized_spectrum, equalize_dimensions=False)
@@ -507,7 +541,7 @@ class MeasuredSpectraContainer:
         # values=res.x, units=self.units, axis0_labels=self.labels
 
         if units:
-            weights = res.x * self.units
+            weights = res.x * self.units * UREG('nm')
         else:
             weights = res.x
 

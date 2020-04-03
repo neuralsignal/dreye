@@ -7,7 +7,7 @@ from scipy.optimize import lsq_linear, least_squares
 
 from dreye.core.spectrum import AbstractSpectrum
 from dreye.core.spectral_sensitivity import AbstractSensitivity
-from dreye.core.spectral_measurement import SpectrumMeasurement
+from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.utilities import get_units, asarray
 
 
@@ -61,7 +61,7 @@ class AbstractPhotoreceptor(ABC):
 
     def fit(
         self,
-        spectrum_measurement,
+        measured_spectra,
         illuminant,
         reflectance=None,
         background=None,
@@ -77,7 +77,7 @@ class AbstractPhotoreceptor(ABC):
 
         # target captures opsin x illuminants
         targets, A = self.get_qs(
-            spectrum_measurement,
+            measured_spectra,
             illuminant,
             reflectance=reflectance,
             background=background,
@@ -86,14 +86,14 @@ class AbstractPhotoreceptor(ABC):
 
         return self.fit_qs(
             targets, A,
-            bounds=spectrum_measurement.bounds, units=units,
+            bounds=measured_spectra.bounds, units=units,
             weights=weights,
             return_res=return_res, inverse=False, **kwargs
         )
 
     def get_qs(
         self,
-        spectrum_measurement,
+        measured_spectra,
         illuminant,
         reflectance=None,
         background=None,
@@ -103,7 +103,7 @@ class AbstractPhotoreceptor(ABC):
         """
         """
 
-        assert isinstance(spectrum_measurement, SpectrumMeasurement)
+        assert isinstance(measured_spectra, MeasuredSpectraContainer)
 
         # target captures illuminant x opsins
         targets = self.capture(
@@ -116,7 +116,7 @@ class AbstractPhotoreceptor(ABC):
         if return_A:
             # get A
             A = self.get_A(
-                spectrum_measurement,
+                measured_spectra,
                 background=background,
                 units=units
             )
@@ -128,7 +128,7 @@ class AbstractPhotoreceptor(ABC):
 
     def get_A(
         self,
-        spectrum_measurement,
+        measured_spectra,
         background=None,
         units=True
     ):
@@ -136,7 +136,7 @@ class AbstractPhotoreceptor(ABC):
         """
 
         # TODO same units as background?
-        normalized_spectrum = spectrum_measurement.normalized_spectrum
+        normalized_spectrum = measured_spectra.normalized_spectrum
 
         # A is the normalized opsin x LED matrix
         A = self.capture(

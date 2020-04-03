@@ -108,6 +108,10 @@ class MeasurementRunner:
                 axis=0,
                 smoothing_window=self.smoothing_window,
                 input_units=output.units,
+                zero_boundary=output.zero_boundary,
+                max_boundary=output.max_boundary,
+                zero_is_lower=output.zero_boundary < output.max_boundary,
+                name=output.name
             )
             if self.wls is not None:
                 mspectrum = mspectrum(self.wls)
