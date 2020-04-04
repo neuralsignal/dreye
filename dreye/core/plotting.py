@@ -41,16 +41,40 @@ def get_label(units):
 
 class SignalPlottingMixin:
 
+    _xlabel = None
+    _ylabel = None
+    _cmap = 'tab10'
+    _colors = None
+
+    def _get_cls_vars(
+        self,
+        cmap, colors, xlabel, ylabel
+    ):
+        if cmap is None:
+            cmap = self._cmap
+        if colors is None:
+            colors = self._colors
+        if xlabel is None:
+            xlabel = self._xlabel
+        if ylabel is None:
+            ylabel = self._ylabel
+
+        return cmap, colors, xlabel, ylabel
+
     def plot(
         self, ax=None,
         labels=False,
-        cmap='tab10', colors=None,
+        cmap=None, colors=None,
         despine_kwargs={},
         legend_kwargs={},
         xlabel=None,
         ylabel=None,
         **plot_kwargs
     ):
+
+        cmap, colors, xlabel, ylabel = self._get_cls_vars(
+            cmap, colors, xlabel, ylabel
+        )
 
         if ax is None:
             ax = plt.gca()
