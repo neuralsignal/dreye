@@ -15,6 +15,8 @@ class AbstractSpectrum(Signal):
     """abstract class for spectra
     """
 
+    _xlabel = 'wavelength (nm)'
+
     @property
     def _class_new_instance(self):
         return AbstractSpectrum
@@ -177,18 +179,16 @@ class Spectrum(AbstractSpectrum):
 
     @property
     def photonflux(self):
-        """
-        """
         return self.to('spectralphotonflux')
 
     @property
     def uE(self):
-        """
-        """
         return self.to('microspectralphotonflux')
 
     @property
     def irradiance(self):
-        """
-        """
         return self.to('spectralirradiance')
+
+    @property
+    def _ylabel(self):
+        self.units
