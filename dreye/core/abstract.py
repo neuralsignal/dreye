@@ -503,8 +503,6 @@ class AbstractSignal(AbstractDomain):
         )
 
     def _instance_handler(self, other):
-        """
-        """
 
         # check if subclass of AbstractSignal
         # check if domains are equal

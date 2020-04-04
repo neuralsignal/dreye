@@ -118,6 +118,12 @@ class Spectrum(AbstractSpectrum):
     conversion to photonflux
     """
 
+    _unit_mappings = {
+        'uE': 'microspectralphotonflux',
+        'photonflux': 'spectralphotonflux',
+        'irradiance': 'spectralirradiance'
+    }
+
     def __init__(
         self,
         values,
@@ -155,6 +161,8 @@ class Spectrum(AbstractSpectrum):
                 units = 'spectral_irradiance'
             else:
                 units = values.units
+        elif units in cls._unit_mappings:
+            units = cls._unit_mappings[units]
         cls._check_units(units)
         return units
 
@@ -166,11 +174,8 @@ class Spectrum(AbstractSpectrum):
         if not isinstance(units, str):
             units = str(units)
 
-        truth_value = UREG(units).check('[mass] / [length] / [time] ** 3')
-        truth_value |= UREG(units).check('[mass] / [time] ** 3')
-        truth_value |= UREG(units).check('[mass] * [length] / [time] ** 3')
-        truth_value |= UREG(units).check(
-            '[substance] / [length] ** 2 / [time]')
+        truth_value = UREG(units).check(
+            '[mass] / [length] / [time] ** 3')
         truth_value |= UREG(units).check(
             '[substance] / [length] ** 3 / [time]')
 
@@ -191,4 +196,23 @@ class Spectrum(AbstractSpectrum):
 
     @property
     def _ylabel(self):
-        self.units
+        prefix = str(self.units)[:str(self.units).find('spectral')]
+        if (
+            self.units.dimensionality
+            == UREG('spectralphotonflux').dimensionality
+        ):
+            ylabel = (
+                'photonflux'
+                + ' ($\\frac{' + prefix
+                + 'mol}{m^2\\cdot s \\cdot nm'
+                + '}$)'
+            )
+            return ylabel
+        else:
+            ylabel = (
+                'irradiance'
+                + ' ($\\frac{' + prefix
+                + 'W}{m^2 \\cdot nm'
+                + '}$)'
+            )
+            return ylabel

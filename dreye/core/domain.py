@@ -296,10 +296,10 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         False
         """
 
-        if isinstance(other, self.__class__):
+        if isinstance(other, Domain):
 
             return (
-                array_equal(self.asarray(), other.asarray())
+                array_equal(self.magnitude, other.magnitude)
                 and (self.units == other.units)
             )
 

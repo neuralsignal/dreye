@@ -816,7 +816,7 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
             )
 
         else:
-            raise TypeError(
+            raise DreyeError(
                 f"domain axis contenation with type: {type(signal)}")
 
         if left:

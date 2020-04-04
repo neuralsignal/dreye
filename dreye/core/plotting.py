@@ -48,16 +48,22 @@ class SignalPlottingMixin:
 
     def _get_cls_vars(
         self,
-        cmap, colors, xlabel, ylabel
+        cmap, colors, color, xlabel, ylabel
     ):
         if cmap is None:
             cmap = self._cmap
-        if colors is None:
+        if colors is None or color is None:
             colors = self._colors
         if xlabel is None:
             xlabel = self._xlabel
         if ylabel is None:
             ylabel = self._ylabel
+
+        if colors is None and color is not None:
+            if isinstance(color, str) and self.ndim == 2:
+                colors = [color] * self.other_len
+            else:
+                colors = color
 
         return cmap, colors, xlabel, ylabel
 
@@ -65,6 +71,7 @@ class SignalPlottingMixin:
         self, ax=None,
         labels=False,
         cmap=None, colors=None,
+        color=None,
         despine_kwargs={},
         legend_kwargs={},
         xlabel=None,
@@ -73,7 +80,7 @@ class SignalPlottingMixin:
     ):
 
         cmap, colors, xlabel, ylabel = self._get_cls_vars(
-            cmap, colors, xlabel, ylabel
+            cmap, colors, color, xlabel, ylabel
         )
 
         if ax is None:

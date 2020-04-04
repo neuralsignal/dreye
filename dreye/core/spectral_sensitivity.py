@@ -26,7 +26,7 @@ class AbstractSensitivity(AbstractSpectrum):
             self.magnitude, axis=self.domain_axis, keepdims=True
         )
         # significant intensities
-        sig = self.magnitude > (maxima * RELATIVE_ACCURACY)
+        sig = self.magnitude > (maxima * 10 ** -RELATIVE_ACCURACY)
         if sig.ndim == 2:
             sig = np.any(sig, axis=self.other_axis)
 

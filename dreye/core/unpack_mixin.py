@@ -274,6 +274,8 @@ class UnpackSignalMixin(ABC):
 
         if container['interpolator'] is None:
             container['interpolator'] = interp1d
+            if container['interpolator_kwargs'] is None:
+                container['interpolator_kwargs'] = {'bounds_error': False}
         assert hasattr(container['interpolator'], '__call__')
 
         if container['interpolator_kwargs'] is None:

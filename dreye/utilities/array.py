@@ -39,10 +39,13 @@ def array_equal(x, y):
     else:
         x[x == 0] = ABSOLUTE_ACCURACY
         y[y == 0] = ABSOLUTE_ACCURACY
-        xtol = np.min(digits_to_decimals(x, RELATIVE_ACCURACY))
-        ytol = np.min(digits_to_decimals(y, RELATIVE_ACCURACY))
-        rtol = 10**np.min([xtol, ytol])
-        return np.allclose(x, y, rtol=rtol, atol=ABSOLUTE_ACCURACY)
+        xtol = np.nanmax(digits_to_decimals(x, RELATIVE_ACCURACY))
+        ytol = np.nanmax(digits_to_decimals(y, RELATIVE_ACCURACY))
+        rtol = 10**-np.max([xtol, ytol])
+        return np.allclose(
+            x, y, rtol=rtol, atol=ABSOLUTE_ACCURACY,
+            equal_nan=True
+        )
 
 
 def unique_significant(x, digits=RELATIVE_ACCURACY, **kwargs):

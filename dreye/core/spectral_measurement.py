@@ -219,7 +219,7 @@ class MeasuredSpectraContainer:
         self._normalized_spectrum = None
         self._mapper = None
 
-    def map(self, values, pre_kwargs={}, post_kwargs={}):
+    def map(self, values, **kwargs):
         """
 
         Parameters
@@ -229,7 +229,7 @@ class MeasuredSpectraContainer:
         """
 
         values = asarray(values)
-        values = self.pre_mapping(values, **pre_kwargs)
+        values = self.pre_mapping(values)
         assert values.ndim < 3
 
         x = self.mapper(np.atleast_2d(values))
@@ -237,7 +237,7 @@ class MeasuredSpectraContainer:
         if values.ndim == 1:
             x = x[0]
 
-        return self.post_mapping(x, **post_kwargs)
+        return self.post_mapping(x, **kwargs)
 
     @property
     def mapper(self):
@@ -262,14 +262,15 @@ class MeasuredSpectraContainer:
 
         signal = self.intensities_list[idx]
         domain = signal.domain
+        # TODO signal has bounds_error currently
         lower, upper = self.domain_bounds[idx]
+        # append start and end
+        # if lower < domain.start:
+        #     domain = domain.append(lower, left=True)
+        # if upper > domain.end:
+        #     domain = domain.append(upper, left=False)
 
-        if lower < domain.start:
-            domain = domain.append(lower, left=True)
-        if upper > domain.end:
-            domain = domain.eppend(upper, left=False)
-
-        y = signal(domain).magnitude
+        y = signal.magnitude
         x = domain.magnitude
 
         isoreg = IsotonicRegression(
