@@ -20,16 +20,31 @@ from dreye.core.unpack_mixin import UnpackDomainMixin
 
 class Domain(AbstractDomain, UnpackDomainMixin):
     """
-    Defines the base class for domains.
+    Defines the base class for domains. Includes a range of values sorted from
+    min to max, with some units attatched.
 
     Parameters
     ----------
     start : numeric, optional
+        Start of Domain.
     end : numeric, optional
+        End of Domain.
     interval : numeric or array-like, optional
-    units : str, optional
+        The interval between values in Domain. If interval is not uniform, will return a
+        list of interval values of length n-1.
     values : array-like or str, optional
+        The numpy array multiplied by the units (quantity instance).
     dtype : type, optional
+        Data type of Domain.
+    span:
+        Span of Domain from start to end.
+    gradient:
+        Implements the numpy.gradient function. If the gradient is non uniform,
+        the instantanous gradient will vary.
+    magnitude:
+        The numpy array without units attatched.
+    units: str, optional
+        Units attatched to the values in Domain.
 
     Attributes
     ----------
@@ -40,6 +55,9 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     values
     dtype
     span
+    gradient
+    magnitude
+    units
 
     Methods
     -------
@@ -100,9 +118,6 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
     @property
     def dtype(self):
-        """
-        """
-
         return self._dtype
 
     @dtype.setter
@@ -316,6 +331,8 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
     def enforce_uniformity(self, method=np.mean, on_gradient=True, copy=True):
         """
+        Returns the domain with a uniform interval, calculated from the average
+        of all original interval values.
         """
 
         if copy:
@@ -329,7 +346,11 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         return self
 
     def equalize_domains(self, other, interval=None, start=None, end=None):
-        """return an equalized domain
+        """
+        Equalizes the range and the interval between two domains. Domains must
+        be uniform for this to succeed. Takes the most common denominator for 
+        the domain range (largest Start value and smallest End value), and takes
+        the largest interval from the original two domains.
         """
 
         if self == other:
