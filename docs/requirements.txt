@@ -13,5 +13,8 @@ sphinx-automodapi
 nbconvert
 pandoc
 flake8
+pint==0.9
+cloudpickle
 pandas
-
+seabreeze
+nidaqmx
