@@ -6,7 +6,7 @@ Inherits signal class to build Spectrum class.
 """
 
 from dreye.core.signal import Signal
-from dreye.constants import DEFAULT_FLOAT_DTYPE, UREG
+from dreye.constants import DEFAULT_FLOAT_DTYPE, ureg
 from dreye.err import DreyeUnitError
 from dreye.utilities import has_units
 
@@ -148,7 +148,7 @@ class Spectrum(AbstractSpectrum):
         """
         """
         signal = self.normalized_signal
-        signal._units = UREG(None).units
+        signal._units = ureg(None).units
         return signal
 
     @classmethod
@@ -174,9 +174,9 @@ class Spectrum(AbstractSpectrum):
         if not isinstance(units, str):
             units = str(units)
 
-        truth_value = UREG(units).check(
+        truth_value = ureg(units).check(
             '[mass] / [length] / [time] ** 3')
-        truth_value |= UREG(units).check(
+        truth_value |= ureg(units).check(
             '[substance] / [length] ** 3 / [time]')
 
         if not truth_value:
@@ -199,7 +199,7 @@ class Spectrum(AbstractSpectrum):
         prefix = str(self.units)[:str(self.units).find('spectral')]
         if (
             self.units.dimensionality
-            == UREG('spectralphotonflux').dimensionality
+            == ureg('spectralphotonflux').dimensionality
         ):
             ylabel = (
                 'photonflux'

@@ -320,9 +320,9 @@ def arange(start, stop=None, step=1, dtype=None, error='ignore'):
 def as_float(a):
     """
     Converts given :math:`a` variable to *numeric* using the type defined by
-    :attr:`colour.constant.DEFAULT_FLOAT_DTYPE` attribute. In the event where
+    :attr:`dreye.constants.DEFAULT_FLOAT_DTYPE` attribute. In the event where
     :math:`a` cannot be converted, it is converted to *ndarray* using the type
-    defined by :attr:`colour.constant.DEFAULT_FLOAT_DTYPE` attribute.
+    defined by :attr:`dreye.constants.DEFAULT_FLOAT_DTYPE` attribute.
     Parameters
     ----------
     a : object
@@ -334,9 +334,9 @@ def as_float(a):
     Warnings
     --------
     The behaviour of this definition is different than
-    :func:`colour.utilities.as_numeric` definition when it comes to conversion
+    :func:`dreye.utilities.as_numeric` definition when it comes to conversion
     failure: the former will forcibly convert :math:`a` variable to *ndarray*
-    using the type defined by :attr:`colour.constant.DEFAULT_FLOAT_DTYPE`
+    using the type defined by :attr:`dreye.constants.DEFAULT_FLOAT_DTYPE`
     attribute while the later will pass the :math:`a` variable as is.
     Examples
     --------

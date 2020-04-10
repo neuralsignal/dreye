@@ -15,7 +15,7 @@ from dreye.utilities import (
     is_numeric, is_uniform, array_domain, has_units,
     asarray, get_values
 )
-from dreye.constants import UREG, ABSOLUTE_ACCURACY, DEFAULT_FLOAT_DTYPE
+from dreye.constants import ureg, ABSOLUTE_ACCURACY, DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractSignal, AbstractDomain
 
 
@@ -92,7 +92,7 @@ class UnpackDomainMixin(ABC):
                 interval = _interval
 
         if isinstance(units, str) or units is None:
-            units = UREG(units).units
+            units = ureg(units).units
 
         start = get_values(convert_units(start, units))
         end = get_values(convert_units(end, units))
@@ -283,7 +283,7 @@ class UnpackSignalMixin(ABC):
         assert isinstance(container['interpolator_kwargs'], dict)
 
         if isinstance(container['units'], str) or container['units'] is None:
-            container['units'] = UREG(container['units']).units
+            container['units'] = ureg(container['units']).units
 
         values, container['labels'] = cls._check_values(
             values, container['domain'],

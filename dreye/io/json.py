@@ -14,8 +14,8 @@ import pickle
 import numpy as np
 import pandas as pd
 
-from dreye.utilities import AbstractSequence
-from dreye.constants import UREG
+from dreye.utilities.abstract import AbstractSequence
+from dreye.constants import ureg
 from dreye.err import DreyeSerializerError
 
 
@@ -97,9 +97,9 @@ def serializer(obj):
         obj = {DFRAME_PREFIX: obj.to_dict()}
     elif isinstance(obj, np.dtype):
         obj = {DTYPE_PREFIX: str(obj)}
-    elif isinstance(obj, UREG.Unit):
+    elif isinstance(obj, ureg.Unit):
         obj = {PINT_PREFIX: str(obj)}
-    elif isinstance(obj, UREG.Quantity):
+    elif isinstance(obj, ureg.Quantity):
         mag = obj.magnitude
         if isinstance(mag, np.ndarray):
             mag = mag.tolist()
@@ -141,7 +141,7 @@ def deserializer(obj):
         elif key == DTYPE_PREFIX:
             return np.dtype(ele)
         elif key == PINT_PREFIX:
-            return UREG(ele).units
+            return ureg(ele).units
         elif key == FUNC_PREFIX:
             return pickle.loads(eval(ele))
         elif key == SERIES_PREFIX:
@@ -149,7 +149,7 @@ def deserializer(obj):
         elif key == DFRAME_PREFIX:
             return pd.DataFrame(ele)
         elif key == QUANT_PREFIX:
-            return ele[0] * UREG(ele[1]).units
+            return ele[0] * ureg(ele[1]).units
         elif (key == DR_PREFIX) or (key == DICTABLE_PREFIX):
             cls = pickle.loads(eval(ele[0]))
             return cls.from_dict(ele[1])

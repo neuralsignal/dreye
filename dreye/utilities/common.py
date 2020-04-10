@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import json
 
-from dreye.constants import UREG
+from dreye.constants import ureg
 from dreye.utilities.abstract import AbstractSequence
 
 around = np.vectorize(np.round)
@@ -100,14 +100,14 @@ def get_units(value):
     if has_units(value):
         return value.units
     else:
-        return UREG(None)
+        return ureg(None)
 
 
 def dissect_units(value):
     """
     """
 
-    if isinstance(value, UREG.Quantity):
+    if isinstance(value, ureg.Quantity):
         return value.magnitude, value.units
     elif has_units(value):
         return value.magnitude, value.units

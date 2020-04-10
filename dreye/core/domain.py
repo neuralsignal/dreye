@@ -1,7 +1,6 @@
 """Domain class
 """
 
-from numbers import Number
 import warnings
 
 import numpy as np
@@ -9,7 +8,7 @@ from pint import DimensionalityError
 
 from dreye.utilities import (
     is_uniform, array_domain, dissect_units,
-    is_numeric, array_equal, has_units, is_arraylike,
+    is_numeric, array_equal, is_arraylike,
     asarray
 )
 from dreye.err import DreyeError
