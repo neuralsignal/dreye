@@ -12,7 +12,7 @@ from dreye.utilities import (
     has_units, is_numeric, asarray,
     _convert_get_val_opt
 )
-from dreye.constants import UREG
+from dreye.constants import ureg
 from dreye.core.spectrum import AbstractSpectrum, Spectrum
 from dreye.core.signal import Signal
 from dreye.core.domain import Domain
@@ -55,7 +55,7 @@ class CalibrationSpectrum(AbstractSpectrum):
         elif has_units(area):
             area = area.to(area_units)
         else:
-            area = area * UREG(area_units)
+            area = area * ureg(area_units)
         self.attrs['area'] = area
 
         if self.ndim != 1:
@@ -542,7 +542,7 @@ class MeasuredSpectraContainer:
         # values=res.x, units=self.units, axis0_labels=self.labels
 
         if units:
-            weights = res.x * self.units * UREG('nm')
+            weights = res.x * self.units * ureg('nm')
         else:
             weights = res.x
 

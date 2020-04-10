@@ -1,6 +1,4 @@
 """
-Common Constants
-================
 """
 
 import numpy as np

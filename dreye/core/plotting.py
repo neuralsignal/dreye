@@ -41,6 +41,7 @@ def get_label(units):
 
 class SignalPlottingMixin:
 
+    # variables preset for class
     _xlabel = None
     _ylabel = None
     _cmap = 'tab10'

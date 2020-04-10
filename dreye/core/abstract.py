@@ -16,10 +16,11 @@ import numpy as np
 # package imports
 from dreye.err import DreyeError, DreyeUnitError
 from dreye.utilities import (
-    dissect_units, AbstractSequence, is_arraylike, has_units,
+    dissect_units, has_units,
     convert_units
 )
-from dreye.constants import UREG
+from dreye.utilities.abstract import AbstractSequence
+from dreye.constants import ureg
 
 
 class AbstractDomain(AbstractSequence):
@@ -182,7 +183,7 @@ class AbstractDomain(AbstractSequence):
     def _other_handler(other):
 
         if isinstance(other, str):
-            other = UREG(other)
+            other = ureg(other)
 
         return dissect_units(other)
 
@@ -226,7 +227,7 @@ class AbstractDomain(AbstractSequence):
 
         if other_units is None:
             pass
-        elif other_units != UREG(None).units:
+        elif other_units != ureg(None).units:
             raise DreyeUnitError(
                 f'{operation} requires unitless values.'
             )

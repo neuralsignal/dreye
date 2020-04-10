@@ -5,7 +5,7 @@ from abc import abstractmethod, ABC
 import numpy as np
 import pandas as pd
 
-from dreye.constants import UREG
+from dreye.constants import ureg
 from dreye.io.json import write_json, read_json
 from dreye.utilities import is_numeric, is_listlike
 from dreye.core.spectral_measurement import (
@@ -141,7 +141,7 @@ class AbstractOutput(AbstractSender):
 
     @property
     def units(self):
-        return UREG(self._units).units
+        return ureg(self._units).units
 
     @property
     def spm(self):

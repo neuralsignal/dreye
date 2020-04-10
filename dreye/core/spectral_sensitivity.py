@@ -6,7 +6,7 @@ TODO Govardoskii and Stavenga fitting of spectrum
 import numpy as np
 
 from dreye.core.spectrum import AbstractSpectrum
-from dreye.constants import UREG, RELATIVE_ACCURACY
+from dreye.constants import ureg, RELATIVE_ACCURACY
 
 
 class AbstractSensitivity(AbstractSpectrum):
@@ -69,7 +69,7 @@ class RelativeOpsinSensitivity(AbstractSensitivity):
             self.magnitude
             / np.max(self.magnitude, axis=self.domain_axis, keepdims=True)
         )
-        self._units = UREG(None).units
+        self._units = ureg(None).units
 
 
 class AbsoluteOpsinSensitivity(AbstractSensitivity):

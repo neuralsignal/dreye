@@ -1,7 +1,6 @@
 """
 """
 
-from .abstract import AbstractSequence
 from .array import (
     array_equal, unique_significant, closest_indexes,
     diag_chunks, spacing, is_uniform, array_domain, arange,
@@ -19,8 +18,6 @@ from .stats import (
 )
 
 __all__ = [
-    # abstract
-    'AbstractSequence',
     # array
     'array_equal',
     'unique_significant',
