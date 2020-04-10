@@ -90,6 +90,7 @@ nbsphinx_execute = 'never'
 
 # Napoleon settings
 napoleon_numpy_docstring = True
+master_doc = 'index'
 
 # import recommonmark
 # from recommonmark.transform import AutoStructify
