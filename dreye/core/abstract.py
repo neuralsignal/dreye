@@ -1,9 +1,10 @@
 """
-Abstract Base Classes for Continuous
+Abstract Base Classes for both Signal and Domain.
 
 ======
 
-Defines the class for implementing continuous signals:
+Defines the class for...
+
 """
 
 # standard python packages
@@ -33,11 +34,15 @@ class AbstractDomain(AbstractSequence):
         return copy.copy(self)
 
     def __copy__(self):
+        """
+        """
+
         return self.__class__(self, dtype=self.dtype)
 
     @property
     def units(self):
         """
+        The units attatched to the values.
         """
 
         return self._units
@@ -45,6 +50,7 @@ class AbstractDomain(AbstractSequence):
     @units.setter
     def units(self, value):
         """
+
         """
 
         if value is None:
@@ -148,6 +154,7 @@ class AbstractDomain(AbstractSequence):
     @property
     def magnitude(self):
         """
+        Returns the magnitude with no units attatched.
         """
 
         return self._values

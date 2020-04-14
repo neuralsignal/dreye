@@ -47,34 +47,6 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     units: str, optional
         Units attatched to the values in Domain.
 
-    Attributes
-    ----------
-    start
-    end
-    interval
-    boundaries
-    values
-    dtype
-    span
-    gradient
-    magnitude
-    units
-
-    Methods
-    -------
-    __str__
-    __repr__
-    __iter__
-    __contains__
-    __len__
-    __getitem__
-    __getattr__
-    [arithmetical operations]
-    load
-    save
-    _unpack
-    asarray
-
     Examples
     --------
     >>> Domain(0, 1, 0.1, 's')
@@ -119,11 +91,15 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
     @property
     def dtype(self):
+        """
+        Return the data type.
+        """
         return self._dtype
 
     @dtype.setter
     def dtype(self, value):
         """
+        Set the data type.
         """
 
         if value is None:
@@ -144,6 +120,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     @property
     def start(self):
         """
+        Returns start of Domain.
         """
 
         return self._start
@@ -179,6 +156,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     @property
     def end(self):
         """
+        Returns the end of Domain.
         """
 
         return self._end
@@ -213,6 +191,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     @property
     def interval(self):
         """
+        Returns the Domain interval.
         """
 
         return self._interval
@@ -238,6 +217,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     @property
     def values(self):
         """
+        Returns the domain array multiplied by the units.
         """
 
         if self._values is None:
@@ -269,6 +249,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     @property
     def boundaries(self):
         """
+
         """
 
         return (self.start, self.end)
@@ -276,6 +257,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     @property
     def span(self):
         """
+        Returns the span of Domain from start to end.
         """
 
         return self.end - self.start
@@ -283,6 +265,8 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     @property
     def is_uniform(self):
         """
+        Check if distribution is uniform.
+
         """
 
         return is_numeric(self.interval)
@@ -348,8 +332,8 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
     def equalize_domains(self, other, interval=None, start=None, end=None):
         """
-        Equalizes the range and the interval between two domains. Domains must
-        be uniform for this to succeed. Takes the most common denominator for 
+        Equalize the range and the interval between two domains. Domains must
+        be uniform for this to succeed. Takes the most common denominator for
         the domain range (largest Start value and smallest End value), and takes
         the largest interval from the original two domains.
         """
@@ -462,6 +446,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
     def append(self, domain, left=False, copy=True):
         """
+        Append domains.
         """
 
         if isinstance(domain, AbstractDomain):
@@ -517,6 +502,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     @property
     def gradient(self):
         """
+        Returns the calulcated gradient.
         """
 
         return np.gradient(self.magnitude) * self.units

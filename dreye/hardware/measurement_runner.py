@@ -20,22 +20,24 @@ Parameters
 ----------
 system :
     Defines the visual stimulation system.
-spec :
+spectrophotometer :
     Defines the spectrophotometer.
 wls :
     A numpy array with specific wavelength values. Alternatively, set wls=None,
     and wavelengths measured will be set to whatever is default for the
     spectrophotometer used.
-smoothing_window:
+smoothing_window :
     Boxcar smoothing window to smooth the spectrum of each averaged intensity
     value of each LED.
-n_steps:
+n_steps :
     Number of steps from 0 boundary to max boundary per LED, inclusive.
-n_avg:
+n_avg :
     Number of times each step is averaged over.
 remove_zero:
-    substracts the zero boundary from all the other measurements. If set to
+    Subtracts the zero boundary from all the other measurements. If set to
     False, zero boundary will not be subtracted.
+step_kwargs :
+sleep :
 
 """
     def __init__(

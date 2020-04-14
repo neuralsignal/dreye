@@ -1,4 +1,4 @@
-"""Plotting Mixin for Signal Class
+"""Plotting for Signal Class
 """
 
 import numpy as np
@@ -78,6 +78,27 @@ class SignalPlottingMixin:
         ylabel=None,
         **plot_kwargs
     ):
+        """
+            cmap:
+                Color maps sourced from matplotlib.
+            colors:
+                Can pass list of _colors.
+            color:
+                Same as colors.
+            despine_kwargs: dict-like, optional
+                Keyword arguments for seaborn despine function.
+            legend_kwargs: dict-like, optional
+                Keyword arguments for the matplotlib.pyplot.legend function.
+            xlabel: str, optional
+                Label for the x-axis. Defaults to units(type), e.g.
+                Wavelengths(nm).
+            y label: str, optional
+                Label for the y-axis. Defaults to units(type), e.g.
+                Volts(mV).
+            plot_kwargs: dict-like, optional
+                Other user-specified keyword values passed to matplotlib.
+
+        """
 
         cmap, colors, xlabel, ylabel = self._get_cls_vars(
             cmap, colors, color, xlabel, ylabel
