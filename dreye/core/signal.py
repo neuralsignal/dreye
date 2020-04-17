@@ -1008,8 +1008,11 @@ class Signal(
         """
         """
 
+        if copy:
+            self = self.copy()
+
         if self.ndim == 1:
-            self = self._expand_dims(1)
+            self = self._expand_dims(1, copy=False)
 
         if isinstance(signal, AbstractSignal):
             # equalizing domains
@@ -1053,9 +1056,6 @@ class Signal(
                 [self_values, other_values],
                 axis=self.other_axis
             )
-
-        if copy:
-            self = self.copy()
 
         self._values = values
         self._labels = labels
@@ -1191,12 +1191,14 @@ class SignalContainer(AbstractContainer, SignalPlottingMixin, EstimatorMixin):
             # enforce Signal class
             signals = Signal(self[0])
             # create flat index (pd.Index method)
-            signals._labels = signals.labels.to_flat_index()
+            if signals.ndim == 2:
+                signals._labels = signals.labels.to_flat_index()
             # concat signals
             for _signal in self[1:]:
                 _signal = Signal(_signal)
                 # create flat index (pd.Index method)
-                _signal._labels = _signal.labels.to_flat_index()
+                if _signal.ndim == 2:
+                    _signal._labels = _signal.labels.to_flat_index()
                 signals.other_concat(_signal, copy=False, label_class=list)
             # assign attribute
             self._signals = signals

@@ -623,7 +623,7 @@ class AbstractSignal(AbstractDomain):
 
         return self, other, labels
 
-    def _expand_dims(self, axis):
+    def _expand_dims(self, axis, copy=True):
         """
         """
 
@@ -639,7 +639,8 @@ class AbstractSignal(AbstractDomain):
 
         values = np.expand_dims(self.magnitude, axis)
 
-        self = self.copy()
+        if copy:
+            self = self.copy()
         self._values = values
         self._labels = pd.Index([self.labels])
         self._domain_axis = domain_axis

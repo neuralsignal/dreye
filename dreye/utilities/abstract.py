@@ -104,7 +104,7 @@ class AbstractContainer(ABC):
         if self._are_instances(container):
             return self.__class__(container)
         else:
-            return CallableList(container)
+            return CallableList(container, container_class=self.__class__)
 
     def __getattr__(self, name):
         try:
@@ -112,7 +112,7 @@ class AbstractContainer(ABC):
             if self._are_instances(container):
                 return self.__class__(container)
             else:
-                return CallableList(container)
+                return CallableList(container, container_class=self.__class__)
         except AttributeError:
             raise AttributeError(
                 f"'{self.__class__.__name__}' object has"
