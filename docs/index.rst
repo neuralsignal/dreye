@@ -3,22 +3,25 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-DrEye
-=====
+.. image:: _static/logo.svg
 
-Something something introduction.
+Color theory and stimulus design for any model organism
+-------------------------------------------------------
+
+
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
    :glob:
-   :caption: Contents:
 
    tutorials/index
    api_index/index
 
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`

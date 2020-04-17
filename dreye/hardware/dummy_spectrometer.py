@@ -10,7 +10,7 @@ from dreye.hardware.dummy_system import DummySystem
 from dreye.utilities import asarray
 
 
-class Spectrometer(AbstractSpectrometer):
+class DummySpectrometer(AbstractSpectrometer):
     """Dummy Spectrometer class
     """
 

@@ -1,20 +1,19 @@
 """Class to define spectral measurement
 """
 
-# third party modules
+import warnings
 import numpy as np
 from scipy.optimize import lsq_linear
 from scipy.interpolate import interp1d
 from sklearn.isotonic import IsotonicRegression
 
-# dreye modules
 from dreye.utilities import (
     has_units, is_numeric, asarray,
-    _convert_get_val_opt
+    _convert_get_val_opt, is_listlike
 )
 from dreye.constants import ureg
 from dreye.core.spectrum import AbstractSpectrum, Spectrum
-from dreye.core.signal import Signal
+from dreye.core.signal import Signal, SignalContainer
 from dreye.core.domain import Domain
 from dreye.err import DreyeError
 
@@ -37,7 +36,8 @@ class CalibrationSpectrum(AbstractSpectrum):
 
         if area is None and not isinstance(values, CalibrationSpectrum):
             raise DreyeError(
-                'Must provide Area for calibration spectrum.'
+                f"Must provide 'area' argument to "
+                f"initialize {self.__class__.__name__}."
             )
 
         super().__init__(
@@ -49,14 +49,16 @@ class CalibrationSpectrum(AbstractSpectrum):
         )
 
         # set area key in attribute
-        area = self.attrs.get('area', area)
+        if area is None:
+            area = self.attrs.get('_area', area)
         if not is_numeric(area):
-            raise DreyeError('area must be a numeric value.')
+            raise DreyeError(f"'area' argument must be a numeric value, "
+                             f"but is of type '{type(area)}'.")
         elif has_units(area):
             area = area.to(area_units)
         else:
             area = area * ureg(area_units)
-        self.attrs['area'] = area
+        self.attrs['_area'] = area
 
         if self.ndim != 1:
             raise DreyeError(
@@ -68,7 +70,7 @@ class CalibrationSpectrum(AbstractSpectrum):
         """
         """
 
-        return self.attrs['area']
+        return self.attrs['_area']
 
 
 class MeasuredSpectrum(Spectrum):
@@ -86,6 +88,9 @@ class MeasuredSpectrum(Spectrum):
     values : 2D
     """
 
+    _label_class = Domain
+    _force_labels = False
+
     def __init__(
         self, *args,
         zero_boundary=None,
@@ -101,7 +106,23 @@ class MeasuredSpectrum(Spectrum):
             raise DreyeError('MeasuredSpectrum must be two-dimensional.')
         if not isinstance(self.labels, Domain):
             try:
+                # check if label idcs are sorted
+                sorted_idcs = np.argsort(self.labels, axis=0)
+                # domain will automatically sort label values
                 self._labels = Domain(self.labels, units=label_units)
+                # need to sort signal values if not sorted
+                if not np.all(np.diff(sorted_idcs) == 1):
+                    warnings.warn(
+                        'Domain labels are not sorted ascendingly. '
+                        'Sorting signal values ascendingly. '
+                        'ATTENTION: other attributes, such as signal_min '
+                        'and signal_max, are not being sorted.'
+                    )
+                    self._values = np.take_along_axis(
+                        self.magnitude,
+                        sorted_idcs,
+                        axis=self.other_axis
+                    )
             except Exception:
                 raise DreyeError(
                     'Labels must be domain or be able'
@@ -111,38 +132,37 @@ class MeasuredSpectrum(Spectrum):
             self._labels = self.labels.to(label_units)
 
         if self.name is None:
-            raise DreyeError(
-                'name variable must be provided for the MeasuredSpectrum class'
-            )
+            raise DreyeError(f'name variable must be provided '
+                             f'for {self.__class__.__name__} instance.')
 
         if zero_boundary is not None:
-            self.attrs['zero_boundary'] = zero_boundary
+            self.attrs['_zero_boundary'] = zero_boundary
         if max_boundary is not None:
-            self.attrs['max_boundary'] = max_boundary
+            self.attrs['_max_boundary'] = max_boundary
         if zero_is_lower is not None:
-            self.attrs['zero_is_lower'] = zero_is_lower
+            self.attrs['_zero_is_lower'] = zero_is_lower
 
         # convert to correct units, but only return value
-        self.attrs['zero_boundary'] = _convert_get_val_opt(
-            self.attrs['zero_boundary'], self.labels.units
+        self.attrs['_zero_boundary'] = _convert_get_val_opt(
+            self.attrs['_zero_boundary'], self.labels.units
         )
-        self.attrs['max_boundary'] = _convert_get_val_opt(
-            self.attrs['max_boundary'], self.labels.units
+        self.attrs['_max_boundary'] = _convert_get_val_opt(
+            self.attrs['_max_boundary'], self.labels.units
         )
 
         if (
-            self.attrs['zero_is_lower'] is None
+            self.attrs['_zero_is_lower'] is None
             and (
-                self.attrs['max_boundary'] is None
-                or self.attrs['zero_boundary'] is None
+                self.attrs['_max_boundary'] is None
+                or self.attrs['_zero_boundary'] is None
             )
         ):
             raise DreyeError(
-                "Must provide zero_is_lower or max and zero boundary."
+                'Must provide zero_is_lower or max and zero boundary.'
             )
 
-        if self.attrs['zero_is_lower'] is None:
-            self.attrs['zero_is_lower'] = (
+        if self.attrs['_zero_is_lower'] is None:
+            self.attrs['_zero_is_lower'] = (
                 self.zero_boundary < self.max_boundary
             )
 
@@ -152,15 +172,15 @@ class MeasuredSpectrum(Spectrum):
 
     @property
     def zero_is_lower(self):
-        return self.attrs['zero_is_lower']
+        return self.attrs['_zero_is_lower']
 
     @property
     def zero_boundary(self):
-        return self.attrs['zero_boundary']
+        return self.attrs['_zero_boundary']
 
     @property
     def max_boundary(self):
-        return self.attrs['max_boundary']
+        return self.attrs['_max_boundary']
 
     @property
     def inputs(self):
@@ -173,51 +193,23 @@ class MeasuredSpectrum(Spectrum):
         return MeasuredSpectraContainer([self], units=units)
 
 
-class MeasuredSpectraContainer:
+class MeasuredSpectraContainer(SignalContainer):
     """Container for measured spectra
     """
 
-    def __init__(self, measured_spectra, units=None):
-        self._measured_spectra = measured_spectra
-        self._check_list()
-        self._init_attrs()
-        # equalize units
-        if units is None and len(set([ele.units for ele in self])) == 1:
-            pass
-        else:
-            if units is None:
-                units = 'uE'
-            self._measured_spectra = [
-                getattr(ele, units)
-                for ele in self
-            ]
-
-        self._units = self._measured_spectra[0].units
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.names})"
-
-    def to_dict(self):
-        return self._measured_spectra
-
-    @classmethod
-    def from_dict(cls, data):
-        # TODO unit saving
-        return cls(data)
-
-    @property
-    def units(self):
-        return self._units
-
-    def _init_attrs(self):
-        self._zero_is_lower = None
-        self._zero_boundary = None
-        self._max_boundary = None
-        self._intensities_list = None
-        self._intensities = None
-        self._normalized_spectrum_list = None
-        self._normalized_spectrum = None
-        self._mapper = None
+    _xlabel = 'wavelength (nm)'
+    _cmap = 'viridis'
+    _init_keys = [
+        '_zero_is_lower',
+        '_zero_boundary',
+        '_max_boundary',
+        '_intensities_list',
+        '_intensities',
+        '_normalized_spectrum_list',
+        '_normalized_spectrum',
+        '_mapper'
+    ]
+    _allowed_instances = MeasuredSpectrum
 
     def map(self, values, **kwargs):
         """
@@ -287,7 +279,7 @@ class MeasuredSpectraContainer:
         )
 
     @property
-    def domain_units(self):
+    def label_units(self):
         # TODO
         units = [ele.labels.units for ele in self]
         if len(set(units)) > 1:
@@ -299,7 +291,7 @@ class MeasuredSpectraContainer:
         """
 
         if units:
-            units = self.domain_units
+            units = self.label_units
         else:
             units = 1
 
@@ -440,9 +432,6 @@ class MeasuredSpectraContainer:
             self._normalized_spectrum_list = ele_list
         return self._normalized_spectrum_list
 
-    def __getitem__(self, key):
-        return self._measured_spectra[key]
-
     @property
     def normalized_spectrum(self):
         if self._normalized_spectrum is None:
@@ -458,49 +447,6 @@ class MeasuredSpectraContainer:
     @property
     def wavelengths(self):
         return self.normalized_spectrum.domain
-
-    def __iter__(self):
-        return iter(self._measured_spectra)
-
-    def len(self):
-        return len(self._measured_spectra)
-
-    def append(self, value):
-        self._measured_spectra.append(value)
-        self._check_list()
-        self._init_attrs()
-
-    def extend(self, value):
-        self._measured_spectra.extend(value)
-        self._check_list()
-        self._init_attrs()
-
-    def pop(self, index):
-        self._measured_spectra.pop(index)
-        self._check_list()
-        self._init_attrs()
-
-    def popkey(self, key):
-        index = self.names.index(key)
-        self.pop(index)
-
-    @property
-    def names(self):
-        return [ele.name for ele in self]
-
-    def _check_list(self):
-        if not isinstance(self._measured_spectra, list):
-            raise DreyeError(
-                'measured_spectra must be a list '
-                'of MeasuredSpectrum instances.')
-        if not all(
-            isinstance(ele, MeasuredSpectrum)
-            for ele in self._measured_spectra
-        ):
-            raise DreyeError(
-                'not all elements of measured_spectra are '
-                'of a MeasuredSpectrum instance.'
-            )
 
     @property
     def uE(self):
@@ -566,3 +512,15 @@ class MeasuredSpectraContainer:
         values = self.fit(spectrum, **kwargs)
 
         return self.map(values, independent=independent)
+
+    @property
+    def measured_spectra(self):
+        return self._container
+
+    @property
+    def _measured_spectra(self):
+        return self._container
+
+    @property
+    def _ylabel(self):
+        return self[0]._ylabel

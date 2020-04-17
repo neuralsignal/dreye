@@ -22,8 +22,9 @@ from dreye.utilities import is_numeric
 #HARDWARE API IMPORTS
 try:
     import seabreeze.spectrometers as sb
-except ImportError as e:
-    raise DreyeError(f"You need to install seabreeze: {e}")
+    SEABREEZE = True
+except ImportError:
+    SEABREEZE = False
 
 
 def read_calibration_file(
@@ -96,7 +97,7 @@ def read_calibration_file(
     return cal_data[:, 0], cal_data[:, 1], area
 
 
-class Spectrometer(AbstractSpectrometer):
+class OceanSpectrometer(AbstractSpectrometer):
     """Basic Spectrometer class for OceanView Spectrometer
     """
 
@@ -105,6 +106,8 @@ class Spectrometer(AbstractSpectrometer):
         correct_dark_counts=True, correct_nonlinearity=False,
         min_it=np.nan, max_it=np.nan
     ):
+        if not SEABREEZE:
+            raise DreyeError(f"You need to install seabreeze.")
         # TODO open first one if sb_device is None
         try:
             if sb_device is None:

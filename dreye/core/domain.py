@@ -326,8 +326,8 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
 
         return (
-            "Domain(start={0}, end={1}, interval={2}, units={3}, dtype={4})"
-        ).format(self.start, self.end, self.interval, self.units, self.dtype)
+            "Domain(start={0}, end={1}, interval={2}, units={3})"
+        ).format(self.start, self.end, self.interval, self.units)
 
     def enforce_uniformity(self, method=np.mean, on_gradient=True, copy=True):
         """
@@ -348,7 +348,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     def equalize_domains(self, other, interval=None, start=None, end=None):
         """
         Equalizes the range and the interval between two domains. Domains must
-        be uniform for this to succeed. Takes the most common denominator for 
+        be uniform for this to succeed. Takes the most common denominator for
         the domain range (largest Start value and smallest End value), and takes
         the largest interval from the original two domains.
         """

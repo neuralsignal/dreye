@@ -5,7 +5,6 @@ API Reference
 .. toctree::
    :maxdepth: 2
    :glob:
-   :caption: Contents:
 
    dreye
    constants

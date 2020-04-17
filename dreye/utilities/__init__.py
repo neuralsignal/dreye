@@ -11,7 +11,7 @@ from .common import (
     has_units, convert_units, dissect_units, is_numeric,
     is_integer, is_string, is_listlike, is_arraylike,
     is_jsoncompatible, get_units, get_values,
-    _convert_get_val_opt
+    _convert_get_val_opt, is_hashable
 )
 from .stats import (
     sample_truncated_distribution, convert_truncnorm_clip
@@ -44,6 +44,7 @@ __all__ = [
     'is_listlike',
     'is_arraylike',
     'is_jsoncompatible',
+    'is_hashable',
     'sample_truncated_distribution',
     'convert_truncnorm_clip',
     'get_units'

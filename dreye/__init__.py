@@ -9,7 +9,7 @@ observers.
 """
 
 # import all core elements and constants
-from dreye.core.signal import Signal
+from dreye.core.signal import Signal, SignalContainer
 from dreye.core.domain import Domain
 from dreye.core.spectrum import AbstractSpectrum, Spectrum
 from dreye.core.spectral_measurement import (
@@ -31,6 +31,7 @@ __all__ = [
     'Domain',
     # signal
     'Signal',
+    'SignalContainer',
     # spectrum
     'AbstractSpectrum',
     'Spectrum',

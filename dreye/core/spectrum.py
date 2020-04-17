@@ -69,23 +69,23 @@ class AbstractSpectrum(Signal):
         )
 
         if smoothing_method is not None:
-            self.attrs.update({'smoothing_method': smoothing_method})
+            self.attrs.update({'_smoothing_method': smoothing_method})
         if smoothing_window is not None:
-            self.attrs.update({'smoothing_window': smoothing_window})
+            self.attrs.update({'_smoothing_window': smoothing_window})
         if smoothing_args is not None:
-            self.attrs.update({'smoothing_args': smoothing_args})
+            self.attrs.update({'_smoothing_args': smoothing_args})
 
     @property
     def smoothing_args(self):
-        return self.attrs.get('smoothing_args', {})
+        return self.attrs.get('_smoothing_args', {})
 
     @property
     def smoothing_window(self):
-        return self.attrs.get('smoothing_window', 1)
+        return self.attrs.get('_smoothing_window', 1)
 
     @property
     def smoothing_method(self):
-        return self.attrs.get('smoothing_method', 'boxcar')
+        return self.attrs.get('_smoothing_method', 'savgol')
 
     @property
     def smooth(self):

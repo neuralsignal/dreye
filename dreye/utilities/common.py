@@ -27,6 +27,10 @@ def is_jsoncompatible(a):
     return True
 
 
+def is_hashable(obj):
+    return hasattr(obj, '__hash__') and hasattr(obj, '__eq__')
+
+
 def digits_to_decimals(x, digits):
     """
     Return decimal places for number of significant digits given x.
@@ -147,7 +151,9 @@ def is_listlike(value):
     """
 
     value, _ = dissect_units(value)
-    return isinstance(value, (Sequence, np.ndarray, AbstractSequence))
+    return isinstance(
+        value, (Sequence, np.ndarray, AbstractSequence, pd.Index)
+    )
 
 
 def is_arraylike(value):

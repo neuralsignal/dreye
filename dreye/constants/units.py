@@ -14,10 +14,10 @@ class UnitRegistry(pint.UnitRegistry):
 
 
 ureg = UnitRegistry()
-ureg.__name__ = 'UnitRegistry'  # define for autodoc
 """
 Standard unit registry as defined by pint package.
 """
+ureg.__name__ = 'UnitRegistry'  # define for autodoc
 
 ureg.define('radiant_energy = joule = radiantenergy')
 ureg.define('radiant_energy_density = joule / '

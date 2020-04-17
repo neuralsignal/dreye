@@ -46,6 +46,7 @@ extensions = [
 autosummary_generate = True
 # autodoc_default_flags = ['members']
 numpydoc_show_class_members = False
+automodsumm_inherited_members = True
 
 
 # Add any paths that contain templates here, relative to this directory.

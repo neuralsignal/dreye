@@ -10,34 +10,37 @@ from dreye.hardware.base_system import AbstractSystem
 
 
 class MeasurementRunner:
-"""
-MeasurementRunner is a class to which you must pass the spectrophotometer and
-system instance to before running measurements.
+    """
+    MeasurementRunner is a class to which you must pass the spectrophotometer
+    and system instance to before running measurements.
 
-Can be used with default measurement values if parameters are not specified.
+    Can be used with default measurement values if parameters are not
+    specified.
 
-Parameters
-----------
-system :
-    Defines the visual stimulation system.
-spec :
-    Defines the spectrophotometer.
-wls :
-    A numpy array with specific wavelength values. Alternatively, set wls=None,
-    and wavelengths measured will be set to whatever is default for the
-    spectrophotometer used.
-smoothing_window:
-    Boxcar smoothing window to smooth the spectrum of each averaged intensity
-    value of each LED.
-n_steps:
-    Number of steps from 0 boundary to max boundary per LED, inclusive.
-n_avg:
-    Number of times each step is averaged over.
-remove_zero:
-    substracts the zero boundary from all the other measurements. If set to
-    False, zero boundary will not be subtracted.
+    Parameters
+    ----------
+    system : dreye.hardware.AbstractSystem
+        Defines the visual stimulation system.
+    spec : dreye.hardware.AbstractSpectrometer
+        Defines the spectrophotometer.
+    wls : array-like, optional
+        A numpy array with specific wavelength values. Alternatively, set
+        wls=None, and wavelengths measured will be set to whatever is default
+        for the spectrophotometer used.
+    smoothing_window : float, optional
+        Savgol filter window to smooth the spectrum of each averaged
+        intensity value of each LED. polyorder argument for the 
+        scipy.signal.savgol_filter is set to 2.
+    n_steps: int, optional
+        Number of steps from 0 boundary to max boundary per LED, inclusive.
+    n_avg : int, optional
+        Number of times each step is averaged over.
+    remove_zero: bool, optional
+        substracts the zero boundary from all the other measurements. If set to
+        False, zero boundary will not be subtracted.
 
-"""
+    """
+
     def __init__(
         self, system, spectrometer,
         n_steps=10, step_kwargs={},

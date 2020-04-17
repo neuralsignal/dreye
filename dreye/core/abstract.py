@@ -12,6 +12,7 @@ import copy
 
 # third party library imports
 import numpy as np
+import pandas as pd
 
 # package imports
 from dreye.err import DreyeError, DreyeUnitError
@@ -25,7 +26,8 @@ from dreye.constants import ureg
 
 class AbstractDomain(AbstractSequence):
 
-    convert_attributes = ()
+    _convert_attributes = ()
+    _unit_mappings = {}
 
     def copy(self):
         """
@@ -50,6 +52,9 @@ class AbstractDomain(AbstractSequence):
 
         if value is None:
             return
+
+        # map the value
+        value = self._unit_mappings.get(value, value)
 
         if value == self.units:
             return
@@ -101,7 +106,7 @@ class AbstractDomain(AbstractSequence):
     def _convert_other_attrs(self, units):
 
         # any other attributes to be converted will be converted
-        for attr in self.convert_attributes:
+        for attr in self._convert_attributes:
             # attr
             if getattr(self, attr) is None:
                 continue
@@ -487,13 +492,13 @@ class AbstractSignal(AbstractDomain):
         pass
 
     @abstractmethod
-    def init_args(self):
+    def _init_args(self):
         pass
 
     @property
     def init_kwargs(self):
 
-        return {arg: getattr(self, arg) for arg in self.init_args}
+        return {arg: getattr(self, arg) for arg in self._init_args}
 
     def _create_new_instance(self, values, **kwargs):
         """create instance from numpy.array
@@ -636,7 +641,7 @@ class AbstractSignal(AbstractDomain):
 
         self = self.copy()
         self._values = values
-        self._labels = (self.labels,)
+        self._labels = pd.Index([self.labels])
         self._domain_axis = domain_axis
         return self
 
