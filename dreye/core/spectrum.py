@@ -180,7 +180,7 @@ class Spectrum(AbstractSpectrum):
             '[substance] / [length] ** 3 / [time]')
 
         if not truth_value:
-            raise DreyeUnitError('No irradiance convertible units.')
+            raise DreyeUnitError(units, 'irradiance convertible units')
 
     @property
     def photonflux(self):

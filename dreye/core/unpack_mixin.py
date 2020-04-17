@@ -9,7 +9,7 @@ from scipy.optimize import root, least_squares
 from scipy.interpolate import interp1d
 from sklearn.isotonic import IsotonicRegression
 
-from dreye.err import DreyeUnitError, DreyeError
+from dreye.err import DreyeError
 from dreye.utilities import (
     convert_units, diag_chunks, is_listlike, arange,
     is_numeric, is_uniform, array_domain, has_units,

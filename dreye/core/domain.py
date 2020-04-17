@@ -4,16 +4,15 @@
 import warnings
 
 import numpy as np
-from pint import DimensionalityError
 
 from dreye.utilities import (
     is_uniform, array_domain, dissect_units,
     is_numeric, array_equal, is_arraylike,
     asarray
 )
-from dreye.err import DreyeError
+from dreye.err import DreyeError, DreyeUnitError
 from dreye.io import read_json, write_json
-from dreye.constants import DEFAULT_FLOAT_DTYPE
+from dreye.constants import DEFAULT_FLOAT_DTYPE, ureg
 from dreye.core.abstract import AbstractDomain
 from dreye.core.unpack_mixin import UnpackDomainMixin
 
@@ -155,7 +154,9 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         value, units = dissect_units(value)
 
         if units is not None and units != self.units:
-            raise DimensionalityError(units, self.units)
+            raise DreyeUnitError(
+                units, self.units,
+                ureg(str(units)).dimensionality, self.units.dimensionality)
 
         if value is None:
             pass
@@ -190,7 +191,9 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         value, units = dissect_units(value)
 
         if units is not None and units != self.units:
-            raise DimensionalityError(units, self.units)
+            raise DreyeUnitError(
+                units, self.units,
+                ureg(str(units)).dimensionality, self.units.dimensionality)
 
         if value is None:
             pass
@@ -224,7 +227,9 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         value, units = dissect_units(value)
 
         if units is not None and units != self.units:
-            raise DimensionalityError(units, self.units)
+            raise DreyeUnitError(
+                units, self.units,
+                ureg(str(units)).dimensionality, self.units.dimensionality)
 
         if value is None:
             pass
@@ -254,7 +259,9 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         values = asarray(values)
 
         if units is not None and units != self.units:
-            raise DimensionalityError(units, self.units)
+            raise DreyeUnitError(
+                units, self.units,
+                ureg(str(units)).dimensionality, self.units.dimensionality)
 
         start, end, interval = array_domain(values, uniform=is_uniform(values))
 
@@ -369,11 +376,13 @@ class Domain(AbstractDomain, UnpackDomainMixin):
                 other = other.copy()
                 other.units = self.units
             except Exception:
-                raise DimensionalityError(
+                raise DreyeUnitError(
                     self.units,
                     other.units,
-                    extra_msg=(' Domain units must equal for'
-                               ' equalization operation'))
+                    self.units.dimensionality,
+                    other.units.dimensionality,
+                    '. Domain units must equal for equalization operation'
+                )
         # check that both domains are uniform
         if not (self.is_uniform and other.is_uniform) and interval is None:
             raise DreyeError(

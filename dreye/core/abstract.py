@@ -13,6 +13,7 @@ import copy
 # third party library imports
 import numpy as np
 import pandas as pd
+from pint import DimensionalityError
 
 # package imports
 from dreye.err import DreyeError, DreyeUnitError
@@ -60,7 +61,15 @@ class AbstractDomain(AbstractSequence):
             return
 
         # converts values if possible
-        values = self._converting_values(value)
+        try:
+            values = self._converting_values(value)
+        except DimensionalityError:
+            raise DreyeUnitError(
+                str(value), str(self.units),
+                ureg(str(value)).dimensionality,
+                self.units.dimensionality,
+                f' for instance of type {self.__class__.__name__}.'
+            )
         self._units = values.units
         self.values = values.magnitude
 
@@ -233,7 +242,7 @@ class AbstractDomain(AbstractSequence):
         if other_units is None:
             pass
         elif other_units != ureg(None).units:
-            raise DreyeUnitError(
+            raise DreyeError(
                 f'{operation} requires unitless values.'
             )
 

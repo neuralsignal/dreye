@@ -1,0 +1,13 @@
+sphinx==2.4.4
+ipython
+scipy
+matplotlib
+numpy
+seaborn
+pint==0.9
+cloudpickle
+sklearn
+pandas
+seabreeze
+nidaqmx
+pytest
