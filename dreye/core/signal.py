@@ -41,13 +41,13 @@ class Signal(
         1 or 2 dimensional array that contains the value of your signal.
     domain : domain, tuple, dict, or array-like, optional
         Can either be a domain instance- a list of numbers for domain that has
-        to be equal to same length as the axis length of your values, tuple with
-        start end or interval, or dictionary which can be passed directly to the
-        domain class.
+        to be equal to same length as the axis length of your values, tuple
+        with start end or interval, or dictionary which can be passed directly
+        to the domain class.
     domain_axis : int, optional
         Axis for which the domain is aligned. If 2D, it can be 0 or 1. If 0,
-        this is the axis along which you have your values data aligned with your
-        domain.
+        this is the axis along which you have your values data aligned with
+        your domain.
     units : str, optional
         Units you define. can define domain units as an extra value. if domain
         is arrray like, list of a bunch of values, haven't assigned units.
@@ -163,49 +163,49 @@ class Signal(
 
     @property
     def domain_min(self):
-    """
-    Returns the minimum value in domain.
-    """
+        """
+        Returns the minimum value in domain.
+        """
         return self._domain_min
 
     @property
     def domain_max(self):
-    """
-    Returns the maximum value in domain.
-    """
+        """
+        Returns the maximum value in domain.
+        """
         return self._domain_max
 
     @property
     def signal_min(self):
-    """
-    Returns the minimum value in signal, to which all lower values are clipped
-    to.
-    """
+        """
+        Returns the minimum value in signal, to which all lower values are
+        clipped to.
+        """
         return self._signal_min
 
     @property
     def signal_max(self):
-    """
-    Returns the maximum value in signal, to which all lower values are clipped
-    to.
-    """
+        """
+        Returns the maximum value in signal, to which all lower values are
+        clipped to.
+        """
         return self._signal_max
 
     @property
     def attrs(self):
-    """
-    Returns the previously defined dictionary created for performing more
-    specific operations on the signal.
-    """
+        """
+        Returns the previously defined dictionary created for performing more
+        specific operations on the signal.
+        """
         if self._attrs is None:
             self._attrs = {}
         return self._attrs
 
     @property
     def name(self):
-    """
-    Returns the name of the signal instance.
-    """
+        """
+        Returns the name of the signal instance.
+        """
         return self._name
 
     @name.setter
@@ -650,8 +650,8 @@ class Signal(
     @property
     def piecewise_integral(self):
         """
-        Returns the calculated integral at each point using the trapezoidal area
-        method.
+        Returns the calculated integral at each point using the trapezoidal
+        area method.
         """
 
         if self.ndim == 1:
@@ -1024,8 +1024,8 @@ class Signal(
     def nanmax(self, *args, **kwargs):
         """
         Return the maximum of an array or maximum along an axis, ignoring any
-        NaNs. When all-NaN slices are encountered a RuntimeWarning is raised and
-        NaN is returned for that slice.
+        NaNs. When all-NaN slices are encountered a RuntimeWarning is raised
+        and NaN is returned for that slice.
         """
 
         return self.numpy_estimator(np.nanmax, *args, **kwargs)

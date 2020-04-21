@@ -56,8 +56,8 @@ def create_gaussian_spectrum(
         A numpy array which specifies the background distribution. Added to the
         wl array, and therefore must be the same length.
     filter : bool
-        If True, filters the wavelength array by the background spectrum instead
-        of adding background as a pure spectral distribution.
+        If True, filters the wavelength array by the background spectrum
+        instead of adding background as a pure spectral distribution.
     add_background : array-like
         A numpy array of same length as the wl array which is added to the
         background distribution.

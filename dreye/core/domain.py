@@ -29,8 +29,8 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     end : numeric, optional
         End of Domain.
     interval : numeric or array-like, optional
-        The interval between values in Domain. If interval is not uniform, will return a
-        list of interval values of length n-1.
+        The interval between values in Domain. If interval is not uniform,
+        will return a list of interval values of length n-1.
     values : array-like or str, optional
         The numpy array multiplied by the units (quantity instance).
     dtype : type, optional
@@ -340,8 +340,8 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
         Equalizes the range and the interval between two domains. Domains must
         be uniform for this to succeed. Takes the most common denominator for
-        the domain range (largest Start value and smallest End value), and takes
-        the largest interval from the original two domains.
+        the domain range (largest Start value and smallest End value), and
+        takes the largest interval from the original two domains.
         """
 
         if self == other:

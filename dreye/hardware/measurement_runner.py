@@ -29,7 +29,7 @@ class MeasurementRunner:
         for the spectrophotometer used.
     smoothing_window : float, optional
         Savgol filter window to smooth the spectrum of each averaged
-        intensity value of each LED. polyorder argument for the 
+        intensity value of each LED. polyorder argument for the
         scipy.signal.savgol_filter is set to 2.
     n_steps: int, optional
         Number of steps from 0 boundary to max boundary per LED, inclusive.
@@ -42,6 +42,7 @@ class MeasurementRunner:
      sleep :
 
     """
+
     def __init__(
         self, system, spectrometer,
         n_steps=10, step_kwargs={},
