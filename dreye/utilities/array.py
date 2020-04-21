@@ -58,18 +58,21 @@ def unique_significant(x, digits=RELATIVE_ACCURACY, **kwargs):
 
 def closest_indexes(a, b):
     """
-    Returns the :math:`a` variable closest element indexes to reference
-    :math:`b` variable elements.
+    Returns the `a` variable closest element indexes to reference
+    `b` variable elements.
+
     Parameters
     ----------
     a : array_like
         Variable to search for the closest element indexes.
     b : numeric
         Reference variable.
+
     Returns
     -------
     numeric
-        Closest :math:`a` variable element indexes.
+        Closest `a` variable element indexes.
+
     Examples
     --------
     >>> a = asarray([24.31357115, 63.62396289, 55.71528816,

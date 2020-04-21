@@ -3,6 +3,7 @@
 
 from sklearn.model_selection import cross_validate
 from sklearn.decomposition import PCA, NMF
+from sklearn.base import clone
 
 from dreye.utilities.abstract import AbstractContainer
 
@@ -33,7 +34,7 @@ class EstimatorHolder:
         assert isinstance(self._estimator, NMF)
         raise NotImplementedError('nmf_plot')
 
-    def _decomp_subplot(self):
+    def _decomp_subplot(self, ax):
         """
         """
 
@@ -61,6 +62,27 @@ class EstimatorMixin:
     """Mixin for signal class to apply sklearn estimators
     """
 
+    @staticmethod
+    def _sklearn_estimate(
+        estimator,
+        X, y,
+        cv_kwargs=None,
+    ):
+        """fit estimator and return EstimatorHolder/Container
+        """
+        # TODO bootstrap method
+
+        if cv_kwargs is None:
+            estimator.fit(X, y)
+            return EstimatorHolder(estimator, X, y)
+        else:
+            scores = cross_validate(estimator, X, y, **cv_kwargs)
+            estimators = [
+                EstimatorHolder(est, X, y)
+                for est in scores['estimator']
+            ]
+            return EstimatorContainer(estimators, **scores)
+
     def sklearn_estimator(
         self,
         estimator_class,
@@ -74,7 +96,7 @@ class EstimatorMixin:
 
         Returns
         -------
-        obj : estimator or EstimatorContainer
+        obj : `EstimatorHolder` or `EstimatorContainer`
             If cross_validate is not None this function returns an
             EstimatorContainer that can be used like the sklearn.BaseEstimator
             and contains the train, test scores as returned by
@@ -116,16 +138,7 @@ class EstimatorMixin:
 
         estimator = estimator_class(**estimator_kwargs)
 
-        if cv is None:
-            estimator.fit(X, y)
-            return EstimatorHolder(estimator, X, y)
-        else:
-            scores = cross_validate(estimator, X, y, **cv)
-            estimators = [
-                EstimatorHolder(est, X, y)
-                for est in scores['estimator']
-            ]
-            return EstimatorContainer(estimators, **scores)
+        return self._sklearn_estimate(estimator, X, y, cv_kwargs=cv)
 
     def pca(self, sample_axis=None, cv=None, **estimator_kwargs):
         """Perform PCA on signal.
