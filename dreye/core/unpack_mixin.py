@@ -9,13 +9,13 @@ from scipy.optimize import root, least_squares
 from scipy.interpolate import interp1d
 from sklearn.isotonic import IsotonicRegression
 
-from dreye.err import DreyeUnitError, DreyeError
+from dreye.err import DreyeError
 from dreye.utilities import (
     convert_units, diag_chunks, is_listlike, arange,
     is_numeric, is_uniform, array_domain, has_units,
-    asarray, get_values
+    asarray, get_values, is_hashable
 )
-from dreye.constants import UREG, ABSOLUTE_ACCURACY, DEFAULT_FLOAT_DTYPE
+from dreye.constants import ureg, ABSOLUTE_ACCURACY, DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractSignal, AbstractDomain
 
 
@@ -92,7 +92,7 @@ class UnpackDomainMixin(ABC):
                 interval = _interval
 
         if isinstance(units, str) or units is None:
-            units = UREG(units).units
+            units = ureg(units).units
 
         start = get_values(convert_units(start, units))
         end = get_values(convert_units(end, units))
@@ -283,7 +283,7 @@ class UnpackSignalMixin(ABC):
         assert isinstance(container['interpolator_kwargs'], dict)
 
         if isinstance(container['units'], str) or container['units'] is None:
-            container['units'] = UREG(container['units']).units
+            container['units'] = ureg(container['units']).units
 
         values, container['labels'] = cls._check_values(
             values, container['domain'],
@@ -359,10 +359,10 @@ class UnpackSignalMixin(ABC):
                 container['domain_axis'] is None
                 or container['domain_axis'] == 0
             ):
-                container['domain'] = asarray(values.index)
+                container['domain'] = values.index
             else:
                 assert isinstance(values, pd.DataFrame)
-                container['domain'] = asarray(values.columns)
+                container['domain'] = values.columns
 
         if container['labels'] is None:
             if isinstance(values, pd.Series):
@@ -372,9 +372,9 @@ class UnpackSignalMixin(ABC):
                     container['domain_axis'] is None
                     or container['domain_axis'] == 0
                 ):
-                    container['labels'] = asarray(values.columns)
+                    container['labels'] = values.columns
                 else:
-                    container['labels'] = asarray(values.index)
+                    container['labels'] = values.index
 
         if container['name'] is None and isinstance(values, pd.DataFrame):
             container['name'] = values.name
@@ -389,8 +389,8 @@ class UnpackSignalMixin(ABC):
             if value is None and hasattr(signal, key):
                 container[key] = getattr(signal, key)
 
-    @staticmethod
-    def _check_values(values, domain, domain_axis, labels):
+    @classmethod
+    def _check_values(cls, values, domain, domain_axis, labels):
         """
         """
 
@@ -400,29 +400,41 @@ class UnpackSignalMixin(ABC):
         )
 
         if not is_listlike(labels) and values.ndim == 2:
+            if not is_hashable(labels):
+                raise DreyeError(
+                    f'label of type {type(labels)} is not hashable'
+                )
             if labels is None:
-                labels = np.arange(values.shape[((domain_axis + 1) % 2)])
+                labels = cls._label_class(
+                    np.arange(values.shape[((domain_axis + 1) % 2)])
+                )
             else:
-                assert values.shape[(domain_axis + 1) % 2] == 1
-                labels = (labels, )
+                if not values.shape[(domain_axis + 1) % 2] == 1:
+                    raise DreyeError(
+                        'When providing single label and values is a 2D array'
+                        ' there can only be a single signal.'
+                    )
+                labels = cls._label_class([labels])
 
-        # TODO can have listlike as single labels, some other constraint?
-        # elif is_listlike(labels) and values.ndim == 1:
-        #     # assert len(labels) == 1, 'labels and values do not match'
-        #     if domain_axis == 1:
-        #         values = values[None, :]
-        #     else:
-        #         values = values[:, None]
-
-        elif values.ndim == 2:
-            assert len(labels) == values.shape[(domain_axis + 1) % 2], (
-                f"labels are of length {len(labels)}, "
-                f"but other axis is of length "
-                f"{values.shape[(domain_axis + 1) % 2]}."
+        elif values.ndim == 1 and not is_hashable(labels):
+            raise DreyeError(
+                f'label of type {type(labels)} is not hashable'
             )
 
+        elif values.ndim == 2:
+            if not len(labels) == values.shape[(domain_axis + 1) % 2]:
+                raise DreyeError(
+                    f"labels are of length {len(labels)}, "
+                    f"but number of signals is "
+                    f"{values.shape[(domain_axis + 1) % 2]}."
+                )
+            if not all(is_hashable(label) for label in labels):
+                raise DreyeError('not all labels are hashable')
+            if not isinstance(labels, cls._label_class) and cls._force_labels:
+                labels = cls._label_class(labels)
+
         if values.ndim == 1 and ((domain_axis > 0) or (domain_axis < -1)):
-            raise ValueError(
-                'If values is 1D, domain_axis must be smaller than 1')
+            raise DreyeError('If values is 1D, domain_axis '
+                             'must be smaller than 1')
 
         return values, labels

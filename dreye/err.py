@@ -1,8 +1,10 @@
 """Classes for error messages
 """
 
+from pint import DimensionalityError
 
-class DreyeUnitError(Exception):
+
+class DreyeUnitError(DimensionalityError):
     pass
 
 

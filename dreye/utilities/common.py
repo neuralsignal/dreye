@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import json
 
-from dreye.constants import UREG
+from dreye.constants import ureg
 from dreye.utilities.abstract import AbstractSequence
 
 around = np.vectorize(np.round)
@@ -25,6 +25,10 @@ def is_jsoncompatible(a):
         return False
 
     return True
+
+
+def is_hashable(obj):
+    return hasattr(obj, '__hash__') and hasattr(obj, '__eq__')
 
 
 def digits_to_decimals(x, digits):
@@ -100,14 +104,14 @@ def get_units(value):
     if has_units(value):
         return value.units
     else:
-        return UREG(None)
+        return ureg(None)
 
 
 def dissect_units(value):
     """
     """
 
-    if isinstance(value, UREG.Quantity):
+    if isinstance(value, ureg.Quantity):
         return value.magnitude, value.units
     elif has_units(value):
         return value.magnitude, value.units
@@ -147,7 +151,9 @@ def is_listlike(value):
     """
 
     value, _ = dissect_units(value)
-    return isinstance(value, (Sequence, np.ndarray, AbstractSequence))
+    return isinstance(
+        value, (Sequence, np.ndarray, AbstractSequence, pd.Index)
+    )
 
 
 def is_arraylike(value):

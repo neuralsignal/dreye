@@ -1,34 +1,54 @@
 """
-dreye
-=====
-
 *dreye* (drosophila eye) is a *Python* photoreceptor and (color) vision
 package implementing various photoreceptor and (color) vision models and
 algorithms, mainly for drosophila.
-Part of the code was modified from the Colour GitHub project
+Part of the code base is inspired by the Colour GitHub project
 (https://github.com/colour-science/colour; BSD-3-Clause license),
 which is a package implementing color vision models and algorithms for human
 observers.
-The format for this package was inspired by the Colour GitHub project
-(<https://github.com/colour-science/colour>), which is a package implementing
-color vision models and algorithms for human observers.
-
-Sub-packages
-------------
--   adaptation: Chromatic adaptation models and transformations.
--   algebra: Algebra utilities.
--   constants
--   continuous
--   difference?
--   examples
--   errors
--   io
--   photoreceptor
--   plotting
--   recovery?
--   spectral: SpectralDistribution, Filter, Opsin
 """
 
 # import all core elements and constants
-from dreye.core import *
-from dreye.constants import *
+from dreye.core.signal import Signal, SignalContainer
+from dreye.core.domain import Domain
+from dreye.core.spectrum import AbstractSpectrum, Spectrum
+from dreye.core.spectral_measurement import (
+    CalibrationSpectrum, MeasuredSpectrum, MeasuredSpectraContainer
+)
+from dreye.core.measurement_utils import (
+    convert_measurement, create_calibration_spectrum,
+    create_measured_spectrum, create_measured_spectra
+)
+from dreye.core.spectrum_utils import fit_background, create_gaussian_spectrum
+from dreye.core.spectral_sensitivity import (
+    RelativeOpsinSensitivity, AbsoluteOpsinSensitivity
+)
+from dreye.core.photoreceptor import LinearPhotoreceptor, LogPhotoreceptor
+
+
+__all__ = [
+    # domain
+    'Domain',
+    # signal
+    'Signal',
+    'SignalContainer',
+    # spectrum
+    'AbstractSpectrum',
+    'Spectrum',
+    # measurement
+    'convert_measurement',
+    'create_calibration_spectrum',
+    'create_measured_spectrum',
+    'create_measured_spectra',
+    'CalibrationSpectrum',
+    'MeasuredSpectrum',
+    'MeasuredSpectraContainer',
+    # sensitivity
+    'RelativeOpsinSensitivity',
+    'AbsoluteOpsinSensitivity',
+    # photoreceptor
+    'LinearPhotoreceptor',
+    'LogPhotoreceptor',
+    'fit_background',
+    'create_gaussian_spectrum'
+]

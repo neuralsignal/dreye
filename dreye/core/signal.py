@@ -1,10 +1,5 @@
 """
-Signal
-======
-
-Defines the class for implementing continuous signals:
-
--   :class:`dreye.core.Signal`
+Defines the class for implementing continuous signals
 """
 
 import warnings
@@ -17,19 +12,24 @@ import pickle
 
 from dreye.utilities import (
     is_numeric, has_units, is_arraylike, convert_units,
-    asarray, array_equal, is_listlike, get_values
+    asarray, array_equal, is_listlike, get_values, is_hashable
 )
+from dreye.utilities.abstract import AbstractContainer
+from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractDomain, AbstractSignal
 from dreye.core.unpack_mixin import UnpackSignalMixin
+from dreye.core.estimator_mixin import EstimatorMixin
 from dreye.core.domain import Domain
 from dreye.algebra.filtering import Filter1D
 from dreye.core.plotting import SignalPlottingMixin
 
 
-class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
+class Signal(
+    AbstractSignal, UnpackSignalMixin, SignalPlottingMixin, EstimatorMixin
+):
     """
     Defines the base class for continuous signals (unit-aware).
 
@@ -88,14 +88,16 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
         Name of the signal instance.
     """
 
-    init_args = (
+    _init_args = (
         'domain', 'interpolator', 'interpolator_kwargs', 'dtype',
         'domain_axis', 'labels', 'contexts', 'attrs',
         'domain_min', 'domain_max', 'signal_min', 'signal_max',
         'name'
     )
     domain_class = Domain
-    convert_attributes = ('signal_min', 'signal_max')
+    _label_class = pd.Index
+    _force_labels = True
+    _convert_attributes = ('signal_min', 'signal_max')
 
     @property
     def _class_new_instance(self):
@@ -150,7 +152,7 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
         self._units = container['units']
 
         for key, value in container.items():
-            if key in self.init_args:
+            if key in self._init_args:
                 setattr(self, '_' + key, value)
 
         # set interpolate to None
@@ -206,6 +208,13 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
     """
         return self._name
 
+    @name.setter
+    def name(self, value):
+        if not is_hashable(value):
+            raise DreyeError(
+                f'New name value of type {type(value)} is not hashable.')
+        self._name = value
+
     def to_dict(self, add_pickled_class=True):
         dictionary = {
             'values': self.magnitude,
@@ -217,6 +226,100 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
                 cloudpickle.dumps(self.__class__)
             )
         return dictionary
+
+    def to_frame(self):
+        """
+        Convert signal class to dataframe/series.
+        Units for the signal and domain will be lost.
+        """
+        if self.ndim == 1:
+            df = pd.Series(
+                self.magnitude,
+                index=self.domain.magnitude,
+            )
+            df.index.name = 'domain'
+        elif self.domain_axis in (0, -2):
+            df = pd.DataFrame(
+                self.magnitude,
+                index=self.domain.magnitude,
+                columns=list(self.labels)
+            )
+            df.columns.name = 'labels'
+            df.index.name = 'domain'
+        else:
+            df = pd.DataFrame(
+                self.magnitude,
+                columns=self.domain.magnitude,
+                index=list(self.labels)
+            )
+            df.index.name = 'labels'
+            df.columns.name = 'domain'
+        return df
+
+    def to_longframe(self):
+        """
+        Convert signal class to a long dataframe,
+        which will also contain the attributes units,
+        domain_units, name, domain_min, domain_max, signal_min,
+        signal_max, and all the keys in the attrs dictionary.
+        It also includes the dimensionality of the units.
+        It will also preserve multiindex values for labels.
+        """
+
+        df = self.to_frame()
+        if isinstance(df, pd.Series):
+            df = df.reset_index()
+            df['labels'] = list(self.labels)
+        else:
+            df = df.stack().reset_index()
+
+        df.rename(columns={0: 'values'}, inplace=True)
+
+        df['name'] = self.name
+        df['units'] = str(self.units)
+        df['units_dimensionality'] = str(self.units.dimensionality)
+        df['domain_units'] = str(self.domain.units)
+        df['domain_units_dimensionality'] = str(
+            self.domain.units.dimensionality
+        )
+        if self.domain_min is None:
+            df['domain_min'] = np.nan
+        else:
+            df['domain_min'] = self.domain_min.to(self.domain.units).magnitude
+        if self.domain_max is None:
+            df['domain_max'] = np.nan
+        else:
+            df['domain_max'] = self.domain_max.to(self.domain.units).magnitude
+        if self.signal_min is None:
+            df['signal_min'] = np.nan
+        else:
+            df['signal_min'] = self.signal_min.magnitude
+        if self.signal_max is None:
+            df['signal_max'] = np.nan
+        else:
+            df['signal_max'] = self.signal_max.magnitude
+
+        # if labels are multiindex include them
+        if isinstance(self.labels, pd.MultiIndex):
+            df_labels = self.labels.to_frame(index=False)
+            df_labels['labels'] = list(self.labels)
+            df = df.merge(
+                df_labels, on='labels', how='left',
+                suffixes=('', '_label')
+            )
+
+        reserved_keys = df.columns
+
+        for key, ele in self.attrs.items():
+            if key in reserved_keys:
+                raise DreyeError(
+                    "Cannot convert to long dataframe since "
+                    f"dictionary 'attrs' contains key '{key}', which"
+                    " is reserved."
+                )
+            df[key] = ele
+
+        return df
 
     @classmethod
     def from_dict(cls, data):
@@ -418,6 +521,14 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
         return self._domain_axis
 
     @property
+    def domain_units(self):
+        return self.domain.units
+
+    @property
+    def domain_magnitude(self):
+        return self.domain.magnitude
+
+    @property
     def other_axis(self):
         """
         Signal axis to which the domain is not aligned.
@@ -461,7 +572,7 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
             self._flip_axes_assignment()
             return self
 
-    def moveaxis(self, source, destination):
+    def moveaxis(self, source, destination, copy=True):
         """
         Swap the order of the axes in signal.
         """
@@ -469,7 +580,8 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
         assert self.ndim == 2
 
         values = np.moveaxis(self.magnitude, source, destination)
-        self = self.copy()
+        if copy:
+            self = self.copy()
         self._values = values
 
         if int(source % 2) != int(destination % 2):
@@ -697,20 +809,36 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
         self._values = values
         return self
 
-    def dot(self, other, pandas=False, units=True):
+    def dot(self, other, pandas=False, units=True, sample_axis=None):
         """
         Returns the dot product of two signal instances. The dot product is
-        always computed along the domain.
+        computed along the domain.
         """
 
         if not isinstance(other, AbstractSignal):
             raise NotImplementedError('other must also be from signal class: '
                                       f'{type(other)}.')
 
-        self, other = self.equalize_domains(other)
+        if sample_axis is None:
+            sample_axis = self.domain_axis
 
-        self_values = np.moveaxis(self.magnitude, self.domain_axis, -1)
-        other_values = np.moveaxis(other.magnitude, other.domain_axis, 0)
+        if int(sample_axis % 2) == int(self.domain_axis % 2):
+            # equalize domains if necessary
+            self, other = self.equalize_domains(other)
+            self_labels = self.labels
+            other_labels = other.labels
+        elif self.other_len != other.other_len:
+            raise DreyeError(
+                'When sample axis is label axis then the '
+                'label lengths of the two signals must match for '
+                'dot product operation.'
+            )
+        else:
+            self_labels = self.domain.magnitude
+            other_labels = other.domain.magnitude
+
+        self_values = np.moveaxis(self.magnitude, sample_axis, -1)
+        other_values = np.moveaxis(other.magnitude, sample_axis, 0)
 
         new_units = self.units * other.units
 
@@ -723,36 +851,46 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
 
             if self.ndim == 2 and other.ndim == 2:
                 return pd.DataFrame(dot_array,
-                                    index=self.labels,
-                                    columns=other.labels)
+                                    index=self_labels,
+                                    columns=other_labels)
 
             elif self.ndim == 1 and other.ndim == 1:
                 return dot_array
 
             elif self.ndim == 1:
                 return pd.Series(dot_array,
-                                 index=other.labels,
-                                 name=self.labels)
+                                 index=other_labels,
+                                 name=self_labels)
 
             elif other.ndim == 1:
                 return pd.Series(dot_array,
-                                 index=self.labels,
-                                 name=other.labels)
+                                 index=self_labels,
+                                 name=other_labels)
 
         else:
             return dot_array
 
-    def cov(self, pandas=False, units=True, mean_center=True):
+    def cov(
+        self, pandas=False, units=True, mean_center=True, sample_axis=None
+    ):
         """
         Calculate covariance matrix of signal.
         """
 
+        assert self.ndim == 2
+
+        if sample_axis is None:
+            sample_axis = self.domain_axis
+
         if mean_center:
-            self = self - self.mean(axis=self.other_axis, keepdims=True)
+            self = self - self.mean(axis=(sample_axis + 1) % 2, keepdims=True)
 
-        return self.dot(self, pandas=pandas, units=units)
+        return self.dot(
+            self, pandas=pandas, units=units, sample_axis=sample_axis)
 
-    def corr(self, pandas=False, units=True, mean_center=True):
+    def corr(
+        self, pandas=False, units=True, mean_center=True, sample_axis=None
+    ):
         """
         Calculate pearson's correlation matrix containing correlation
         coefficients (variance/variance squared).
@@ -763,22 +901,22 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
             If set to True, will return a Pandas dataframe.
         """
 
-        cov = self.cov(pandas=False, units=units, mean_center=mean_center)
+        cov = self.cov(
+            pandas=False, units=units, mean_center=mean_center,
+            sample_axis=sample_axis
+        )
 
         if pandas:
-            raise NotImplementedError('correlation matrix with pandas')
-
-        if is_numeric(cov):
-            return 1
-
-        # covariance is two dimensional
-        if units:
-            units = cov.units
-        else:
+            var = np.diag(cov.values)
             units = 1
-        cov = cov.magnitude
-        var = np.diag(cov)
-        corr = cov / np.sqrt(var * var)
+        elif units:
+            cov = cov.magnitude
+            var = np.diag(cov)
+            units = ureg(None)
+        else:
+            var = np.diag(cov)
+            units = 1
+        corr = cov / np.sqrt(np.outer(var, var))
         return corr * units
 
     def numpy_estimator(
@@ -786,7 +924,6 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
         func,
         axis=None,
         weight=None,
-        keepdims=False,
         **kwargs
     ):
         """
@@ -799,10 +936,10 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
 
             self = self * weight
 
-        values = func(self.magnitude, axis=axis, keepdims=keepdims, **kwargs)
+        values = func(self.magnitude, axis=axis, **kwargs)
 
         if (axis == self.other_axis) and (self.ndim == 2):
-            if keepdims:
+            if values.ndim == 2:
                 return self._create_new_instance(
                     values,
                     units=self.units,
@@ -953,27 +1090,46 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
         self._domain = domain
         return self
 
-    def concat_labels(self, labels, left=False):
+    def concat_labels(self, labels, left=False, label_class=None):
         """
         Concatenate labels of two signal instances.
         """
 
         assert self.ndim == 2
 
-        if left:
-            return list(labels) + list(self.labels)
-        else:
-            return list(self.labels) + list(labels)
+        if label_class is None:
+            label_class = self._label_class
 
-    def other_concat(self, signal, labels=None, left=False, copy=True):
+        if left:
+            new_labels = label_class(labels)
+            _new_labels = new_labels.append(self.labels)
+            if _new_labels is None:  # assumes inplace
+                return new_labels
+            else:
+                return _new_labels
+        else:
+            new_labels = label_class(self.labels)
+            _new_labels = new_labels.append(labels)
+            if _new_labels is None:  # assumes inplace
+                return new_labels
+            else:
+                return _new_labels
+
+    def other_concat(
+        self, signal, labels=None, left=False,
+        copy=True, label_class=None
+    ):
         """
         Create a new signal instance by concatenating two existing signal
         instances. If domains are not equivalent, interpolate if possible and
         enforce the same domain range by using the equalize_domains function.
         """
 
+        if copy:
+            self = self.copy()
+
         if self.ndim == 1:
-            self = self._expand_dims(1)
+            self = self._expand_dims(1, copy=False)
 
         if isinstance(signal, AbstractSignal):
             # equalizing domains
@@ -981,8 +1137,11 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
             self_values = self.magnitude
             # check units
             other_values = asarray(signal.to(self.units))
+            # labels
+            if labels is None:
+                labels = signal.labels
             # handle labels
-            labels = self.concat_labels(signal.labels, left)
+            labels = self.concat_labels(labels, left, label_class=label_class)
 
         elif is_arraylike(signal):
             # self numpy array
@@ -995,7 +1154,7 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
                     str(i)
                     for i in range(other_values.shape[self.other_axis])
                 ]
-            labels = self.concat_labels(labels, left)
+            labels = self.concat_labels(labels, left, label_class=label_class)
 
         else:
             raise DreyeError(
@@ -1014,9 +1173,6 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
                 [self_values, other_values],
                 axis=self.other_axis
             )
-
-        if copy:
-            self = self.copy()
 
         self._values = values
         self._labels = labels
@@ -1047,6 +1203,16 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
             and array_equal(asarray(self), asarray(other))
         )
 
+    def __str__(self):
+
+        return (
+            f"{self.__class__.__name__}"
+            f"(\n\t name={self.name}, \n\t "
+            f"labels={self.labels}, \n\t units={self.units}, \n\t "
+            f"shape={self.shape}, \n\t "
+            f"domain={self.domain}, \n\t domain_axis={self.domain_axis} \n )"
+        )
+
     def _check_clip_value(self, value):
         """
         """
@@ -1058,3 +1224,129 @@ class Signal(AbstractSignal, UnpackSignalMixin, SignalPlottingMixin):
                 if len(value) != self.other_len:
                     raise ValueError('signal is one-dimensional '
                                      'but clipping is list-like.')
+
+
+class SignalContainer(AbstractContainer, SignalPlottingMixin, EstimatorMixin):
+    """A class that contains multiple signal instances in a list.
+    All attributes and methods of a Signal instance can be used directly.
+    Domain units and signal units must have the same dimensionality.
+    """
+    _allowed_instances = Signal
+    _init_keys = [
+        '_signals',
+    ]
+
+    def __init__(self, container, units=None, domain_units=None):
+        super().__init__(container)
+
+        if units is None:
+            self._units = self.container[0].units
+        else:
+            # TODO to work with uE
+            self._units = ureg(str(units))
+        if domain_units is None:
+            self._domain_units = self.container[0].domain.units
+        else:
+            self._domain_units = ureg(str(domain_units))
+
+        # convert to correct units
+        for idx, ele in enumerate(self.container):
+            ele.units = self.units
+            ele.domain.units = self.domain_units
+
+    def to_longframe(self):
+        return pd.concat(
+            self.__getattr__('to_longframe')(),
+            ignore_index=True,
+        )
+
+    @property
+    def ndim(self):
+        return np.min([np.sum(self.__getattr__('ndim')), 2])
+
+    # def plot(self, *args, **kwargs):
+    #     raise NotImplementedError(
+    #         f'plot method is not implemented for {self.__class__}; '
+    #         'use the relplot method instead.'
+    #     )
+
+    def relplot(self, **kwargs):
+        # default behavior is that each signal gets own
+        # column according to name
+        # and that columns are wrapped in threes
+        if not {'row', 'col'} & set(kwargs):
+            kwargs['col'] = 'name'
+            kwargs['col_wrap'] = 3
+        super().relplot(**kwargs)
+
+    def __getitem__(self, key):
+        if is_numeric(key):
+            return super().__getitem__(key)
+        elif key in self.names:
+            key = self.names.index(key)
+        elif key in self.container:
+            key = self.container.index(key)
+        return super().__getitem__(key)
+
+    @property
+    def domain_units(self):
+        return self._domain_units
+
+    @property
+    def units(self):
+        return self._units
+
+    @property
+    def names(self):
+        return [ele.name for ele in self]
+
+    def popkey(self, key):
+        index = self.names.index(key)
+        self.pop(index)
+
+    @property
+    def signals(self):
+        if self._signals is None:
+            # enforce Signal class
+            signals = Signal(self[0])
+            # create flat index (pd.Index method)
+            if signals.ndim == 2:
+                signals._labels = signals.labels.to_flat_index()
+            # concat signals
+            for _signal in self[1:]:
+                _signal = Signal(_signal)
+                # create flat index (pd.Index method)
+                if _signal.ndim == 2:
+                    _signal._labels = _signal.labels.to_flat_index()
+                signals.other_concat(_signal, copy=False, label_class=list)
+            # assign attribute
+            self._signals = signals
+        return self._signals
+
+    @property
+    def magnitude(self):
+        return self.signals.magnitude
+
+    @property
+    def domain_magnitude(self):
+        return self.signals.domain.magnitude
+
+    @property
+    def labels(self):
+        return self.signals.labels
+
+    @property
+    def other_len(self):
+        return np.sum(self.__getattr__('other_len'))
+
+    @property
+    def other_axis(self):
+        return self.signals.other_axis
+
+    @property
+    def domain_axis(self):
+        return self.signals.domain_axis
+
+    @property
+    def domain_len(self):
+        return self.signals.domain_len

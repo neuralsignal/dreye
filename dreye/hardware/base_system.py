@@ -5,7 +5,7 @@ from abc import abstractmethod, ABC
 import numpy as np
 import pandas as pd
 
-from dreye.constants import UREG
+from dreye.constants import ureg
 from dreye.io.json import write_json, read_json
 from dreye.utilities import is_numeric, is_listlike
 from dreye.core.spectral_measurement import (
@@ -141,7 +141,7 @@ class AbstractOutput(AbstractSender):
 
     @property
     def units(self):
-        return UREG(self._units).units
+        return ureg(self._units).units
 
     @property
     def spm(self):
@@ -206,13 +206,16 @@ class AbstractOutput(AbstractSender):
 
 class AbstractSystem(AbstractSender):
 
+    _output_class = AbstractOutput
+
     def __init__(self, outputs):
         if isinstance(outputs, AbstractSystem):
-            self._outputs = outputs.outputs
+            self._outputs = outputs.outputs.copy()
         else:
             assert is_listlike(outputs)
+            outputs = list(outputs)
             assert all(
-                isinstance(output, AbstractOutput) for output in outputs
+                isinstance(output, self._output_class) for output in outputs
             )
             self._outputs = outputs
 
@@ -227,7 +230,7 @@ class AbstractSystem(AbstractSender):
 
     def __getitem__(self, key):
         output = self.output_series[key]
-        if isinstance(output, AbstractOutput):
+        if isinstance(output, self._output_class):
             return output
         else:
             return self.__class__(list(output))

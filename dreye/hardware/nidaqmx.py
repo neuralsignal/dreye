@@ -19,13 +19,20 @@ try:
     import nidaqmx.system
     from nidaqmx.stream_writers import \
         AnalogMultiChannelWriter, AnalogSingleChannelWriter
-except ImportError as e:
-    raise DreyeError(f"You need to install nidaqmx: {e}")
+    NIDAQMX = True
+except ImportError:
+    NIDAQMX = False
+
+
+def _check_install():
+    if not NIDAQMX:
+        raise DreyeError(f"You need to install nidaqmx.")
 
 
 def get_channels():
     """get all channels from all NI DAQ devices.
     """
+    _check_install()
 
     system = nidaqmx.system.System.local()
     return [
@@ -38,6 +45,8 @@ def get_channels():
 def get_channel_mappings():
     """get all NI DAQ devices
     """
+    _check_install()
+
     system = nidaqmx.system.System.local()
     return {
         chan.name: (device, chan)
@@ -50,6 +59,10 @@ class NiDaqMxOutput(AbstractOutput):
     # writer to send values
     task = None
     writer = None
+
+    def __init__(self, *args, **kwargs):
+        _check_install()
+        super().__init__(*args, **kwargs)
 
     def open(self):
         # create task
@@ -110,6 +123,12 @@ class NiDaqMxSystem(AbstractSystem):
     writers = None
     tasks = None
     trigger = None
+
+    _output_class = NiDaqMxOutput
+
+    def __init__(self, *args, **kwargs):
+        _check_install()
+        super().__init__(*args, **kwargs)
 
     @property
     def unique_devices(self):

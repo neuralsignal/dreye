@@ -13,19 +13,23 @@ import copy
 
 # third party library imports
 import numpy as np
+import pandas as pd
+from pint import DimensionalityError
 
 # package imports
 from dreye.err import DreyeError, DreyeUnitError
 from dreye.utilities import (
-    dissect_units, AbstractSequence, is_arraylike, has_units,
+    dissect_units, has_units,
     convert_units
 )
-from dreye.constants import UREG
+from dreye.utilities.abstract import AbstractSequence
+from dreye.constants import ureg
 
 
 class AbstractDomain(AbstractSequence):
 
-    convert_attributes = ()
+    _convert_attributes = ()
+    _unit_mappings = {}
 
     def copy(self):
         """
@@ -56,11 +60,22 @@ class AbstractDomain(AbstractSequence):
         if value is None:
             return
 
+        # map the value
+        value = self._unit_mappings.get(value, value)
+
         if value == self.units:
             return
 
         # converts values if possible
-        values = self._converting_values(value)
+        try:
+            values = self._converting_values(value)
+        except DimensionalityError:
+            raise DreyeUnitError(
+                str(value), str(self.units),
+                ureg(str(value)).dimensionality,
+                self.units.dimensionality,
+                f' for instance of type {self.__class__.__name__}.'
+            )
         self._units = values.units
         self.values = values.magnitude
 
@@ -106,7 +121,7 @@ class AbstractDomain(AbstractSequence):
     def _convert_other_attrs(self, units):
 
         # any other attributes to be converted will be converted
-        for attr in self.convert_attributes:
+        for attr in self._convert_attributes:
             # attr
             if getattr(self, attr) is None:
                 continue
@@ -189,7 +204,7 @@ class AbstractDomain(AbstractSequence):
     def _other_handler(other):
 
         if isinstance(other, str):
-            other = UREG(other)
+            other = ureg(other)
 
         return dissect_units(other)
 
@@ -233,8 +248,8 @@ class AbstractDomain(AbstractSequence):
 
         if other_units is None:
             pass
-        elif other_units != UREG(None).units:
-            raise DreyeUnitError(
+        elif other_units != ureg(None).units:
+            raise DreyeError(
                 f'{operation} requires unitless values.'
             )
 
@@ -493,13 +508,13 @@ class AbstractSignal(AbstractDomain):
         pass
 
     @abstractmethod
-    def init_args(self):
+    def _init_args(self):
         pass
 
     @property
     def init_kwargs(self):
 
-        return {arg: getattr(self, arg) for arg in self.init_args}
+        return {arg: getattr(self, arg) for arg in self._init_args}
 
     def _create_new_instance(self, values, **kwargs):
         """create instance from numpy.array
@@ -624,7 +639,7 @@ class AbstractSignal(AbstractDomain):
 
         return self, other, labels
 
-    def _expand_dims(self, axis):
+    def _expand_dims(self, axis, copy=True):
         """
         """
 
@@ -640,9 +655,10 @@ class AbstractSignal(AbstractDomain):
 
         values = np.expand_dims(self.magnitude, axis)
 
-        self = self.copy()
+        if copy:
+            self = self.copy()
         self._values = values
-        self._labels = (self.labels,)
+        self._labels = pd.Index([self.labels])
         self._domain_axis = domain_axis
         return self
 

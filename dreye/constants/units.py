@@ -9,26 +9,31 @@ import pint
 import numpy as np
 
 
-UREG = pint.UnitRegistry()
+class UnitRegistry(pint.UnitRegistry):
+    pass
+
+
+ureg = UnitRegistry()
 """
 Standard unit registry as defined by pint package.
 """
+ureg.__name__ = 'UnitRegistry'  # define for autodoc
 
-UREG.define('radiant_energy = joule = radiantenergy')
-UREG.define('radiant_energy_density = joule / '
+ureg.define('radiant_energy = joule = radiantenergy')
+ureg.define('radiant_energy_density = joule / '
             'meter ** 3 = radiantenergydensity')
-UREG.define('radiant_flux = watt = radiantflux')
-UREG.define('spectral_flux = radiant_flux / nanometer = spectralflux')
-UREG.define('radiant_intensity = radiant_flux / steradian = radiantintensity')
-UREG.define('spectral_intensity = radiant_intensity /'
+ureg.define('radiant_flux = watt = radiantflux')
+ureg.define('spectral_flux = radiant_flux / nanometer = spectralflux')
+ureg.define('radiant_intensity = radiant_flux / steradian = radiantintensity')
+ureg.define('spectral_intensity = radiant_intensity /'
             ' nanometer = spectralintensity')
-UREG.define('radiance = radiant_intensity / meter ** 2')
-UREG.define('spectral_radiance = radiance / nanometer = spectralradiance')
-UREG.define('irradiance = radiant_flux / meter ** 2 = irrad = flux_density')
-UREG.define('spectral_irradiance = irradiance / '
+ureg.define('radiance = radiant_intensity / meter ** 2')
+ureg.define('spectral_radiance = radiance / nanometer = spectralradiance')
+ureg.define('irradiance = radiant_flux / meter ** 2 = irrad = flux_density')
+ureg.define('spectral_irradiance = irradiance / '
             'nanometer = spectral_flux_density = spectralirradiance')
-UREG.define('E_Q = mole / meter^2 / second = photonflux = photon_flux')
-UREG.define(
+ureg.define('E_Q = mole / meter^2 / second = photonflux = photon_flux')
+ureg.define(
     'spectral_E_Q = mole / meter^2 / second / nanometer = spectral_photonflux'
     ' = spectral_photon_flux = spectralphotonflux')
 
@@ -171,4 +176,4 @@ c.add_transformation(
 )
 
 
-UREG.add_context(c)
+ureg.add_context(c)

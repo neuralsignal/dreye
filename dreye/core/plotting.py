@@ -41,6 +41,7 @@ def get_label(units):
 
 class SignalPlottingMixin:
 
+    # variables preset for class
     _xlabel = None
     _ylabel = None
     _cmap = 'tab10'
@@ -118,7 +119,7 @@ class SignalPlottingMixin:
             ):
 
                 ax.plot(
-                    self.domain.magnitude,
+                    self.domain_magnitude,
                     values,
                     label=(self.labels[idx] if labels else None),
                     color=colors[idx],
@@ -127,7 +128,7 @@ class SignalPlottingMixin:
 
         else:
             ax.plot(
-                self.domain.magnitude,
+                self.domain_magnitude,
                 self.magnitude,
                 label=(self.labels if labels else None),
                 color=('black' if colors is None else colors),
@@ -135,7 +136,7 @@ class SignalPlottingMixin:
             )
 
         if xlabel is None:
-            xlabel = get_label(self.domain.units)
+            xlabel = get_label(self.domain_units)
         if ylabel is None:
             ylabel = get_label(self.units)
 
@@ -148,3 +149,49 @@ class SignalPlottingMixin:
         sns.despine(ax=ax, **despine_kwargs)
 
         return ax
+
+    def relplot(
+        self,
+        xlabel=None, ylabel=None,
+        palette=None,
+        **kwargs
+    ):
+        """aggregate plot using long dataframe and seaborn
+        """
+
+        default_kws = dict(
+            hue='labels',
+            kind='line'
+        )
+        default_kws.update(kwargs)
+        kwargs = default_kws
+
+        default_facet_kws = dict(
+            margin_titles=True,
+        )
+        default_facet_kws.update(kwargs.get('facet_kws', {}))
+        kwargs['facet_kws'] = default_facet_kws
+
+        palette, _, xlabel, ylabel = self._get_cls_vars(
+            palette, None, None, xlabel, ylabel
+        )
+
+        data = self.to_longframe()
+
+        g = sns.relplot(
+            data=data,
+            x='domain',
+            y='values',
+            palette=palette,
+            **kwargs
+        )
+
+        if xlabel is None:
+            xlabel = get_label(self.domain_units)
+        if ylabel is None:
+            ylabel = get_label(self.units)
+
+        g.set_xlabels(xlabel)
+        g.set_ylabels(ylabel)
+
+        return g

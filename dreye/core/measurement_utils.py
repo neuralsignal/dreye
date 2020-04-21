@@ -6,7 +6,7 @@ import numpy as np
 
 # dreye modules
 from dreye.utilities import has_units, is_numeric, asarray
-from dreye.constants import UREG
+from dreye.constants import ureg
 from dreye.core.domain import Domain
 from dreye.core.signal import Signal
 from dreye.core.spectrum import AbstractSpectrum, Spectrum
@@ -44,7 +44,7 @@ def convert_measurement(
     area = calibration.area
 
     if not has_units(integration_time):
-        integration_time = integration_time * UREG('s')
+        integration_time = integration_time * ureg('s')
 
     if not is_numeric(integration_time):
         assert signal.ndim == 2
@@ -101,7 +101,7 @@ def create_measured_spectrum(
         domain_axis=axis,
     )
     if is_mole:
-        spectrum = spectrum * UREG('mole')
+        spectrum = spectrum * ureg('mole')
 
     return convert_measurement(
         spectrum,

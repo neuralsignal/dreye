@@ -8,7 +8,7 @@ import datetime
 import numpy as np
 import pandas as pd
 
-from dreye.constants import UREG
+from dreye.constants import ureg
 from dreye.core.spectrum import AbstractSpectrum
 from dreye.core.spectral_measurement import CalibrationSpectrum
 from dreye.core.measurement_utils import (
@@ -22,8 +22,9 @@ from dreye.utilities import is_numeric
 #HARDWARE API IMPORTS
 try:
     import seabreeze.spectrometers as sb
-except ImportError as e:
-    raise DreyeError(f"You need to install seabreeze: {e}")
+    SEABREEZE = True
+except ImportError:
+    SEABREEZE = False
 
 
 def read_calibration_file(
@@ -73,14 +74,14 @@ def read_calibration_file(
 
     # convert to seconds and cm2
     if filename.endswith('.IRRADCAL'):
-        integration_time = integration_time * UREG('us')
+        integration_time = integration_time * ureg('us')
         integration_time = integration_time.to('s')
-        area = area * UREG('um')  # actually diameter
+        area = area * ureg('um')  # actually diameter
         area = np.pi * (area/2) ** 2
         area = area.to('cm**2')
     else:
-        integration_time = integration_time * UREG('s')
-        area = area * UREG('cm**2')
+        integration_time = integration_time * ureg('s')
+        area = area * ureg('cm**2')
 
     if create_spectrum:
         cal = create_calibration_spectrum(
@@ -96,7 +97,7 @@ def read_calibration_file(
     return cal_data[:, 0], cal_data[:, 1], area
 
 
-class Spectrometer(AbstractSpectrometer):
+class OceanSpectrometer(AbstractSpectrometer):
     """Basic Spectrometer class for OceanView Spectrometer
     """
 
@@ -105,6 +106,8 @@ class Spectrometer(AbstractSpectrometer):
         correct_dark_counts=True, correct_nonlinearity=False,
         min_it=np.nan, max_it=np.nan
     ):
+        if not SEABREEZE:
+            raise DreyeError(f"You need to install seabreeze.")
         # TODO open first one if sb_device is None
         try:
             if sb_device is None:
