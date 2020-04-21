@@ -38,9 +38,10 @@ class MeasurementRunner:
     remove_zero: bool, optional
         substracts the zero boundary from all the other measurements. If set to
         False, zero boundary will not be subtracted.
+     step_kwargs :
+     sleep :
 
     """
-
     def __init__(
         self, system, spectrometer,
         n_steps=10, step_kwargs={},

@@ -1,6 +1,5 @@
 """
-functions for creating particular spectra
-or fitting particular spectra.
+Functions for creating or fitting particular spectra
 """
 
 import numpy as np
@@ -15,7 +14,8 @@ def fit_background(
     measured_spectra, background, return_fit=True, units=True,
     **kwargs
 ):
-    """fit background spectrum to measurement of light sources.
+    """
+    Fit background spectrum to measurement of light sources.
     """
 
     assert isinstance(measured_spectra, MeasuredSpectraContainer)
@@ -46,6 +46,24 @@ def create_gaussian_spectrum(
         The standard deviation for each single wavelength Gaussian in nm.
     intensity : float
         The intensity of the single wavelength Gaussians.
+    units : str
+        The unit and scale specified if in photon flux, e.g.
+        'microspectralphotonflux' or simply 'spectralirradiance'.
+    cdf : bool
+        Allows changes to the distribution function. If True, the cdf will ; if
+        cdf=None, the pdf will be plotted; if cdf=False, 1-cdf will be plotted
+    background : array-like
+        A numpy array which specifies the background distribution. Added to the
+        wl array, and therefore must be the same length.
+    filter : bool
+        If True, filters the wavelength array by the background spectrum instead
+        of adding background as a pure spectral distribution.
+    add_background : array-like
+        A numpy array of same length as the wl array which is added to the
+        background distribution.
+    zero_cutoff : bool
+        If True, spectral distribution clipped at 0 and negative values
+        discarded.
     """
 
     if background is None and (filter or add_background):

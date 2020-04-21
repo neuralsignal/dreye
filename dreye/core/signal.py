@@ -38,38 +38,54 @@ class Signal(
     Parameters
     ----------
     values : array-like or str
-    domain : Domain, tuple, dict, or array-like, optional
-    axis : int, optional
-        Axis of the domain.
+        1 or 2 dimensional array that contains the value of your signal.
+    domain : domain, tuple, dict, or array-like, optional
+        Can either be a domain instance- a list of numbers for domain that has
+        to be equal to same length as the axis length of your values, tuple with
+        start end or interval, or dictionary which can be passed directly to the
+        domain class.
+    domain_axis : int, optional
+        Axis for which the domain is aligned. If 2D, it can be 0 or 1. If 0,
+        this is the axis along which you have your values data aligned with your
+        domain.
     units : str, optional
-    labels : str or tuple, optional
+        Units you define. can define domain units as an extra value. if domain
+        is arrray like, list of a bunch of values, haven't assigned units.
+    labels : list-like, optional
+        A list-like parameter that must be the same length as the number of
+        signals. This serves as the "name" for each signal. Defaults to a
+        numeric list (e.g. [1, 2, 3]) if signal is a 2D, and to none if the
+        signal is a 1D array.
     interpolator : interpolate class, optional
+        Callable function that allows you to interpolate between points. It
+        accepts x and y (domain and values). As a key word arguement it has to
+        include axis. Defaults to scipy.interpolate.interp1d.
     interpolator_kwargs : dict-like, optional
-
-
-    Attributes
-    ----------
-    values
-    data
-    domain # setter
-    labels # setter
-    ndim # from data
-    shape # from data
-    size # from data
-    interpolator # setter
-
-    Methods
-    -------
-    __call__
-    [arithmetical operations]
-    to_frame
-    to_array
-    to_dict
-    load
-    save
-    _unpack
-    plot
-    dot # only along domain axis
+        Dictionary in which you can specify there are other arguments that you
+        want to pass to your interpolator function.
+    contexts :
+        Contexts for unit conversion.
+    domain_kwargs : dict-like, optional
+        Dictionary that will be passed to instantiate your domain. Uses the
+        previous domain class and passes it when you intialize. Only
+        optional when you pass signal values. Defaults to 0.
+    domain_min : int, optional
+        Defines the minimum value in your domain for the intpolation range.
+        Defaults to None.
+    domain_max : int, optional
+        Defines the minimum value in your domain for the intpolation range.
+        Defaults to None.
+    signal_min : int, optional
+        Will clip your signal to a minimum. Everything below this minimum will
+        be set to the minumum.
+    signal_max : int, optional
+        Will clip your signal to a maximum. Everything above this maximum will
+        be set to the maximum.
+    attrs :
+        User defined dictionary that will keep track of anything needed for
+        performing operations on the signal.
+    name : str, optional
+        Name of the signal instance.
     """
 
     _init_args = (
@@ -85,6 +101,8 @@ class Signal(
 
     @property
     def _class_new_instance(self):
+        """
+        """
         return Signal
 
     def __init__(
@@ -145,28 +163,49 @@ class Signal(
 
     @property
     def domain_min(self):
+    """
+    Returns the minimum value in domain.
+    """
         return self._domain_min
 
     @property
     def domain_max(self):
+    """
+    Returns the maximum value in domain.
+    """
         return self._domain_max
 
     @property
     def signal_min(self):
+    """
+    Returns the minimum value in signal, to which all lower values are clipped
+    to.
+    """
         return self._signal_min
 
     @property
     def signal_max(self):
+    """
+    Returns the maximum value in signal, to which all lower values are clipped
+    to.
+    """
         return self._signal_max
 
     @property
     def attrs(self):
+    """
+    Returns the previously defined dictionary created for performing more
+    specific operations on the signal.
+    """
         if self._attrs is None:
             self._attrs = {}
         return self._attrs
 
     @property
     def name(self):
+    """
+    Returns the name of the signal instance.
+    """
         return self._name
 
     @name.setter
@@ -284,7 +323,8 @@ class Signal(
 
     @classmethod
     def from_dict(cls, data):
-        """create class from dictionary
+        """
+        Create a class from dictionary.
         """
 
         try:
@@ -306,6 +346,7 @@ class Signal(
     @property
     def dtype(self):
         """
+        Returns the data type.
         """
 
         return self._dtype
@@ -313,6 +354,7 @@ class Signal(
     @dtype.setter
     def dtype(self, value):
         """
+        Set the data type.
         """
 
         if value is None:
@@ -331,6 +373,8 @@ class Signal(
     @property
     def domain(self):
         """
+        Returns domain as previously defined. Can be a domain instance, list of
+        numbers, tuple, or dictionary.
         """
 
         return self._domain
@@ -338,6 +382,7 @@ class Signal(
     @property
     def values(self):
         """
+        Returns the array containing the value of signal.
         """
 
         return self._values * self.units
@@ -354,6 +399,7 @@ class Signal(
     @property
     def boundaries(self):
         """
+        Returns the minimum and maximum value of each signal.
         """
 
         return asarray([
@@ -364,6 +410,7 @@ class Signal(
     @property
     def interpolator(self):
         """
+        Returns the interpolator that was selected for use.
         """
 
         return self._interpolator
@@ -384,6 +431,8 @@ class Signal(
     @property
     def interpolator_kwargs(self):
         """
+        Returns the previously specified dictionary containing arguments to
+        be passed to the interpolator function.
         """
 
         # always makes sure that integration occurs along the right axis
@@ -407,6 +456,7 @@ class Signal(
     @property
     def interpolate(self):
         """
+
         """
 
         if self._interpolate is None:
@@ -430,6 +480,21 @@ class Signal(
 
     @staticmethod
     def _clip_values(values, a_min, a_max):
+        """
+        Define the minumum and maximum values in a signal and clip any values
+        outside of these boundaries.
+
+        Parameters
+        ----------
+        values :
+            Values of the signal to perform the operation on.
+        a_min :
+            Minimum value which a signal shall be clipped to.
+        a_max :
+            Maximum value which a signal shall be clipped to.
+
+
+        """
         if a_min is None and a_max is None:
             return values
         else:
@@ -442,6 +507,7 @@ class Signal(
     @property
     def labels(self):
         """
+        Returns signal labels, or the "name" for each signal.
         """
 
         return self._labels
@@ -449,6 +515,7 @@ class Signal(
     @property
     def domain_axis(self):
         """
+        Signal axis to which the domain is aligned.
         """
 
         return self._domain_axis
@@ -464,6 +531,7 @@ class Signal(
     @property
     def other_axis(self):
         """
+        Signal axis to which the domain is not aligned.
         """
 
         if self.ndim == 1:
@@ -474,6 +542,7 @@ class Signal(
     @property
     def other_len(self):
         """
+        Returns the length of the signal axis to which domain is not aligned.
         """
 
         if self.ndim == 1:
@@ -484,6 +553,7 @@ class Signal(
     @property
     def domain_len(self):
         """
+        Returns the length of the signal axis to which domain is aligned.
         """
 
         return self.shape[self.domain_axis]
@@ -491,6 +561,7 @@ class Signal(
     @property
     def T(self):
         """
+        Returns the transpose of signal.
         """
 
         if self.ndim == 1:
@@ -503,6 +574,7 @@ class Signal(
 
     def moveaxis(self, source, destination, copy=True):
         """
+        Swap the order of the axes in signal.
         """
 
         assert self.ndim == 2
@@ -519,6 +591,7 @@ class Signal(
 
     def __call__(self, domain):
         """
+
         """
 
         domain_units = self.domain.units
@@ -557,6 +630,7 @@ class Signal(
     @property
     def integral(self):
         """
+        Returns the integral for each signal.
         """
 
         return np.trapz(
@@ -568,6 +642,7 @@ class Signal(
     @property
     def normalized_signal(self):
         """
+        Returns the signal divided by the integral. Integrates to 1.
         """
 
         return self / self._broadcast(self.integral, self.other_axis)
@@ -575,6 +650,8 @@ class Signal(
     @property
     def piecewise_integral(self):
         """
+        Returns the calculated integral at each point using the trapezoidal area
+        method.
         """
 
         if self.ndim == 1:
@@ -589,6 +666,7 @@ class Signal(
     @property
     def piecewise_gradient(self):
         """
+        Returns the instantanous gradient at each point in signal.
         """
 
         if self.ndim == 1:
@@ -603,6 +681,7 @@ class Signal(
     @property
     def gradient(self):
         """
+        Returns the overall gradient.
         """
 
         return self._create_new_instance(
@@ -615,6 +694,7 @@ class Signal(
     @property
     def nanless(self, copy=True):
         """
+        Returns signal with NaNs removed.
         """
 
         arr = self.magnitude
@@ -653,7 +733,9 @@ class Signal(
         return self
 
     def enforce_uniformity(self, method=np.mean, on_gradient=True):
-        """enforce uniform domain (interpolate)
+        """
+        Returns the domain with a uniform interval, calculated from the average
+        of all original interval values.
         """
 
         domain = self.domain.enforce_uniformity(
@@ -666,7 +748,9 @@ class Signal(
         self, domain_interval,
         method='savgol', extrapolate=False, copy=True, **method_args
     ):
-        """Filter Signal instance using filter1d
+        """
+        Filters signal instance using filter1d, which uses the savgol method.
+
         """
 
         assert self.domain.is_uniform, (
@@ -726,8 +810,9 @@ class Signal(
         return self
 
     def dot(self, other, pandas=False, units=True, sample_axis=None):
-        """Return dot product of two signal instances.
-        Dot product is always computed along the domain.
+        """
+        Returns the dot product of two signal instances. The dot product is
+        computed along the domain.
         """
 
         if not isinstance(other, AbstractSignal):
@@ -788,7 +873,8 @@ class Signal(
     def cov(
         self, pandas=False, units=True, mean_center=True, sample_axis=None
     ):
-        """calculate covariance matrix
+        """
+        Calculate covariance matrix of signal.
         """
 
         assert self.ndim == 2
@@ -805,7 +891,14 @@ class Signal(
     def corr(
         self, pandas=False, units=True, mean_center=True, sample_axis=None
     ):
-        """calculate pearson's correlation matrix
+        """
+        Calculate pearson's correlation matrix containing correlation
+        coefficients (variance/variance squared).
+
+        Parameters
+        ----------
+        pandas: bool, optional
+            If set to True, will return a Pandas dataframe.
         """
 
         cov = self.cov(
@@ -833,7 +926,8 @@ class Signal(
         weight=None,
         **kwargs
     ):
-        """General method for using mean, sum, etc.
+        """
+        General method for using mean, sum, etc.
         """
 
         if weight is not None:
@@ -861,66 +955,85 @@ class Signal(
 
     def mean(self, *args, **kwargs):
         """
+        Compute the arithmetic mean along the specified axis.
         """
 
         return self.numpy_estimator(np.mean, *args, **kwargs)
 
     def nanmean(self, *args, **kwargs):
         """
+        Compute the arithmetic mean along the specified axis, ignoring NaNs.
         """
 
         return self.numpy_estimator(np.nanmean, *args, **kwargs)
 
     def sum(self, *args, **kwargs):
         """
+        Sum of array elements over a given axis.
         """
 
         return self.numpy_estimator(np.sum, *args, **kwargs)
 
     def nansum(self, *args, **kwargs):
         """
+        Return the sum of array elements over a given axis treating Not a
+        Numbers (NaNs) as zero.
+
         """
 
         return self.numpy_estimator(np.nansum, *args, **kwargs)
 
     def std(self, *args, **kwargs):
         """
+        Compute the standard deviation along the specified axis.
         """
 
         return self.numpy_estimator(np.std, *args, **kwargs)
 
     def nanstd(self, *args, **kwargs):
         """
+        Compute the standard deviation along the specified axis, while ignoring
+        NaNs.
         """
 
         return self.numpy_estimator(np.nanstd, *args, **kwargs)
 
     def min(self, *args, **kwargs):
         """
+        Return the minimum along a given axis.
         """
 
         return self.numpy_estimator(np.min, *args, **kwargs)
 
     def nanmin(self, *args, **kwargs):
         """
+        Return minimum of an array or minimum along an axis, ignoring any NaNs.
+        When all-NaN slices are encountered a RuntimeWarning is raised and Nan
+        is returned for that slice.
         """
 
         return self.numpy_estimator(np.nanmin, *args, **kwargs)
 
     def max(self, *args, **kwargs):
         """
+        Element-wise maximum of array elements.
         """
 
         return self.numpy_estimator(np.max, *args, **kwargs)
 
     def nanmax(self, *args, **kwargs):
         """
+        Return the maximum of an array or maximum along an axis, ignoring any
+        NaNs. When all-NaN slices are encountered a RuntimeWarning is raised and
+        NaN is returned for that slice.
         """
 
         return self.numpy_estimator(np.nanmax, *args, **kwargs)
 
     def domain_concat(self, signal, left=False, copy=True):
-        """appends along domain axis
+        """
+        Creates a new signal instance by appending two signals along the domain
+        axis.
         """
 
         domain = self.domain
@@ -979,6 +1092,7 @@ class Signal(
 
     def concat_labels(self, labels, left=False, label_class=None):
         """
+        Concatenate labels of two signal instances.
         """
 
         assert self.ndim == 2
@@ -1006,6 +1120,9 @@ class Signal(
         copy=True, label_class=None
     ):
         """
+        Create a new signal instance by concatenating two existing signal
+        instances. If domains are not equivalent, interpolate if possible and
+        enforce the same domain range by using the equalize_domains function.
         """
 
         if copy:
@@ -1062,13 +1179,15 @@ class Signal(
         return self
 
     def concat(self, signal, *args, **kwargs):
-        """concatenates two signals
+        """
+        Concatenate two signals.
         """
 
         return self.other_concat(signal, *args, **kwargs)
 
     def append(self, signal, *args, **kwargs):
-        """append signals
+        """
+        Append signals.
         """
 
         return self.domain_concat(signal, *args, **kwargs)
