@@ -65,12 +65,8 @@ def create_gaussian_spectrum(
         If True, spectral distribution clipped at 0 and negative values
         discarded.
     """
-
-    if background is None and (filter or add_background):
-        raise ValueError(
-            'must provide background if filter or add_background is True.'
-        )
-    elif isinstance(background, Spectrum):
+    # TODO should this be Signal?
+    if isinstance(background, Spectrum):
         background = background.to(units)(wavelengths)
 
     wavelengths = asarray(wavelengths)
@@ -101,7 +97,7 @@ def create_gaussian_spectrum(
     else:
         spectrum_array = 1 - norm.cdf(wavelengths, centers, std)
 
-    if filter:
+    if filter and background is not None:
         # here spectrum array acts as a filter of the background illuminant
         spectrum_array = intensity * (
             background
@@ -111,7 +107,7 @@ def create_gaussian_spectrum(
     else:
         spectrum_array *= intensity
 
-    if add_background:
+    if add_background and background is not None:
         spectrum_array += background
 
     if zero_cutoff:

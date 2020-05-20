@@ -5,9 +5,11 @@ Spectrum
 Inherits signal class to build Spectrum class.
 """
 
-from dreye.core.signal import Signal
+import numpy as np
+
+from dreye.core.signal import Signal, SignalContainer
 from dreye.constants import DEFAULT_FLOAT_DTYPE, ureg
-from dreye.err import DreyeUnitError
+from dreye.err import DreyeUnitError, DreyeError
 from dreye.utilities import has_units
 
 
@@ -74,6 +76,8 @@ class AbstractSpectrum(Signal):
             self.attrs.update({'_smoothing_window': smoothing_window})
         if smoothing_args is not None:
             self.attrs.update({'_smoothing_args': smoothing_args})
+        if 'applied_window_' not in self.attrs:
+            self.attrs['applied_window_'] = 'raw'
 
     @property
     def smoothing_args(self):
@@ -87,24 +91,61 @@ class AbstractSpectrum(Signal):
     def smoothing_method(self):
         return self.attrs.get('_smoothing_method', 'savgol')
 
-    @property
-    def smooth(self):
+    def smooth(self, smoothing_window=None):
         """
         Performs smoothing on spectrum.
         """
 
-        return self.window_filter(
-            self.smoothing_window, self.smoothing_method,
+        if smoothing_window is None:
+            smoothing_window = self.smoothing_window
+
+        spectrum = self.window_filter(
+            smoothing_window, self.smoothing_method,
             extrapolate=False,
             **self.smoothing_args
         )
+        spectrum.attrs['applied_window_'] = smoothing_window
+        return spectrum
 
     @property
     def wavelengths(self):
-        """
+        """Alias for domain attribute.
         """
 
         return self.domain
+
+    def plotsmooth(
+        self,
+        min_window=None,
+        max_window=None,
+        steps=4,
+        offset=0,
+        **kwargs
+    ):
+        """plot spectrum with different smoothing parameters
+        """
+
+        if min_window is None and max_window is None:
+            raise DreyeError('provide min_window or max_window')
+        elif min_window is None:
+            min_window = self.smoothing_window
+        elif max_window is None:
+            max_window = self.smoothing_window
+
+        windows = np.linspace(min_window, max_window, steps)
+
+        container = [self] + [self.smooth(window)+offset*(idx+1)
+                              for idx, window in enumerate(windows)]
+
+        # update default handler
+        default_kws = dict(
+            hue='applied_window_',
+            col='labels',
+            col_wrap=3,
+        )
+        default_kws.update(kwargs)
+
+        return SignalContainer(container).relplot(**default_kws)
 
 
 class Spectrum(AbstractSpectrum):

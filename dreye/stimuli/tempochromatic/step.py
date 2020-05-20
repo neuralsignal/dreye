@@ -10,72 +10,62 @@ from dreye.stimuli.chromatic.transformers import (
 
 
 class LEDStepStimulus(SignalTransformerMixin, StepStimulus):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class PRStepStimulus(CaptureTransformerMixin, StepStimulus):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class TransformStepStimulus(
     LinearTransformCaptureTransformerMixin, StepStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class IlluminantStepStimulus(
     IlluminantCaptureTransformerMixin, StepStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class IlluminantBgStepStimulus(
     IlluminantBgCaptureTransformerMixin, StepStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class LEDRandomSwitchStimulus(SignalTransformerMixin, RandomSwitchStimulus):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class PRRandomSwitchStimulus(CaptureTransformerMixin, RandomSwitchStimulus):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class TransformRandomSwitchStimulus(
     LinearTransformCaptureTransformerMixin, RandomSwitchStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class IlluminantRandomSwitchStimulus(
     IlluminantCaptureTransformerMixin, RandomSwitchStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True
 
 
 class IlluminantBgRandomSwitchStimulus(
     IlluminantBgCaptureTransformerMixin, RandomSwitchStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
+    fit_only_uniques = True
     alter_events = True

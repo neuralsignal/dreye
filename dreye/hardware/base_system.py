@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from dreye.constants import ureg
-from dreye.io.json import write_json, read_json
+from dreye.io import write_json, read_json
 from dreye.utilities import is_numeric, is_listlike
 from dreye.core.spectral_measurement import (
     MeasuredSpectraContainer, MeasuredSpectrum
@@ -106,7 +106,7 @@ class AbstractOutput(AbstractSender):
 
     def __repr__(self):
         return (
-            f"{self.__class__.__name__}("
+            f"{type(self).__name__}("
             f"object={self.object_name}, name={self.name}, "
             f"max={self.max_boundary}, zero={self.zero_boundary})"
         )
@@ -197,7 +197,7 @@ class AbstractOutput(AbstractSender):
 
     def __eq__(self, other):
 
-        truth = isinstance(other, self.__class__)
+        truth = isinstance(other, type(self))
         if not truth:
             return False
 
@@ -224,7 +224,7 @@ class AbstractSystem(AbstractSender):
 
     def __repr__(self):
         return (
-            f"{self.__class__.__name__} contains:\n" +
+            f"{type(self).__name__} contains:\n" +
             "\n".join(f"{output}" for output in self)
         )
 
@@ -233,7 +233,7 @@ class AbstractSystem(AbstractSender):
         if isinstance(output, self._output_class):
             return output
         else:
-            return self.__class__(list(output))
+            return type(self)(list(output))
 
     def channels_exists(self):
         return all(output.channel_exists() for output in self)

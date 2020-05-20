@@ -17,9 +17,6 @@ class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
     """Abstract base class that has various helper functions
     """
 
-    time_axis = 0
-    channel_axis = 1
-
     # --- standard create and transform methods --- #
 
     def create(self):
@@ -76,6 +73,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
 
     def __init__(
         self,
+        *,
         values=1,
         durations=1,
         pause_durations=0,
@@ -256,6 +254,7 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
 
     def __init__(
         self,
+        *,
         values=[0, 1],
         values_probs=None,
         loc=0,

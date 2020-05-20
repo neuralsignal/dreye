@@ -67,14 +67,14 @@ class AbstractContainer(ABC):
 
     def __repr__(self):
         return (
-            f"{self.__class__.__name__}("
+            f"{type(self).__name__}("
             f"{'; '.join([ele.__repr__() for ele in self])})"
         )
 
     def __str__(self):
         joined_elements = ';\n\t'.join([ele.__str__() for ele in self])
         return (
-            f"{self.__class__.__name__}(\n\t"
+            f"{type(self).__name__}(\n\t"
             f"{joined_elements})"
         )
 
@@ -83,7 +83,7 @@ class AbstractContainer(ABC):
         return self._container
 
     def __iter__(self):
-        return iter(self._container)
+        return iter(self.container)
 
     def __len__(self):
         return len(self.container)
@@ -102,21 +102,21 @@ class AbstractContainer(ABC):
             for index, ele in enumerate(self)
         ]
         if self._are_instances(container):
-            return self.__class__(container)
+            return type(self)(container)
         else:
-            return CallableList(container, container_class=self.__class__)
+            return CallableList(container, container_class=type(self))
 
     def __getattr__(self, name):
-        try:
+        if '_container' in vars(self):
             container = [getattr(ele, name) for ele in self]
             if self._are_instances(container):
-                return self.__class__(container)
+                return type(self)(container)
             else:
-                return CallableList(container, container_class=self.__class__)
-        except AttributeError:
+                return CallableList(container, container_class=type(self))
+        else:
             raise AttributeError(
-                f"'{self.__class__.__name__}' object has"
-                f" not attribute '{name}'."
+                f"'{type(self).__name__}' object has "
+                f"not attribute '{name}'."
             )
 
     def to_dict(self):
@@ -158,6 +158,7 @@ class AbstractContainer(ABC):
         self._container.extend(value)
         self._init_attrs()
 
-    def pop(self, index):
-        self._container.pop(index)
+    def pop(self, index=-1):
+        value = self._container.pop(index)
         self._init_attrs()
+        return value

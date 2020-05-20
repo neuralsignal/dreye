@@ -8,7 +8,7 @@ from scipy.optimize import lsq_linear, least_squares
 from dreye.core.spectrum import AbstractSpectrum
 from dreye.core.spectral_sensitivity import AbstractSensitivity
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
-from dreye.utilities import get_units, asarray
+from dreye.utilities import get_units, asarray, dissect_units
 
 
 class AbstractPhotoreceptor(ABC):
@@ -26,7 +26,7 @@ class AbstractPhotoreceptor(ABC):
     -------
     __init__
     capture
-    fit
+    fit # TODO move to estimators
     excitation
     """
 
@@ -59,7 +59,28 @@ class AbstractPhotoreceptor(ABC):
         """excitation function
         """
 
-    def fit(
+    def wavelength_gof(
+        self,
+        measured_spectra,
+        r2_threshold=0.9,
+        wavelength_steps=10,
+        std=10,
+        resolution=100,
+        **kwargs
+    ):
+        """
+        Maximum intensity for single wavelength where
+        a specific goodness-of-fit is reached.
+        """
+
+        kwargs['return_res'] = True
+
+        # create gaussian spectra
+
+        for idx in range(resolution):
+            pass
+
+    def fit_ill(
         self,
         measured_spectra,
         illuminant,
@@ -135,7 +156,6 @@ class AbstractPhotoreceptor(ABC):
         """
         """
 
-        # TODO same units as background?
         normalized_spectrum = measured_spectra.normalized_spectrum
 
         # A is the normalized opsin x LED matrix
@@ -164,8 +184,11 @@ class AbstractPhotoreceptor(ABC):
             targets = self.inv_excitefunc(targets)
 
         if only_uniques:
-            # requires 2D targets and will not keep track of units
+            # requires 2D targets
+            targets, targets_units = dissect_units(targets)
             targets, idcs = np.unique(targets, axis=0, return_inverse=True)
+            if targets_units is not None:
+                targets = targets * targets_units
 
         x0 = self._init_x0(
             A, targets, bounds, units, respect_zero=respect_zero
@@ -182,16 +205,15 @@ class AbstractPhotoreceptor(ABC):
             **kwargs
         )
 
-        if return_res:
+        if return_res and only_uniques:
             x, res = x
-
-        if only_uniques:
+            res = res[idcs]
             x = x[idcs]
-
-        if return_res:
             return x, res
-        else:
-            return x
+        elif only_uniques:
+            return x[idcs]
+
+        return x
 
     def _lsq(self, A, target, x0, bounds, **kwargs):
         return least_squares(
@@ -206,7 +228,7 @@ class AbstractPhotoreceptor(ABC):
         )
 
     def fitted_qs(self, x, A):
-        return self.excitefunc(np.dot(A, x))
+        return self.excitefunc(A @ x)
 
     def _fit_targets_independently(
         self, method, A, targets,
@@ -245,7 +267,8 @@ class AbstractPhotoreceptor(ABC):
             original_bounds = bounds
 
         x = np.zeros((targets.shape[0], A.shape[1]))
-        res = []
+        if return_res:
+            res = []
         # iterate over each target individually
         for idx, target in enumerate(targets):
 
@@ -274,7 +297,8 @@ class AbstractPhotoreceptor(ABC):
                 )
 
             x[idx] = res_.x
-            res.append(res_)
+            if return_res:
+                res.append(res_)
 
         if units:
             x = x * targets_units/A_units
@@ -306,6 +330,7 @@ class AbstractPhotoreceptor(ABC):
     def filterfunc(arr):
         """
         """
+        # TODO when defined, fitting is different; A is not constant
 
         return arr
 
@@ -351,19 +376,21 @@ class AbstractPhotoreceptor(ABC):
             sensitivity, illuminant = self.sensitivity.equalize_domains(
                 illuminant * reflectance)
 
+        # illuminant can be filtered after equalizing domains
+        illuminant = self.filterfunc(illuminant)
+
         # wavelength differences
         # dlambda = sensitivity.domain.gradient
         wls = sensitivity.domain
         domain_axis = sensitivity.domain_axis
 
         # keep track of units
-        # TODO filterfunc sensitivity units?
         new_units = illuminant.units * sensitivity.units * wls.units
 
         # reshape data and apply filter function
         if sensitivity.ndim == 2:
             sensitivity = np.moveaxis(
-                self.filterfunc(sensitivity.magnitude),
+                sensitivity.magnitude,
                 domain_axis, 0
             )[..., None]
 
@@ -373,7 +400,7 @@ class AbstractPhotoreceptor(ABC):
 
             wls = wls.magnitude[:, None, None]
         else:
-            sensitivity = self.filterfunc(sensitivity.magnitude)
+            sensitivity = sensitivity.magnitude
             illuminant = illuminant.magnitude
             wls = wls.magnitude
 
@@ -397,6 +424,11 @@ class AbstractPhotoreceptor(ABC):
             q_bg = self.capture(background, units=units)
 
             return q / q_bg
+
+    # TODO fitting visualization
+    # TODO plot catches with reflectance (see pavo)
+    # TODO color models and spaces, distances, receptor-noise, color opponent models
+    # TODO Hyperbolic photoreceptor model
 
 
 class LinearPhotoreceptor(AbstractPhotoreceptor):
@@ -422,10 +454,6 @@ class LogPhotoreceptor(AbstractPhotoreceptor):
     """
     """
 
-    def __init__(self, sensitivity):
-
-        super().__init__(sensitivity)
-
     @staticmethod
     def excitefunc(arr):
         """excitation function
@@ -441,13 +469,13 @@ class LogPhotoreceptor(AbstractPhotoreceptor):
         return np.exp(arr)
 
 
-class SelfScreeningPhotoreceptor(LinearPhotoreceptor):
-    """
-    """
-
-    @staticmethod
-    def filterfunc(arr):
-        """
-        """
-
-        raise NotImplementedError('self screening photoreceptor class.')
+# class SelfScreeningPhotoreceptor(LinearPhotoreceptor):
+#     """
+#     """
+#
+#     @staticmethod
+#     def filterfunc(arr):
+#         """
+#         """
+#
+#         raise NotImplementedError('self screening photoreceptor class.')

@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+import setuptools
 
-setup(
+setuptools.setup(
     name='dreye',
-    version='0.1',
+    version='0.0.0',
     description='Dreye: Color models and stimuli for all model organisms',
     author='Matthias Christenson',
     author_email='gucky@gucky.eu',
-    install_requires=['requirements.txt'],
+    # install_requires=['requirements.txt'],
     # TODO requirement file
-    packages=['dreye']
+    packages=setuptools.find_packages()
 )

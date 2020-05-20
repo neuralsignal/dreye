@@ -45,11 +45,9 @@ class AbstractNoiseStimulus(BaseStimulus):
         dreye.algebra.Filter1D.
     """
 
-    time_axis = 0
-    channel_axis = 1
-
     def __init__(
         self,
+        *,
         filter_style=None,
         filter_function=None,
         filter_kwargs=None,
@@ -177,6 +175,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
 
     def __init__(
         self,
+        *,
         rate=1,
         n_channels=1,
         stim_dur=10,

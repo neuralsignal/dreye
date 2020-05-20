@@ -13,22 +13,21 @@ import pandas as pd
 from dreye.io import read_json, write_json
 from dreye.utilities import is_numeric, is_listlike, asarray
 from dreye.err import DreyeError
+from dreye.stimuli.variables import DUR_KEY, DELAY_KEY
+from dreye.stimuli.plotting import StimPlottingMixin
 
 
-DUR_KEY = 'dur'
-SYNCED_DUR_KEY = 'synced_dur'
-DELAY_KEY = 'delay'
-SYNCED_DELAY_KEY = 'synced_delay'
-
-
-def check_events(df):
+def _check_events(df):
     """check that event dataframe contains columns DELAY_KEY and DUR_KEY
     """
 
-    if len(df) == 0:
+    if not isinstance(df, pd.DataFrame):
+        raise DreyeError('Events frame must be dataframe.')
+
+    elif len(df) == 0:
 
         cols = list(df.columns)
-        if DELAY_KEY in cols and DUR_KEY in cols:
+        if (DELAY_KEY in cols and DUR_KEY in cols):
             pass
         else:
             if DELAY_KEY not in cols:
@@ -41,18 +40,23 @@ def check_events(df):
         assert not ({DELAY_KEY, DUR_KEY} - set(df.columns)), \
             'event frame must contain column start and dur.'
 
-        # stringify columns - and copy dataframe
-        cols = {col: str(col) for col in df.columns}
-        df = df.rename(columns=cols)
+        # stringify columns - and copy dataframe WHY?
+        cols = {
+            col: str(col) for col in df.columns
+            if not isinstance(col, str)
+        }
+        if cols:
+            df = df.rename(columns=cols)
 
     return df
 
 
-class BaseStimulus(ABC):
+class BaseStimulus(ABC, StimPlottingMixin):
 
-    time_axis = None
+    time_axis = 0
+    channel_axis = 1
 
-    def __init__(self, rate=None, seed=None, **kwargs):
+    def __init__(self, *, rate=None, seed=None, **kwargs):
         """base initialization
         """
 
@@ -63,6 +67,7 @@ class BaseStimulus(ABC):
         if seed is not None:
             assert is_numeric(seed), 'seed must be numeric'
 
+        # directly set elements
         for key, ele in kwargs.items():
             setattr(self, key, ele)
 
@@ -115,16 +120,7 @@ class BaseStimulus(ABC):
         """short-hand for stimulus class name
         """
 
-        return self.__class__.__name__
-
-    @property
-    def module(self):
-        """
-        """
-
-        # TODO module checking
-        name = inspect.getmodule(self).__name__
-        return name
+        return type(self).__name__
 
     @property
     def metadata(self):
@@ -145,13 +141,16 @@ class BaseStimulus(ABC):
         if self._signal is None:
             self.create()
 
-        return check_events(self._events)
+        return _check_events(self._events)
 
     def time2frame(self, key=DELAY_KEY):
         """get idcs for delay period
         """
 
-        return (self.events[key] * self.rate).round(0).astype(int)
+        if self.rate is None:
+            return self.events[key].round(0).astype(int)
+        else:
+            return (self.events[key] * self.rate).round(0).astype(int)
 
     @property
     def signal(self):
@@ -180,33 +179,47 @@ class BaseStimulus(ABC):
         """shape of stimulus (excluding time axis)
         """
 
-        if self.time_axis is None:
-            return self.stimulus.shape
-        else:
-            shape = list(self.stimulus.shape)
-            shape.pop(self.time_axis)
-            return tuple(shape)
+        shape = list(self.stimulus.shape)
+        shape.pop(self.time_axis)
+        return tuple(shape)
+
+    @property
+    def time_len(self):
+        """length of time axis
+        """
+
+        return self.stimulus.shape[self.time_axis]
+
+    @property
+    def channel_len(self):
+        """length of channel axis
+        """
+
+        return self.stimulus.shape[self.channel_axis]
 
     @property
     def timestamps(self):
         """timestamps of stimulus same size of first axis
         """
 
+        length = self.signal.shape[self.time_axis]
+        arr = np.arange(0, length)
+
         if self.rate is None:
-            return None
+            return arr
         else:
-            length = self.signal.shape[self.time_axis]
-            return np.arange(0, length) / self.rate
+            return arr / self.rate
 
     @property
     def duration(self):
         """duration of stimulus
         """
 
+        length = self.signal.shape[self.time_axis]
+
         if self.rate is None:
-            return None
+            return length
         else:
-            length = self.signal.shape[self.time_axis]
             return length / self.rate
 
     @property
@@ -229,30 +242,14 @@ class BaseStimulus(ABC):
             'stimulus': self.stimulus,
             'signal': self.signal,
             'metadata': self.metadata,
-            'events': self.events.to_dict(),
+            'events': self.events.to_dict('list'),
             'settings': self.settings,
-            'name': self.name,
-            'module': self.module
         }
 
     @classmethod
     def from_dict(cls, data):
         """
         """
-
-        # check if cls is the same as saved class otherwise
-        # use correct class.
-        if not cls.__name__ == data['name']:
-            try:
-                module = importlib.import_module(data['module'])
-                try:
-                    cls = getattr(module, data['name'])
-                except AttributeError:
-                    warnings.warn(f"Could not load class {data['name']}; "
-                                  f"using '{cls.__name__}' as class instead.")
-            except ModuleNotFoundError:
-                warnings.warn(f"Could not import module '{data['module']}' "
-                              f"for '{data['name']}'.")
 
         self = cls(**data['settings'])
         self._stimulus = data['stimulus']
@@ -279,23 +276,21 @@ class BaseStimulus(ABC):
         """function to save stimulus
         """
 
-        write_json(filename, self.to_dict())
+        write_json(filename, self)
 
     @classmethod
     def load(cls, filename):
         """function to load stimulus
         """
 
-        data = read_json(filename)
-
-        return cls.from_dict(data)
+        return read_json(filename)
 
 
 class ChainedStimuli:
 
     def __init__(self, stimuli, shuffle=False, seed=None):
 
-        if isinstance(stimuli, self.__class__):
+        if isinstance(stimuli, type(self)):
             stimuli = list(stimuli.stimuli)
         elif is_listlike(stimuli):
             assert all(
@@ -314,16 +309,16 @@ class ChainedStimuli:
         assert all(
             stimuli[0].time_axis == stim.time_axis
             for stim in stimuli
-        )
+        ), "time axis must be aligned"
         assert all(
             stimuli[0].other_shape == stim.other_shape
             for stim in stimuli
-        )
+        ), "shapes of stimuli must be the same"
         # assert rates are the same
         assert all(
             stimuli[0].rate == stim.rate
             for stim in stimuli
-        )
+        ), "stimuli rates must be the same"
 
         self._stimuli = stimuli
 
@@ -332,6 +327,9 @@ class ChainedStimuli:
 
     def __iter__(self):
         return iter(self.stimuli)
+
+    def __getitem__(self, key):
+        return self.stimuli[key]
 
     @property
     def time_axis(self):
@@ -403,10 +401,10 @@ class ChainedStimuli:
         return cls(data)
 
     def save(self, filename):
-        write_json(filename, self.to_dict())
+        write_json(filename, self)
 
     @classmethod
     def load(cls, filename):
-        return cls.from_dict(read_json(filename))
+        return read_json(filename)
 
 # have alist of all attributes

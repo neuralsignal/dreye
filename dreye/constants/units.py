@@ -9,15 +9,10 @@ import pint
 import numpy as np
 
 
-class UnitRegistry(pint.UnitRegistry):
-    pass
-
-
-ureg = UnitRegistry()
+ureg = pint.UnitRegistry()
 """
 Standard unit registry as defined by pint package.
 """
-ureg.__name__ = 'UnitRegistry'  # define for autodoc
 
 ureg.define('radiant_energy = joule = radiantenergy')
 ureg.define('radiant_energy_density = joule / '
@@ -177,3 +172,5 @@ c.add_transformation(
 
 
 ureg.add_context(c)
+
+pint.set_application_registry(ureg)

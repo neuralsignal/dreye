@@ -1,117 +1,122 @@
 {
-    "values": {
-        "#array#": [
-            [
-                0.771320643266746,
-                0.0207519493594015,
-                0.6336482349262754,
-                0.7488038825386119
-            ],
-            [
-                0.4985070123025904,
-                0.22479664553084766,
-                0.19806286475962398,
-                0.7605307121989587
-            ],
-            [
-                0.16911083656253545,
-                0.08833981417401027,
-                0.6853598183677972,
-                0.9533933461949365
-            ],
-            [
-                0.003948266327914451,
-                0.5121922633857766,
-                0.8126209616521135,
-                0.6125260668293881
-            ],
-            [
-                0.7217553174317995,
-                0.29187606817063316,
-                0.9177741225129434,
-                0.7145757833976906
-            ],
-            [
-                0.5425443680112613,
-                0.14217004760152696,
-                0.3733407600514692,
-                0.6741336150663453
-            ],
-            [
-                0.4418331744229961,
-                0.4340139933332937,
-                0.6177669784693172,
-                0.5131382425543909
-            ],
-            [
-                0.6503971819314672,
-                0.6010389534045444,
-                0.8052231968327465,
-                0.5216471523936341
-            ],
-            [
-                0.9086488808086682,
-                0.3192360889885453,
-                0.09045934927090737,
-                0.30070005663620336
-            ],
-            [
-                0.11398436186354977,
-                0.8286813263076767,
-                0.04689631938924976,
-                0.6262871483113925
-            ]
-        ]
-    },
-    "units": {
-        "#pint#": "volt"
-    },
-    "domain": {
-        "#dreye#": [
-            "b'\\x80\\x04\\x95 \\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x11dreye.core.domain\\x94\\x8c\\x06Domain\\x94\\x93\\x94.'",
-            {
-                "values": [
-                    1e-10,
-                    1.0,
-                    2.0,
-                    3.0,
-                    4.0,
-                    5.0,
-                    6.0,
-                    7.0,
-                    8.0,
-                    9.0
-                ],
-                "units": "second"
-            }
-        ]
-    },
-    "interpolator": {
-        "#func#": "b'\\x80\\x04\\x95.\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x1dscipy.interpolate.interpolate\\x94\\x8c\\x08interp1d\\x94\\x93\\x94.'"
-    },
-    "interpolator_kwargs": {
-        "bounds_error": false,
-        "fill_value": 0.5,
-        "axis": 0
-    },
-    "dtype": {
-        "#func#": "b'\\x80\\x04\\x95\\x15\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x05numpy\\x94\\x8c\\x07float64\\x94\\x93\\x94.'"
-    },
-    "domain_axis": 0,
-    "labels": [
-        "a",
-        "b",
-        "c",
-        "d"
-    ],
-    "contexts": [],
-    "attrs": {
-        "a": "b"
-    },
-    "domain_min": null,
-    "domain_max": null,
-    "signal_min": null,
-    "signal_max": null,
-    "name": null,
-    "pickled_class": "b'\\x80\\x04\\x95 \\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x11dreye.core.signal\\x94\\x8c\\x06Signal\\x94\\x93\\x94.'"
+    "__DREYE__": {
+        "__MODULE__": "dreye.core.signal",
+        "__CLASS__": "Signal",
+        "__DATA__": {
+            "values": {
+                "__ARRAY__": [
+                    [
+                        0.771320643266746,
+                        0.0207519493594015,
+                        0.6336482349262754,
+                        0.7488038825386119
+                    ],
+                    [
+                        0.4985070123025904,
+                        0.22479664553084766,
+                        0.19806286475962398,
+                        0.7605307121989587
+                    ],
+                    [
+                        0.16911083656253545,
+                        0.08833981417401027,
+                        0.6853598183677972,
+                        0.9533933461949365
+                    ],
+                    [
+                        0.003948266327914451,
+                        0.5121922633857766,
+                        0.8126209616521135,
+                        0.6125260668293881
+                    ],
+                    [
+                        0.7217553174317995,
+                        0.29187606817063316,
+                        0.9177741225129434,
+                        0.7145757833976906
+                    ],
+                    [
+                        0.5425443680112613,
+                        0.14217004760152696,
+                        0.3733407600514692,
+                        0.6741336150663453
+                    ],
+                    [
+                        0.4418331744229961,
+                        0.4340139933332937,
+                        0.6177669784693172,
+                        0.5131382425543909
+                    ],
+                    [
+                        0.6503971819314672,
+                        0.6010389534045444,
+                        0.8052231968327465,
+                        0.5216471523936341
+                    ],
+                    [
+                        0.9086488808086682,
+                        0.3192360889885453,
+                        0.09045934927090737,
+                        0.30070005663620336
+                    ],
+                    [
+                        0.11398436186354977,
+                        0.8286813263076767,
+                        0.04689631938924976,
+                        0.6262871483113925
+                    ]
+                ]
+            },
+            "units": {
+                "__PINT__": "volt"
+            },
+            "domain": {
+                "__DREYE__": {
+                    "__MODULE__": "dreye.core.domain",
+                    "__CLASS__": "Domain",
+                    "__DATA__": {
+                        "values": [
+                            1e-10,
+                            1.0,
+                            2.0,
+                            3.0,
+                            4.0,
+                            5.0,
+                            6.0,
+                            7.0,
+                            8.0,
+                            9.0
+                        ],
+                        "units": "second"
+                    }
+                }
+            },
+            "interpolator": {
+                "__ANY__": "gASVLgAAAAAAAACMHXNjaXB5LmludGVycG9sYXRlLmludGVycG9sYXRllIwIaW50ZXJwMWSUk5Qu\n"
+            },
+            "interpolator_kwargs": {
+                "bounds_error": false,
+                "fill_value": 0.5,
+                "axis": 0
+            },
+            "dtype": {
+                "__ANY__": "gASVFQAAAAAAAACMBW51bXB5lIwHZmxvYXQ2NJSTlC4=\n"
+            },
+            "domain_axis": 0,
+            "labels": {
+                "__ANY__": "gASVJwIAAAAAAACMGHBhbmRhcy5jb3JlLmluZGV4ZXMuYmFzZZSMCl9uZXdfSW5kZXiUk5SMGXBh\nbmRhcy5jb3JlLmluZGV4ZXMubXVsdGmUjApNdWx0aUluZGV4lJOUfZQojAZsZXZlbHOUXZQoaAJo\nAIwFSW5kZXiUk5R9lCiMBGRhdGGUjBVudW1weS5jb3JlLm11bHRpYXJyYXmUjAxfcmVjb25zdHJ1\nY3SUk5SMBW51bXB5lIwHbmRhcnJheZSTlEsAhZRDAWKUh5RSlChLAUsDhZRoEIwFZHR5cGWUk5SM\nAk84lEsASwGHlFKUKEsDjAF8lE5OTkr/////Sv////9LP3SUYoldlCiMAWGUjAFilIwBZJRldJRi\njARuYW1llIwGdmFsdWVzlHWGlFKUaAJoCn2UKGgMaA9oEksAhZRoFIeUUpQoSwFLA4WUaByJXZQo\naCGMAWOUjAFllGV0lGJoJGgudYaUUpRljAVjb2Rlc5RdlChoD4wacGFuZGFzLmNvcmUuaW5kZXhl\ncy5mcm96ZW6UjA1Gcm96ZW5OREFycmF5lJOUSwCFlGgUh5RSlChLAUsEhZRoGYwCaTGUSwBLAYeU\nUpQoSwNoHU5OTkr/////Sv////9LAHSUYolDBAAAAQKUdJRiaA9oN0sAhZRoFIeUUpQoSwFLBIWU\naD6JQwQAAQEClHSUYmWMCXNvcnRvcmRlcpROjAVuYW1lc5RdlChoJWguZXWGlFKULg==\n"
+            },
+            "contexts": [],
+            "attrs": {
+                "f": "b",
+                "t": "c"
+            },
+            "domain_min": null,
+            "domain_max": null,
+            "signal_min": null,
+            "signal_max": null,
+            "name": "signal",
+            "pickled_class": "b'\\x80\\x04\\x95 \\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x8c\\x11dreye.core.signal\\x94\\x8c\\x06Signal\\x94\\x93\\x94.'"
+        }
+    }
 }

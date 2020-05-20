@@ -119,6 +119,17 @@ def dissect_units(value):
         return value, None
 
 
+def dissect_units_null(value):
+    """dissect units and return none for dimensionless units
+    """
+
+    value, units = dissect_units(value)
+
+    if units == ureg(None).units:
+        return value, None
+    return value, units
+
+
 def get_values(value):
     return dissect_units(value)[0]
 
@@ -153,7 +164,7 @@ def is_listlike(value):
     value, _ = dissect_units(value)
     return isinstance(
         value, (Sequence, np.ndarray, AbstractSequence, pd.Index)
-    )
+    ) and not is_string(value)
 
 
 def is_arraylike(value):

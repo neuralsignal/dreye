@@ -348,7 +348,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
             return self.copy()
 
-        domain_class = self.__class__
+        domain_class = type(self)
 
         assert issubclass(
             other.__class__,
@@ -396,7 +396,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         return domain
 
     @classmethod
-    def load(cls, filename, dtype=DEFAULT_FLOAT_DTYPE):
+    def load(cls, filename):
         """
         Load domain instance.
 
@@ -407,19 +407,16 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         dtype : type, optional
         """
 
-        data = read_json(filename)
-
-        return cls.from_dict(data, dtype)
+        return read_json(filename)
 
     @classmethod
-    def from_dict(cls, data, dtype=DEFAULT_FLOAT_DTYPE):
+    def from_dict(cls, data):
         """build class from dictionary
         """
 
         return cls(
             data['values'],
             units=data['units'],
-            dtype=dtype
         )
 
     def to_dict(self):
@@ -448,9 +445,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
             location of JSON file.
         """
 
-        data = self.to_dict()
-
-        write_json(filename, data)
+        write_json(filename, self)
 
     def append(self, domain, left=False, copy=True):
         """

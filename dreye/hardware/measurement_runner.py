@@ -38,9 +38,8 @@ class MeasurementRunner:
     remove_zero: bool, optional
         substracts the zero boundary from all the other measurements. If set to
         False, zero boundary will not be subtracted.
-     step_kwargs :
-     sleep :
-
+    step_kwargs :
+    sleep :
     """
 
     def __init__(
@@ -148,7 +147,7 @@ class MeasurementRunner:
             if self.wls is not None:
                 mspectrum = mspectrum(self.wls)
             if self.smoothing_window is not None:
-                mspectrum = mspectrum.smooth
+                mspectrum = mspectrum.smooth()
 
             output.mspectrum = mspectrum
             output.close()
@@ -169,3 +168,6 @@ class MeasurementRunner:
 
     def save(self, filename):
         self.system.save(filename)
+
+    def __str__(self):
+        return f"[{type(self).__name__}]\n\n{str(self.system)}"

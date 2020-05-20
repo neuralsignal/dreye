@@ -2,6 +2,7 @@
 """
 
 from abc import ABC, abstractmethod
+import copy
 
 import numpy as np
 import pandas as pd
@@ -80,6 +81,11 @@ class UnpackDomainMixin(ABC):
                     values = values.to(units)
 
             values = asarray(values)
+
+            # check if domain is sorted
+            if not np.all(np.sort(values) == values):
+                raise DreyeError(f'Values for domain initialization '
+                                 f'must be sorted: {values}.')
 
             _start, _end, _interval = array_domain(
                 values, uniform=is_uniform(values))
@@ -387,7 +393,7 @@ class UnpackSignalMixin(ABC):
 
         for key, value in container.items():
             if value is None and hasattr(signal, key):
-                container[key] = getattr(signal, key)
+                container[key] = copy.copy(getattr(signal, key))
 
     @classmethod
     def _check_values(cls, values, domain, domain_axis, labels):
@@ -398,7 +404,6 @@ class UnpackSignalMixin(ABC):
             f"domain axis {values.shape[domain_axis]} "
             f"must equal length of domain {len(domain)}."
         )
-
         if not is_listlike(labels) and values.ndim == 2:
             if not is_hashable(labels):
                 raise DreyeError(

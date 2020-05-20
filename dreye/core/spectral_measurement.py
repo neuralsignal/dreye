@@ -9,7 +9,7 @@ from sklearn.isotonic import IsotonicRegression
 
 from dreye.utilities import (
     has_units, is_numeric, asarray,
-    _convert_get_val_opt, is_listlike
+    _convert_get_val_opt
 )
 from dreye.constants import ureg
 from dreye.core.spectrum import AbstractSpectrum, Spectrum
@@ -37,7 +37,7 @@ class CalibrationSpectrum(AbstractSpectrum):
         if area is None and not isinstance(values, CalibrationSpectrum):
             raise DreyeError(
                 f"Must provide 'area' argument to "
-                f"initialize {self.__class__.__name__}."
+                f"initialize {type(self).__name__}."
             )
 
         super().__init__(
@@ -133,7 +133,7 @@ class MeasuredSpectrum(Spectrum):
 
         if self.name is None:
             raise DreyeError(f'name variable must be provided '
-                             f'for {self.__class__.__name__} instance.')
+                             f'for {type(self).__name__} instance.')
 
         if zero_boundary is not None:
             self.attrs['_zero_boundary'] = zero_boundary
@@ -172,6 +172,11 @@ class MeasuredSpectrum(Spectrum):
 
     @property
     def zero_is_lower(self):
+        """
+        ascending or descending input values with intensity values.
+
+        Should never be None
+        """
         return self.attrs['_zero_is_lower']
 
     @property
@@ -195,6 +200,9 @@ class MeasuredSpectrum(Spectrum):
 
 class MeasuredSpectraContainer(SignalContainer):
     """Container for measured spectra
+
+    Assumes each measured spectrum has a the same spectral
+    distribution across intensities (e.g. LEDs).
     """
 
     _xlabel = 'wavelength (nm)'
@@ -211,7 +219,7 @@ class MeasuredSpectraContainer(SignalContainer):
     ]
     _allowed_instances = MeasuredSpectrum
 
-    def map(self, values, **kwargs):
+    def map(self, values, units=True):
         """
 
         Parameters
@@ -220,74 +228,92 @@ class MeasuredSpectraContainer(SignalContainer):
             samples x channels in intensity units set.
         """
 
-        values = asarray(values)
-        values = self.pre_mapping(values)
-        assert values.ndim < 3
+        values = _convert_get_val_opt(values, units=(self.units * ureg('nm')))
+        values = self._pre_mapping(values)
+        assert values.ndim < 3, 'values must be 1 or 2 dimensional'
 
-        x = self.mapper(np.atleast_2d(values))
+        x = self._mapper_func(np.atleast_2d(values))
 
         if values.ndim == 1:
             x = x[0]
 
-        return self.post_mapping(x, **kwargs)
+        return self._post_mapping(x, units=units)
 
-    @property
-    def mapper(self):
+    def _mapper_func(self, x):
+        """
+        Function that maps intensity values to input values.
+        """
+        # create mapper functions if they don't exist
         if self._mapper is None:
             mappers = []
             for idx, ele in enumerate(self):
                 mappers.append(self._get_single_mapper(idx, ele))
+            self._mapper = mappers
 
-            def mapper_func(x):
-                y = np.zeros(x.shape)
-                for idx in range(x.shape[1]):
-                    y[:, idx] = mappers[idx](x[:, idx])
-                return y
-
-            self._mapper = mapper_func
-
-        return self._mapper
+        y = np.zeros(x.shape)
+        for idx in range(x.shape[1]):
+            y[:, idx] = self._mapper[idx](x[:, idx])
+        return y
 
     def _get_single_mapper(self, idx, ele):
         """mapping using isotonic regression
         """
 
+        # 1D signal
         signal = self.intensities_list[idx]
         domain = signal.domain
-        # TODO signal has bounds_error currently
-        lower, upper = self.domain_bounds[idx]
-        # append start and end
-        # if lower < domain.start:
-        #     domain = domain.append(lower, left=True)
-        # if upper > domain.end:
-        #     domain = domain.append(upper, left=False)
+        zero_is_lower = ele.zero_is_lower
+        zero_boundary = ele.zero_boundary
 
         y = signal.magnitude
         x = domain.magnitude
 
+        # add zero if it does not exist yet
+        if zero_boundary is None:
+            pass
+        # a little redundant but should ensure safety of method
+        elif zero_is_lower and zero_boundary < np.min(x):
+            x = np.concatenate([[zero_boundary], x])
+            y = np.concatenate([[0], y])
+        # a little redundant but should ensure safety of method
+        elif not zero_is_lower and zero_boundary > np.max(x):
+            x = np.concatenate([x, [zero_boundary]])
+            y = np.concateante([y, [0]])
+
+        # perform isotonic regression
         isoreg = IsotonicRegression(
+            # lower and upper intensity values
             y_min=self.bounds[0][idx],
             y_max=self.bounds[1][idx],
-            increasing=ele.zero_is_lower
+            increasing=zero_is_lower
         )
 
         new_y = isoreg.fit_transform(x, y)
         return interp1d(
             new_y, x,
             bounds_error=False,
-            fill_value=(lower, upper)
+            # allow going beyond bounds
+            # but fill values to lower and upper bounds
+            # lower and upper input values
+            fill_value=tuple(self.domain_bounds[idx])
         )
 
     @property
     def label_units(self):
-        # TODO
+        """
+        units of each input for each measured spectra.
+
+        If label units are not the same, this will throw an error
+        """
         units = [ele.labels.units for ele in self]
         if len(set(units)) > 1:
             raise DreyeError('Input units do not match.')
         return units[0]
 
-    def post_mapping(self, x, units=True, **kwargs):
+    def _post_mapping(self, x, units=True):
         """
+        Adds units after mapping and clips input values if necessary
+        to lower and upper boundary.
         """
 
         if units:
@@ -301,7 +327,12 @@ class MeasuredSpectraContainer(SignalContainer):
             a_max=self.upper_boundary[None, :]
         ) * units
 
-    def pre_mapping(self, values):
+    def _pre_mapping(self, values):
+        """
+        processing of intensity values before mapping
+
+        Checks that all intensity values are within bounds.
+        """
         min = np.atleast_2d(self.bounds[0])
         max = np.atleast_2d(self.bounds[1])
 
@@ -313,6 +344,10 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def intensities_list(self):
+        """
+        List of intensities (integral across spectrum) for each
+        measured spectrum.
+        """
         if self._intensities_list is None:
             self._intensities_list = [
                 Signal(
@@ -327,6 +362,10 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def intensities(self):
+        """
+        Concatenated overall intensities (integral) values of each
+        measured spectrum.
+        """
         # will only work if domain and values have same units
         if self._intensities is None:
             signal = self.intensities_list[0]
@@ -340,6 +379,10 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def zero_is_lower(self):
+        """
+        Whether zero intensity input value is lower than the max intensity
+        input value.
+        """
         if self._zero_is_lower is None:
             self._zero_is_lower = np.array([
                 ele.zero_is_lower for ele in self
@@ -348,6 +391,9 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def zero_boundary(self):
+        """
+        Boundary of inputs corresponding to zero intensity spectrum
+        """
         if self._zero_boundary is None:
             self._zero_boundary = np.array([
                 ele.zero_boundary
@@ -360,6 +406,9 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def max_boundary(self):
+        """
+        Boundary of inputs corresponding to maximum intensity spectrum
+        """
         if self._max_boundary is None:
             self._max_boundary = np.array([
                 ele.max_boundary
@@ -372,19 +421,30 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def starts(self):
+        """
+        lowest input value tested (e.g. 0 volts)
+        """
         return np.array([
             ele.labels.start for ele in self
         ])
 
     @property
     def ends(self):
+        """
+        highest input value tested (e.g. 5 volts)
+        """
         return np.array([
             ele.labels.end for ele in self
         ])
 
     @property
     def bounds(self):
+        """
+        Intensity bounds for the Measured Spectra
+        (maximum or minimum irradiance or photon flux).
+        """
 
+        # TODO use boundaries instead?
         bounds = np.array([
             [np.min(ele.magnitude), np.max(ele.magnitude)]
             for ele in self.intensities_list
@@ -396,10 +456,16 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def domain_bounds(self):
+        """
+        Bounds for the inputs, such as volts or PWM.
+        """
         return np.array([self.lower_boundary, self.upper_boundary]).T
 
     @property
     def lower_boundary(self):
+        """
+        Lower boundary of inputs, e.g. 0 volts.
+        """
         lower_boundary = np.zeros(self.zero_is_lower.shape)
         lower_boundary[self.zero_is_lower] = \
             self.zero_boundary[self.zero_is_lower]
@@ -411,6 +477,9 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def upper_boundary(self):
+        """
+        Uppoer boundary of inputs, e.g. 5 volts.
+        """
         upper_boundary = np.zeros(self.zero_is_lower.shape)
         upper_boundary[~self.zero_is_lower] = \
             self.zero_boundary[~self.zero_is_lower]
@@ -450,25 +519,36 @@ class MeasuredSpectraContainer(SignalContainer):
 
     @property
     def uE(self):
-        return self.__class__(
+        """
+        Convert to micro photon flux
+        """
+        return type(self)(
             [ele.uE for ele in self]
         )
 
     @property
     def irradiance(self):
-        return self.__class__(
+        """
+        Convert to irradiance
+        """
+        return type(self)(
             [ele.irradiance for ele in self]
         )
 
     @property
     def photonflux(self):
-        return self.__class__(
+        """
+        Convert to photon flux
+        """
+        return type(self)(
             [ele.photonflux for ele in self]
         )
 
     def fit(self, spectrum, return_res=False, return_fit=False, units=True):
+        """fit a single spectrum
         """
-        """
+
+        # TODO move to stim_estimator
 
         assert isinstance(spectrum, Spectrum)
         assert spectrum.ndim == 1
@@ -505,13 +585,15 @@ class MeasuredSpectraContainer(SignalContainer):
         else:
             return weights
 
-    def fit_map(self, spectrum, independent=True, **kwargs):
+    def fit_map(self, spectrum, **kwargs):
         """
         """
+
+        # TODO remove
 
         values = self.fit(spectrum, **kwargs)
 
-        return self.map(values, independent=independent)
+        return self.map(values)
 
     @property
     def measured_spectra(self):

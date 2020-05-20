@@ -33,6 +33,7 @@ class AbstractDomain(AbstractSequence):
 
     def copy(self):
         """
+        copy instance.
         """
 
         return copy.copy(self)
@@ -41,7 +42,7 @@ class AbstractDomain(AbstractSequence):
         """
         """
 
-        return self.__class__(self, dtype=self.dtype)
+        return type(self)(self, dtype=self.dtype)
 
     @property
     def units(self):
@@ -74,7 +75,7 @@ class AbstractDomain(AbstractSequence):
                 str(value), str(self.units),
                 ureg(str(value)).dimensionality,
                 self.units.dimensionality,
-                f' for instance of type {self.__class__.__name__}.'
+                f' for instance of type {type(self).__name__}.'
             )
         self._units = values.units
         self.values = values.magnitude
@@ -587,6 +588,7 @@ class AbstractSignal(AbstractDomain):
         end=None,
         equalize_dimensions=True,
         return_labels=False,
+        copy=False,
         **kwargs
     ):
         """equalize domains for both instances
@@ -609,6 +611,10 @@ class AbstractSignal(AbstractDomain):
 
             self = self(domain)
             other = other(domain)
+
+        elif copy:
+            self = self.copy()
+            other = other.copy()
 
         if return_labels:
             return self, other, labels

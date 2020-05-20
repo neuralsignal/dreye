@@ -20,9 +20,6 @@ def _add_fitted_random_signal(self):
 
 
 class LEDWhiteNoiseStimulus(SignalTransformerMixin, WhiteNoiseStimulus):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -32,9 +29,6 @@ class LEDWhiteNoiseStimulus(SignalTransformerMixin, WhiteNoiseStimulus):
 
 
 class LEDBrownNoiseStimulus(SignalTransformerMixin, BrownNoiseStimulus):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -44,9 +38,6 @@ class LEDBrownNoiseStimulus(SignalTransformerMixin, BrownNoiseStimulus):
 
 
 class PRWhiteNoiseStimulus(CaptureTransformerMixin, WhiteNoiseStimulus):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -56,9 +47,6 @@ class PRWhiteNoiseStimulus(CaptureTransformerMixin, WhiteNoiseStimulus):
 
 
 class PRBrownNoiseStimulus(CaptureTransformerMixin, BrownNoiseStimulus):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -70,9 +58,6 @@ class PRBrownNoiseStimulus(CaptureTransformerMixin, BrownNoiseStimulus):
 class TransformWhiteNoiseStimulus(
     LinearTransformCaptureTransformerMixin, WhiteNoiseStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -84,9 +69,6 @@ class TransformWhiteNoiseStimulus(
 class TransformBrownNoiseStimulus(
     LinearTransformCaptureTransformerMixin, BrownNoiseStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -98,9 +80,6 @@ class TransformBrownNoiseStimulus(
 class IlluminantWhiteNoiseStimulus(
     IlluminantCaptureTransformerMixin, WhiteNoiseStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -112,9 +91,6 @@ class IlluminantWhiteNoiseStimulus(
 class IlluminantBrownNoiseStimulus(
     IlluminantCaptureTransformerMixin, BrownNoiseStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -126,9 +102,6 @@ class IlluminantBrownNoiseStimulus(
 class IlluminantBgWhiteNoiseStimulus(
     IlluminantBgCaptureTransformerMixin, WhiteNoiseStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 
@@ -140,9 +113,6 @@ class IlluminantBgWhiteNoiseStimulus(
 class IlluminantBgBrownNoiseStimulus(
     IlluminantBgCaptureTransformerMixin, BrownNoiseStimulus
 ):
-    time_axis = 0
-    channel_axis = 1
-    fit_only_uniques = False
     add_to_events_mean = False
     alter_events = True
 

@@ -7,8 +7,6 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
-import cloudpickle
-import pickle
 
 from dreye.utilities import (
     is_numeric, has_units, is_arraylike, convert_units,
@@ -21,14 +19,15 @@ from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import AbstractDomain, AbstractSignal
 from dreye.core.unpack_mixin import UnpackSignalMixin
-from dreye.core.estimator_mixin import EstimatorMixin
+# TODO from dreye.core.decomposition_mixin import DecompositionMixin
 from dreye.core.domain import Domain
 from dreye.algebra.filtering import Filter1D
 from dreye.core.plotting import SignalPlottingMixin
 
 
 class Signal(
-    AbstractSignal, UnpackSignalMixin, SignalPlottingMixin, EstimatorMixin
+    AbstractSignal, UnpackSignalMixin, SignalPlottingMixin,
+    # DecompositionMixin
 ):
     """
     Defines the base class for continuous signals (unit-aware).
@@ -215,16 +214,12 @@ class Signal(
                 f'New name value of type {type(value)} is not hashable.')
         self._name = value
 
-    def to_dict(self, add_pickled_class=True):
+    def to_dict(self):
         dictionary = {
             'values': self.magnitude,
             'units': self.units,
             **self.init_kwargs
         }
-        if add_pickled_class:
-            dictionary['pickled_class'] = str(
-                cloudpickle.dumps(self.__class__)
-            )
         return dictionary
 
     def to_frame(self):
@@ -269,7 +264,7 @@ class Signal(
         df = self.to_frame()
         if isinstance(df, pd.Series):
             df = df.reset_index()
-            df['labels'] = list(self.labels)
+            df['labels'] = [self.labels] * len(df)
         else:
             df = df.stack().reset_index()
 
@@ -312,11 +307,18 @@ class Signal(
 
         for key, ele in self.attrs.items():
             if key in reserved_keys:
-                raise DreyeError(
-                    "Cannot convert to long dataframe since "
-                    f"dictionary 'attrs' contains key '{key}', which"
-                    " is reserved."
+                warnings.warn(
+                    f"Cannot use key '{key}' from "
+                    f"dictionary 'attrs' as column for long dataframe, "
+                    f"as it is reserved; using '{key+'_attr'}'"
                 )
+                key = key + '_attr'
+                if key in reserved_keys:
+                    raise DreyeError(
+                        "Cannot convert to long dataframe since "
+                        f"dictionary 'attrs' contains key '{key}', which"
+                        " is reserved."
+                    )
             df[key] = ele
 
         return df
@@ -326,22 +328,14 @@ class Signal(
         """
         Create a class from dictionary.
         """
-
-        try:
-            # see if you can load original class
-            cls = pickle.loads(eval(data.pop('pickled_class')))
-        except Exception:
-            pass
-
         return cls(**data)
 
     @classmethod
     def load(cls, filename):
-        data = read_json(filename)
-        return cls.from_dict(data)
+        return read_json(filename)
 
     def save(self, filename):
-        return write_json(filename, self.to_dict())
+        return write_json(filename, self)
 
     @property
     def dtype(self):
@@ -402,7 +396,7 @@ class Signal(
         Returns the minimum and maximum value of each signal.
         """
 
-        return asarray([
+        return np.array([
             np.min(self.magnitude, axis=self.domain_axis),
             np.max(self.magnitude, axis=self.domain_axis)
         ]).T
@@ -883,7 +877,7 @@ class Signal(
             sample_axis = self.domain_axis
 
         if mean_center:
-            self = self - self.mean(axis=(sample_axis + 1) % 2, keepdims=True)
+            self = self - self.mean(axis=sample_axis, keepdims=True)
 
         return self.dot(
             self, pandas=pandas, units=units, sample_axis=sample_axis)
@@ -1194,7 +1188,7 @@ class Signal(
 
     def __eq__(self, other):
 
-        if self.__class__ != other.__class__:
+        if type(self) != other.__class__:
             return False
 
         return (
@@ -1206,7 +1200,7 @@ class Signal(
     def __str__(self):
 
         return (
-            f"{self.__class__.__name__}"
+            f"{type(self).__name__}"
             f"(\n\t name={self.name}, \n\t "
             f"labels={self.labels}, \n\t units={self.units}, \n\t "
             f"shape={self.shape}, \n\t "
@@ -1226,7 +1220,10 @@ class Signal(
                                      'but clipping is list-like.')
 
 
-class SignalContainer(AbstractContainer, SignalPlottingMixin, EstimatorMixin):
+class SignalContainer(
+    AbstractContainer, SignalPlottingMixin,
+    # DecompositionMixin
+):
     """A class that contains multiple signal instances in a list.
     All attributes and methods of a Signal instance can be used directly.
     Domain units and signal units must have the same dimensionality.
@@ -1251,24 +1248,19 @@ class SignalContainer(AbstractContainer, SignalPlottingMixin, EstimatorMixin):
 
         # convert to correct units
         for idx, ele in enumerate(self.container):
+            ele = ele.copy()  # contains a copy? TODO
             ele.units = self.units
             ele.domain.units = self.domain_units
 
     def to_longframe(self):
         return pd.concat(
             self.__getattr__('to_longframe')(),
-            ignore_index=True,
+            ignore_index=True, sort=True
         )
 
     @property
     def ndim(self):
         return np.min([np.sum(self.__getattr__('ndim')), 2])
-
-    # def plot(self, *args, **kwargs):
-    #     raise NotImplementedError(
-    #         f'plot method is not implemented for {self.__class__}; '
-    #         'use the relplot method instead.'
-    #     )
 
     def relplot(self, **kwargs):
         # default behavior is that each signal gets own
@@ -1302,7 +1294,7 @@ class SignalContainer(AbstractContainer, SignalPlottingMixin, EstimatorMixin):
 
     def popkey(self, key):
         index = self.names.index(key)
-        self.pop(index)
+        return self.pop(index)
 
     @property
     def signals(self):
@@ -1350,3 +1342,7 @@ class SignalContainer(AbstractContainer, SignalPlottingMixin, EstimatorMixin):
     @property
     def domain_len(self):
         return self.signals.domain_len
+
+    # TODO peak detection (min/max)
+    # TODO peak summary - FWHM, HWHM-left, HWHM-right, domain value
+    # TODO rolling window single D signal

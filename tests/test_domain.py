@@ -5,7 +5,7 @@ import numpy as np
 import os
 from pytest import raises
 
-from .context import dreye, constants, err, test_datapath
+from .context import dreye, constants, err, test_datapath, io
 
 
 class TestDomain:
@@ -27,6 +27,9 @@ class TestDomain:
         with raises(err.DreyeError):
             # non-unique
             dreye.Domain([0.1, 0.1, 0.2, 0.2, 0.3, 0.3], units='s')
+        with raises(err.DreyeError):
+            # not sorted
+            dreye.Domain([0.4, 0.3, 0.2], units='s')
 
     def test_add(self):
         self.test_init()
@@ -97,4 +100,8 @@ class TestDomain:
         for _domain in self.domain_list:
             _domain.save(filepath)
             domain = dreye.Domain.load(filepath)
+            assert domain == _domain
+            # using write_json
+            io.write_json(filepath, domain)
+            domain = io.read_json(filepath)
             assert domain == _domain

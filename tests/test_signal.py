@@ -11,7 +11,27 @@ from .context import dreye, constants, err, test_datapath
 class TestSignal:
 
     def test_init(self):
-        pass
+        arr1 = np.random.random((100, 5))
+        arr2 = np.arange(500).reshape(100, 5)
+        domain = dreye.Domain(np.linspace(0, 10, 100), units='s')
+        darr = np.linspace(0, 10, 100)
+
+        self.s1 = dreye.Signal(
+            arr1, domain, domain_axis=0, domain_units='ms',
+            units='V'
+        )
+        self.s2 = dreye.Signal(
+            arr2, domain, domain_axis=0, domain_units='s',
+            units='V'
+        )
+        self.s3 = dreye.Signal(
+            arr1, darr, domain_axis=0, domain_units='ms',
+            units='mV'
+        )
+        self.s4 = dreye.Signal(
+            arr2, domain, domain_axis=0, domain_units='ms',
+            units='km'
+        )
 
     def test_add(self):
         self.test_init()

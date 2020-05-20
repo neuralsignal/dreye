@@ -5,8 +5,9 @@ numpy
 seaborn
 pint==0.9
 cloudpickle
-sklearn
+scikit-learn
 pandas
 seabreeze
 nidaqmx
 pytest
+joblib
