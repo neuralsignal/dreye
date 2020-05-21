@@ -8,7 +8,7 @@ Inherits signal class to build Spectrum class.
 import numpy as np
 
 from dreye.core.signal import Signal, SignalContainer
-from dreye.constants import DEFAULT_FLOAT_DTYPE, ureg
+from dreye.constants import ureg
 from dreye.err import DreyeUnitError, DreyeError
 from dreye.utilities import has_units
 
@@ -31,8 +31,6 @@ class AbstractSpectrum(Signal):
         units=None,
         domain_units='nm',
         labels=None,
-        dtype=DEFAULT_FLOAT_DTYPE,
-        domain_dtype=DEFAULT_FLOAT_DTYPE,
         interpolator=None,
         interpolator_kwargs=None,
         contexts='flux',
@@ -50,11 +48,9 @@ class AbstractSpectrum(Signal):
         # enforces nm units for domain and provides default flux context
 
         super().__init__(
-            values,
+            values=values,
             units=units,
             domain_units=domain_units,
-            dtype=dtype,
-            domain_dtype=domain_dtype,
             domain=domain,
             domain_axis=domain_axis,
             labels=labels,
@@ -76,6 +72,7 @@ class AbstractSpectrum(Signal):
             self.attrs.update({'_smoothing_window': smoothing_window})
         if smoothing_args is not None:
             self.attrs.update({'_smoothing_args': smoothing_args})
+        # applied window is added after smoothing
         if 'applied_window_' not in self.attrs:
             self.attrs['applied_window_'] = 'raw'
 
@@ -171,18 +168,62 @@ class Spectrum(AbstractSpectrum):
         domain=None,
         domain_axis=None,
         units=None,
-        **kwargs
+        domain_units='nm',
+        labels=None,
+        interpolator=None,
+        interpolator_kwargs=None,
+        contexts='flux',
+        domain_kwargs=None,
+        domain_min=None,
+        domain_max=None,
+        signal_min=None,
+        signal_max=None,
+        attrs=None,
+        smoothing_method=None,
+        smoothing_window=None,
+        smoothing_args=None,
+        name=None
     ):
-
-        units = self._get_units(values, units)
+        # default units
+        if units is None and not has_units(values):
+            units = 'spectralirradiance'
 
         super().__init__(
             values=values,
+            units=units,
+            domain_units=domain_units,
             domain=domain,
             domain_axis=domain_axis,
-            units=units,
-            **kwargs
+            labels=labels,
+            interpolator=interpolator,
+            interpolator_kwargs=interpolator_kwargs,
+            contexts=contexts,
+            domain_kwargs=domain_kwargs,
+            attrs=attrs,
+            domain_min=domain_min,
+            domain_max=domain_max,
+            signal_min=signal_min,
+            signal_max=signal_max,
+            smoothing_method=smoothing_method,
+            smoothing_window=smoothing_window,
+            smoothing_args=smoothing_args,
+            name=name
         )
+
+        # check units are correct dimensionality
+        # i.e. irradiance or photon flux type
+        truth = (
+            (
+                self.units.dimensionality
+                == '[mass] / [length] / [time] ** 3'
+            ) | (
+                self.units.dimensionality
+                == '[substance] / [length] ** 3 / [time]'
+            )
+        )
+
+        if not truth:
+            raise DreyeUnitError(self.units, 'irradiance convertible units')
 
     @property
     def normalized_spectrum(self):
@@ -191,37 +232,6 @@ class Spectrum(AbstractSpectrum):
         signal = self.normalized_signal
         signal._units = ureg(None).units
         return signal
-
-    @classmethod
-    def _get_units(cls, values, units):
-        """
-        """
-
-        if units is None:
-            if not has_units(values):
-                units = 'spectral_irradiance'
-            else:
-                units = values.units
-        elif units in cls._unit_mappings:
-            units = cls._unit_mappings[units]
-        cls._check_units(units)
-        return units
-
-    @classmethod
-    def _check_units(cls, units):
-        """
-        """
-
-        if not isinstance(units, str):
-            units = str(units)
-
-        truth_value = ureg(units).check(
-            '[mass] / [length] / [time] ** 3')
-        truth_value |= ureg(units).check(
-            '[substance] / [length] ** 3 / [time]')
-
-        if not truth_value:
-            raise DreyeUnitError(units, 'irradiance convertible units')
 
     @property
     def photonflux(self):
@@ -237,6 +247,7 @@ class Spectrum(AbstractSpectrum):
 
     @property
     def _ylabel(self):
+        # TODO
         prefix = str(self.units)[:str(self.units).find('spectral')]
         if (
             self.units.dimensionality

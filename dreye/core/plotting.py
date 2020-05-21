@@ -39,7 +39,7 @@ def get_label(units):
     return label
 
 
-class SignalPlottingMixin:
+class _PlottingMixin:
 
     # variables preset for class
     _xlabel = None

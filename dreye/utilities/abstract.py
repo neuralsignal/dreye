@@ -7,8 +7,18 @@ from abc import ABC, abstractmethod
 from dreye.err import DreyeError
 
 
-class AbstractSequence(ABC):
-    pass
+class _AbstractArray(ABC):
+    """
+    Abstract Sequence
+    """
+
+    @abstractmethod
+    def to_dict(self):
+        pass
+
+    @abstractmethod
+    def from_dict(self):
+        pass
 
 
 class CallableList(list):
@@ -41,7 +51,7 @@ class CallableList(list):
             )
 
 
-class AbstractContainer(ABC):
+class _AbstractContainer(ABC):
 
     _init_keys = []
 

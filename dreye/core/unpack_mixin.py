@@ -1,7 +1,6 @@
 """Mixin class for signal and domain
 """
 
-from abc import ABC, abstractmethod
 import copy
 
 import numpy as np
@@ -17,46 +16,42 @@ from dreye.utilities import (
     asarray, get_values, is_hashable
 )
 from dreye.constants import ureg, ABSOLUTE_ACCURACY, DEFAULT_FLOAT_DTYPE
-from dreye.core.abstract import AbstractSignal, AbstractDomain
+from dreye.core.abstract import _UnitArray
 
+# TODO make unpacking more general
 
-class UnpackDomainMixin(ABC):
+class _UnpackDomain:
+    """
+    Mixin class for unpacking domain
+    """
 
-    @classmethod
     def _unpack(
-        cls,
+        self,
         values=None,
         start=None,
         end=None,
         interval=None,
-        dtype=None,
         contexts=None,
         units=None,
+        name=None,
+        attrs=None
     ):
-        """
-        Returns correct attributes for domain.
 
-        Parameters
-        ----------
-
-        Returns
-        -------
-        """
+        # get mapping of units if exists
+        units = self._unit_mappings.get(units, units)
 
         if not is_numeric(start) and values is None:
-
             values = start
             start = None
 
         if isinstance(values, str):
-
-            values = cls.load(values, dtype=dtype)
+            values = self.load(values)
 
         if values is None:
             pass
 
-        elif isinstance(values, AbstractDomain):
-
+        elif isinstance(values, _UnitArray):
+            # TODO handling when signal is passed
             values.units = units
             if start is None:
                 start = values.start
@@ -64,15 +59,16 @@ class UnpackDomainMixin(ABC):
                 end = values.end
             if interval is None:
                 interval = values.interval
-            if dtype is None:
-                dtype = values.dtype
             if contexts is None:
                 contexts = values.contexts
             if units is None:
                 units = values.units
+            if name is None:
+                name = values.name
+            if attrs is None:
+                attrs = values.attrs
 
         else:
-
             if has_units(values):
                 # assign units or convert values
                 if units is None:
@@ -80,7 +76,7 @@ class UnpackDomainMixin(ABC):
                 else:
                     values = values.to(units)
 
-            values = asarray(values)
+            values = asarray(values).astype(DEFAULT_FLOAT_DTYPE)
 
             # check if domain is sorted
             if not np.all(np.sort(values) == values):
@@ -104,7 +100,7 @@ class UnpackDomainMixin(ABC):
         end = get_values(convert_units(end, units))
         interval = get_values(convert_units(interval, units))
 
-        start, end = dtype(start), dtype(end)
+        start, end = DEFAULT_FLOAT_DTYPE(start), DEFAULT_FLOAT_DTYPE(end)
 
         if (
             (start is None)
@@ -116,16 +112,22 @@ class UnpackDomainMixin(ABC):
             raise TypeError(
                 f"Unable to create Domain; None types present.")
 
-        values, interval = cls._create_values(
-            start,
-            end,
-            interval,
-            dtype)
+        values, interval = self._create_values(
+            start, end, interval)
 
-        return values, start, end, interval, contexts, dtype, units
+        return dict(
+            values=values,
+            start=start,
+            end=end,
+            interval=interval,
+            contexts=contexts,
+            units=units,
+            name=name,
+            attrs=attrs
+        )
 
     @staticmethod
-    def _create_values(start, end, interval, dtype=DEFAULT_FLOAT_DTYPE):
+    def _create_values(start, end, interval):
         """
         """
 
@@ -141,8 +143,8 @@ class UnpackDomainMixin(ABC):
                 raise DreyeError('Intervals given bigger than range.')
 
             values = np.append(start, start + np.cumsum(interval))
-            values = values.astype(dtype)
-            interval = interval.astype(dtype)
+            values = values.astype(DEFAULT_FLOAT_DTYPE)
+            interval = interval.astype(DEFAULT_FLOAT_DTYPE)
 
             if values.size != np.unique(values).size:
                 raise DreyeError('values are non-unique: {0}'.format(values))
@@ -153,8 +155,9 @@ class UnpackDomainMixin(ABC):
                                   '{0} bigger than range {1}').format(
                                       interval, end - start))
 
-            values, interval = arange(start, end, interval, dtype=dtype)
-            interval = dtype(interval)
+            values, interval = arange(
+                start, end, interval, dtype=DEFAULT_FLOAT_DTYPE)
+            interval = DEFAULT_FLOAT_DTYPE(interval)
 
         else:
             raise DreyeError(
@@ -164,19 +167,19 @@ class UnpackDomainMixin(ABC):
         return values, interval
 
 
-class UnpackSignalMixin(ABC):
+class _UnpackSignal:
+    """
+    Mixin class for unpacking our signal
+    """
 
-    @classmethod
     def _unpack(
-        cls,
+        self,
         values,
         domain=None,
         domain_axis=None,
         units=None,
         domain_units=None,
         labels=None,
-        dtype=DEFAULT_FLOAT_DTYPE,
-        domain_dtype=None,
         interpolator=None,
         interpolator_kwargs=None,
         contexts=None,
@@ -188,13 +191,16 @@ class UnpackSignalMixin(ABC):
         attrs=None,
         name=None
     ):
-        """_unpack signal instance
         """
+        unpack signal instance
+        """
+
+        # get mapping of units if exists
+        units = self._unit_mappings.get(units, units)
 
         container = dict(
             units=units,
             domain_units=domain_units,
-            domain_dtype=domain_dtype,
             domain=domain,
             domain_axis=domain_axis,
             labels=labels,
@@ -210,66 +216,57 @@ class UnpackSignalMixin(ABC):
             name=name
         )
 
-        if isinstance(dtype, str):
-            dtype = np.dtype(dtype).type
         if domain_kwargs is None:
             container['domain_kwargs'] = {}
 
-        if isinstance(values, str) or isinstance(values, AbstractSignal):
+        if isinstance(values, str) or isinstance(values, _UnitArray):
 
             if isinstance(values, str):
-                values = cls.load(values, dtype=dtype)
+                values = self.load(values)
 
-            cls._extract_attr_from_signal_instance(
-                values, container
-            )
-            cls._get_domain(container)
-
-            prev_domain = values.domain
+            # convert units if possible
             if units is not None:
-                values = values._convert_values(
-                    values.values,
-                    units,
-                    contexts=(
-                        values.contexts if contexts is None else contexts
-                    ),
-                    domain=values.domain,
-                    axis=values.other_axis
-                )
+                values = values.to(units)
 
-            if prev_domain == container['domain']:
-                values = values.magnitude
+            # copies over all necessary attributes
+            self._extract_attr_from_signal_instance(values, container)
+            # will throw error if domain not present
+            self._get_domain(container)
+
+            # not the case if domain instance was passed
+            if hasattr(values, 'domain'):
+                if values.domain == container['domain']:
+                    values = values.magnitude
+                else:
+                    # interpolate to new domain
+                    values = values(container['domain']).magnitude
             else:
-                values = values(container['domain']).magnitude
+                values = values.magnitude
 
         elif isinstance(values, (pd.DataFrame, pd.Series)):
-
-            cls._extract_attr_from_pandas(values, container)
-
-            values = asarray(values).astype(dtype)
-            cls._get_domain(container)
+            # extract labels and such
+            self._extract_attr_from_pandas(values, container)
+            # convert values dtype
+            values = asarray(values).astype(DEFAULT_FLOAT_DTYPE)
+            self._get_domain(container)
 
         elif is_listlike(values):
-            # TODO what about a list of signal? - concatenation?
-            cls._get_domain(container)
-            if has_units(values) and container['units'] is None:
-                container['units'] = values.units
-            elif has_units(values):
-                # TODO check contexts etc.
-                values = cls._convert_values(
-                    values,
-                    container['units'],
-                    container['contexts'],
-                    domain=container['domain'].values,
-                    axis=(
-                        1 if container['domain_axis'] is None
-                        else (container['domain_axis'] + 1) % 2
+            # get container class
+            self._get_domain(container)
+            # if has units
+            if has_units(values):
+                if container['units'] is None:
+                    container['units'] = values.units
+                else:
+                    raise DreyeError(
+                        f"Strip units from {type(values)}, when also "
+                        "supplying units in the initialization."
                     )
-                )
-            values = asarray(values).astype(dtype)
+            # get array of values
+            values = asarray(values).astype(DEFAULT_FLOAT_DTYPE)
 
         else:
-            raise TypeError('values must be string or array-like.')
+            raise TypeError('Values must be string or array-like.')
 
         assert values.ndim < 3, "signal array must be 1D or 2D."
 
@@ -291,24 +288,24 @@ class UnpackSignalMixin(ABC):
         if isinstance(container['units'], str) or container['units'] is None:
             container['units'] = ureg(container['units']).units
 
-        values, container['labels'] = cls._check_values(
+        values, container['labels'] = self._check_values(
             values, container['domain'],
             container['domain_axis'],
             container['labels']
         )
 
-        cls._update_domain_bound(container, 'domain_min')
-        cls._update_domain_bound(container, 'domain_max')
-        cls._update_signal_bound(container, 'signal_min')
-        cls._update_signal_bound(container, 'signal_max')
+        self._update_domain_bound(container, 'domain_min')
+        self._update_domain_bound(container, 'domain_max')
+        self._update_signal_bound(container, 'signal_min')
+        self._update_signal_bound(container, 'signal_max')
 
-        values = cls._clip_values(
+        values = self._clip_values(
             values,
             get_values(container['signal_min']),
             get_values(container['signal_max'])
         )
 
-        return values, dtype, container
+        return values, container
 
     @staticmethod
     def _update_domain_bound(container, key):
@@ -339,18 +336,16 @@ class UnpackSignalMixin(ABC):
         else:
             container[key] = bound * container['units']
 
-    @classmethod
-    def _get_domain(cls, container):
+    def _get_domain(self, container):
         """
         """
 
         if container['domain'] is None:
             raise DreyeError('must provide domain.')
 
-        container['domain'] = cls.domain_class(
+        container['domain'] = self.domain_class(
             container['domain'],
             units=container['domain_units'],
-            dtype=container['domain_dtype'],
             **container['domain_kwargs']
         )
 
@@ -395,8 +390,7 @@ class UnpackSignalMixin(ABC):
             if value is None and hasattr(signal, key):
                 container[key] = copy.copy(getattr(signal, key))
 
-    @classmethod
-    def _check_values(cls, values, domain, domain_axis, labels):
+    def _check_values(self, values, domain, domain_axis, labels):
         """
         """
 
@@ -410,7 +404,7 @@ class UnpackSignalMixin(ABC):
                     f'label of type {type(labels)} is not hashable'
                 )
             if labels is None:
-                labels = cls._label_class(
+                labels = self._label_class(
                     np.arange(values.shape[((domain_axis + 1) % 2)])
                 )
             else:
@@ -419,7 +413,7 @@ class UnpackSignalMixin(ABC):
                         'When providing single label and values is a 2D array'
                         ' there can only be a single signal.'
                     )
-                labels = cls._label_class([labels])
+                labels = self._label_class([labels])
 
         elif values.ndim == 1 and not is_hashable(labels):
             raise DreyeError(
@@ -435,8 +429,11 @@ class UnpackSignalMixin(ABC):
                 )
             if not all(is_hashable(label) for label in labels):
                 raise DreyeError('not all labels are hashable')
-            if not isinstance(labels, cls._label_class) and cls._force_labels:
-                labels = cls._label_class(labels)
+            if (
+                not isinstance(labels, self._label_class)
+                and self._force_labels
+            ):
+                labels = self._label_class(labels)
 
         if values.ndim == 1 and ((domain_axis > 0) or (domain_axis < -1)):
             raise DreyeError('If values is 1D, domain_axis '

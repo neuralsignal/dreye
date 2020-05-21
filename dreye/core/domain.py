@@ -8,16 +8,16 @@ import numpy as np
 from dreye.utilities import (
     is_uniform, array_domain, dissect_units,
     is_numeric, array_equal, is_arraylike,
-    asarray
+    asarray, _convert_get_val_opt
 )
 from dreye.err import DreyeError, DreyeUnitError
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE, ureg
-from dreye.core.abstract import AbstractDomain
-from dreye.core.unpack_mixin import UnpackDomainMixin
+from dreye.core.abstract import _UnitArray
+from dreye.core.unpack_mixin import _UnpackDomain
 
 
-class Domain(AbstractDomain, UnpackDomainMixin):
+class Domain(_UnitArray, _UnpackDomain):
     """
     Defines the base class for domains. Includes a range of values sorted from
     min to max, with some units attatched.
@@ -33,8 +33,6 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         will return a list of interval values of length n-1.
     values : array-like or str, optional
         The numpy array multiplied by the units (quantity instance).
-    dtype : type, optional
-        Data type of Domain.
     span:
         Span of Domain from start to end.
     gradient:
@@ -51,6 +49,11 @@ class Domain(AbstractDomain, UnpackDomainMixin):
     Domain(start=0, end=1, interval=0.1, units=second)
     """
 
+    _init_args = (
+        'contexts', 'attrs', 'name'
+    )
+    _convert_attributes = ('start', 'end', 'interval')
+
     @property
     def _class_new_instance(self):
         return Domain
@@ -62,202 +65,123 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         interval=None,
         units=None,
         values=None,
-        dtype=DEFAULT_FLOAT_DTYPE,
         contexts=None,
+        name=None,
+        attrs=None
     ):
 
-        if isinstance(dtype, str):
-            dtype = np.dtype(dtype).type
-
-        values, start, end, interval, contexts, dtype, units = self._unpack(
+        container = self._unpack(
             values=values,
             start=start,
             end=end,
             interval=interval,
             units=units,
-            dtype=dtype,
             contexts=contexts,
+            name=name,
+            attrs=attrs
         )
 
-        self._values = values
-        self._units = units
-        self._start = start
-        self._end = end
-        self._contexts = contexts
-        self._interval = interval
-        self._dtype = dtype
-
-    @property
-    def dtype(self):
-        """
-        Return the data type.
-        """
-        return self._dtype
-
-    @dtype.setter
-    def dtype(self, value):
-        """
-        Set the data type.
-        """
-
-        if value is None:
-            pass
-
-        elif isinstance(value, str):
-            value = np.dtype(value).type
-
-        elif not hasattr(value, '__call__'):
-            raise AttributeError('dtype attribute: must be callable.')
-
-        self._dtype = value
-        self._start = self._dtype(self.start)
-        self._end = self._dtype(self.end)
-        self._values, self._interval = self._create_values(
-            self.start, self.end, self.interval, self._dtype)
+        for key, value in container.items():
+            setattr(self, '_'+key, value)
 
     @property
     def start(self):
         """
         Returns start of Domain.
         """
-
         return self._start
 
-    @start.setter
-    def start(self, value):
-        """
-        """
-
-        value, units = dissect_units(value)
-
-        if units is not None and units != self.units:
-            raise DreyeUnitError(
-                units, self.units,
-                ureg(str(units)).dimensionality, self.units.dimensionality)
-
-        if value is None:
-            pass
-
-        elif not is_numeric(value):
-            raise TypeError(
-                'start attribute: {0} is not numeric'.format(value))
-
-        elif value < self._start and not self.is_uniform:
-            raise DreyeError((
-                'start attribute: {0} value '
-                'below previous start value {1}'
-            ).format(value, self._start))
-
-        else:
-            self._start = self.dtype(value)
-            self._values, self._interval = self._create_values(
-                self._start, self.end, self.interval, self.dtype)
+    # @start.setter
+    # def start(self, value):
+    #     """
+    #     Change start value of domain.
+    #     """
+    #
+    #     value = _convert_get_val_opt(value, units=self.units)
+    #
+    #     if value is None:
+    #         pass
+    #
+    #     elif not is_numeric(value):
+    #         raise DreyeError("Start attribute is not a numeric "
+    #                          f"type, but type '{type(value)}'.")
+    #
+    #     elif value < self.start and not self.is_uniform:
+    #         raise DreyeError(f"Start attribute '{value}' is below "
+    #                          f"previous start value '{self.start}' "
+    #                          "and domain is not uniform.")
+    #
+    #     else:
+    #         self._start = DEFAULT_FLOAT_DTYPE(value)
+    #         self._values, self._interval = self._create_values(
+    #             self.start, self.end, self.interval)
 
     @property
     def end(self):
         """
         Returns the end of Domain.
         """
-
         return self._end
 
-    @end.setter
-    def end(self, value):
-        """
-        """
-
-        value, units = dissect_units(value)
-
-        if units is not None and units != self.units:
-            raise DreyeUnitError(
-                units, self.units,
-                ureg(str(units)).dimensionality, self.units.dimensionality)
-
-        if value is None:
-            pass
-
-        elif not is_numeric(value):
-            raise TypeError('end attribute: {0} is not numeric'.format(value))
-
-        elif value > self._end and not self.is_uniform:
-            raise DreyeError((
-                'end attribute: {0} value '
-                'above previous end value {1}'
-            ).format(value, self._end))
-
-        else:
-            self._end = self.dtype(value)
-            self._values, self._interval = self._create_values(
-                self.start, self._end, self.interval, self.dtype)
+    # @end.setter
+    # def end(self, value):
+    #     """
+    #     Change end value of domain.
+    #     """
+    #     value = _convert_get_val_opt(value, units=self.units)
+    #
+    #     if value is None:
+    #         pass
+    #
+    #     elif not is_numeric(value):
+    #         raise DreyeError("End attribute is not a numeric "
+    #                          f"type, but type '{type(value)}'.")
+    #
+    #     elif value > self.end and not self.is_uniform:
+    #         raise DreyeError(f"End attribute '{value}' is below "
+    #                          f"previous start value '{self.end}' "
+    #                          "and domain is not uniform.")
+    #
+    #     else:
+    #         self._end = DEFAULT_FLOAT_DTYPE(value)
+    #         self._values, self._interval = self._create_values(
+    #             self.start, self.end, self.interval)
 
     @property
     def interval(self):
         """
         Returns the Domain interval.
         """
-
         return self._interval
 
-    @interval.setter
-    def interval(self, value):
+    # @interval.setter
+    # def interval(self, value):
+    #     """
+    #     Change interval value of domain.
+    #     """
+    #     value = _convert_get_val_opt(value, units=self.units)
+    #
+    #     if value is None:
+    #         pass
+    #     else:
+    #         self._values, self._interval = self._create_values(
+    #             self.start, self.end, value)
+
+    def _test_and_assign_new_values(self, values):
         """
+        assign start, end, interval to new values.
         """
-
-        value, units = dissect_units(value)
-
-        if units is not None and units != self.units:
-            raise DreyeUnitError(
-                units, self.units,
-                ureg(str(units)).dimensionality, self.units.dimensionality)
-
-        if value is None:
-            pass
-
-        else:
-
-            self._values, self._interval = self._create_values(
-                self.start, self.end, value, self.dtype)
-
-    @property
-    def values(self):
-        """
-        Returns the domain array multiplied by the units.
-        """
-
-        if self._values is None:
-            self._values, self._interval = self._create_values(
-                self.start, self.end, self.interval, self.dtype)
-
-        return self._values * self.units
-
-    @values.setter
-    def values(self, values):
-        """
-        """
-
-        values, units = dissect_units(values)
-        values = asarray(values)
-
-        if units is not None and units != self.units:
-            raise DreyeUnitError(
-                units, self.units,
-                ureg(str(units)).dimensionality, self.units.dimensionality)
-
         start, end, interval = array_domain(values, uniform=is_uniform(values))
-
         self._start = start
         self._end = end
-
         self._values, self._interval = self._create_values(
-            start, end, interval,
-            np.dtype(values.dtype).type)
+            start, end, interval)
 
     @property
     def boundaries(self):
         """
-
+        Tuple of start and end
         """
-
         return (self.start, self.end)
 
     @property
@@ -265,14 +189,12 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
         Returns the span of Domain from start to end.
         """
-
         return self.end - self.start
 
     @property
     def is_uniform(self):
         """
         Check if distribution is uniform.
-
         """
 
         return is_numeric(self.interval)
@@ -320,19 +242,21 @@ class Domain(AbstractDomain, UnpackDomainMixin):
             "Domain(start={0}, end={1}, interval={2}, units={3})"
         ).format(self.start, self.end, self.interval, self.units)
 
-    def enforce_uniformity(self, method=np.mean, on_gradient=True, copy=True):
+    def enforce_uniformity(self, method=np.mean, on_gradient=True):
         """
         Returns the domain with a uniform interval, calculated from the average
         of all original interval values.
         """
 
-        if copy:
-            self = self.copy()
+        self = self.copy()
 
         if on_gradient:
-            self.interval = method(self.gradient.magnitude)
+            value = method(self.gradient.magnitude)
         else:
-            self.interval = method(self.interval)
+            value = method(self.interval)
+
+        self._values, self._interval = self._create_values(
+            self.start, self.end, value)
 
         return self
 
@@ -382,7 +306,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         if end is None:
             end = np.min([self.end, other.end])
 
-        # ignores dtype for now
+        # create domain class
         domain = domain_class(
             start=start,
             end=end,
@@ -404,7 +328,6 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         ----------
         filename : str
             location of JSON file
-        dtype : type, optional
         """
 
         return read_json(filename)
@@ -451,8 +374,7 @@ class Domain(AbstractDomain, UnpackDomainMixin):
         """
         Append domains.
         """
-
-        if isinstance(domain, AbstractDomain):
+        if isinstance(domain, Domain):
             domain = domain.to(self.units)
             domain = asarray(domain)
         elif is_arraylike(domain):
@@ -485,10 +407,17 @@ class Domain(AbstractDomain, UnpackDomainMixin):
 
         return self.append(add_domain, left=left, copy=copy)
 
+    @property
+    def gradient(self):
+        """
+        Returns the calculated gradient.
+        """
+
+        return np.gradient(self.magnitude) * self.units
+
     def _add_length(self, length, left=False):
         """
         """
-
         assert self.is_uniform, "domain must be uniform"
 
         if left:
@@ -501,11 +430,3 @@ class Domain(AbstractDomain, UnpackDomainMixin):
                 self.end + self.interval * (idx+1)
                 for idx in range(length)
             ])
-
-    @property
-    def gradient(self):
-        """
-        Returns the calulcated gradient.
-        """
-
-        return np.gradient(self.magnitude) * self.units

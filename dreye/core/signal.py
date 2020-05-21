@@ -10,23 +10,24 @@ from scipy.signal import savgol_filter
 
 from dreye.utilities import (
     is_numeric, has_units, is_arraylike, convert_units,
-    asarray, array_equal, is_listlike, get_values, is_hashable
+    asarray, array_equal, is_listlike, get_values, is_hashable,
+    dissect_units
 )
-from dreye.utilities.abstract import AbstractContainer
+from dreye.utilities.abstract import _AbstractContainer
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.io import read_json, write_json
 from dreye.constants import DEFAULT_FLOAT_DTYPE
-from dreye.core.abstract import AbstractDomain, AbstractSignal
-from dreye.core.unpack_mixin import UnpackSignalMixin
+from dreye.core.abstract import _UnitArray
+from dreye.core.unpack_mixin import _UnpackSignal
 # TODO from dreye.core.decomposition_mixin import DecompositionMixin
 from dreye.core.domain import Domain
 from dreye.algebra.filtering import Filter1D
-from dreye.core.plotting import SignalPlottingMixin
+from dreye.core.plotting import _PlottingMixin
 
 
 class Signal(
-    AbstractSignal, UnpackSignalMixin, SignalPlottingMixin,
+    _UnitArray, _UnpackSignal, _PlottingMixin,
     # DecompositionMixin
 ):
     """
@@ -88,7 +89,7 @@ class Signal(
     """
 
     _init_args = (
-        'domain', 'interpolator', 'interpolator_kwargs', 'dtype',
+        'domain', 'interpolator', 'interpolator_kwargs',
         'domain_axis', 'labels', 'contexts', 'attrs',
         'domain_min', 'domain_max', 'signal_min', 'signal_max',
         'name'
@@ -104,6 +105,7 @@ class Signal(
         """
         return Signal
 
+    # TODO check all subclasses init (remove kwargs and args)
     def __init__(
         self,
         values,
@@ -112,8 +114,6 @@ class Signal(
         units=None,
         domain_units=None,
         labels=None,
-        dtype=DEFAULT_FLOAT_DTYPE,
-        domain_dtype=DEFAULT_FLOAT_DTYPE,
         interpolator=None,
         interpolator_kwargs=None,
         contexts=None,
@@ -126,12 +126,10 @@ class Signal(
         name=None
     ):
 
-        values, dtype, container = self._unpack(
+        values, container = self._unpack(
             values,
             units=units,
             domain_units=domain_units,
-            dtype=dtype,
-            domain_dtype=domain_dtype,
             domain=domain,
             domain_axis=domain_axis,
             labels=labels,
@@ -146,7 +144,6 @@ class Signal(
             signal_max=signal_max,
             name=name
         )
-        self._dtype = dtype
         self._values = values
         self._units = container['units']
 
@@ -189,30 +186,6 @@ class Signal(
         clipped to.
         """
         return self._signal_max
-
-    @property
-    def attrs(self):
-        """
-        Returns the previously defined dictionary created for performing more
-        specific operations on the signal.
-        """
-        if self._attrs is None:
-            self._attrs = {}
-        return self._attrs
-
-    @property
-    def name(self):
-        """
-        Returns the name of the signal instance.
-        """
-        return self._name
-
-    @name.setter
-    def name(self, value):
-        if not is_hashable(value):
-            raise DreyeError(
-                f'New name value of type {type(value)} is not hashable.')
-        self._name = value
 
     def to_dict(self):
         dictionary = {
@@ -338,57 +311,20 @@ class Signal(
         return write_json(filename, self)
 
     @property
-    def dtype(self):
-        """
-        Returns the data type.
-        """
-
-        return self._dtype
-
-    @dtype.setter
-    def dtype(self, value):
-        """
-        Set the data type.
-        """
-
-        if value is None:
-            pass
-
-        elif isinstance(value, str):
-            value = np.dtype(value).type
-
-        elif not hasattr(value, '__call__'):
-            raise AttributeError('dtype attribute: must be callable.')
-
-        self._dtype = value
-        self.domain.dtype = value
-        self._values = value(self._values)
-
-    @property
     def domain(self):
         """
-        Returns domain as previously defined. Can be a domain instance, list of
-        numbers, tuple, or dictionary.
+        Domain object associated with signal.
         """
 
         return self._domain
 
-    @property
-    def values(self):
+    @domain.setter
+    def domain(self, value):
         """
-        Returns the array containing the value of signal.
+        Set new domain for signal
         """
-
-        return self._values * self.units
-
-    @values.setter
-    def values(self, value):
-        if has_units(value):
-            value = value.to(self.units)
-        value = asarray(value)
-        if not value.shape == self.shape:
-            raise DreyeError('Array for values assignment must be same shape.')
-        self._values = value
+        raise NotImplementedError('setting domain')
+        # TODO
 
     @property
     def boundaries(self):
@@ -486,8 +422,6 @@ class Signal(
             Minimum value which a signal shall be clipped to.
         a_max :
             Maximum value which a signal shall be clipped to.
-
-
         """
         if a_min is None and a_max is None:
             return values
@@ -590,7 +524,7 @@ class Signal(
 
         domain_units = self.domain.units
 
-        if isinstance(domain, AbstractDomain):
+        if isinstance(domain, Domain):
             domain_units = domain.units
             domain = domain.to(self.domain.units)
         else:
@@ -809,7 +743,7 @@ class Signal(
         computed along the domain.
         """
 
-        if not isinstance(other, AbstractSignal):
+        if not isinstance(other, Signal):
             raise NotImplementedError('other must also be from signal class: '
                                       f'{type(other)}.')
 
@@ -1033,7 +967,7 @@ class Signal(
         domain = self.domain
         self_values = self.magnitude
 
-        if isinstance(signal, AbstractSignal):
+        if isinstance(signal, Signal):
             # checks dimensionality, appends domain, converts units
             assert self.ndim == signal.ndim
 
@@ -1125,7 +1059,7 @@ class Signal(
         if self.ndim == 1:
             self = self._expand_dims(1, copy=False)
 
-        if isinstance(signal, AbstractSignal):
+        if isinstance(signal, Signal):
             # equalizing domains
             self, signal = self.equalize_domains(signal)
             self_values = self.magnitude
@@ -1188,7 +1122,7 @@ class Signal(
 
     def __eq__(self, other):
 
-        if type(self) != other.__class__:
+        if type(self) != type(other):
             return False
 
         return (
@@ -1221,7 +1155,7 @@ class Signal(
 
 
 class SignalContainer(
-    AbstractContainer, SignalPlottingMixin,
+    _AbstractContainer, _PlottingMixin,
     # DecompositionMixin
 ):
     """A class that contains multiple signal instances in a list.
@@ -1346,3 +1280,154 @@ class SignalContainer(
     # TODO peak detection (min/max)
     # TODO peak summary - FWHM, HWHM-left, HWHM-right, domain value
     # TODO rolling window single D signal
+
+    def _instance_handler(self, other):
+        """
+        overriding _instance_handler for _UnitArray
+        """
+
+        # check if subclass of Signal
+        # check if domains are equal
+        # check if interpolator is equal
+
+        labels = self.labels
+
+        if isinstance(other, Signal):
+
+            assert other.interpolator == self.interpolator, (
+                "Interpolators must be equal, "
+                "if domains have different intervals")
+
+            self, other, labels = self.equalize_domains(other,
+                                                        return_labels=True)
+
+        elif isinstance(other, Domain) and self.ndim == 2:
+            other = (
+                np.expand_dims(other.magnitude, axis=self.other_axis)
+                * other.units
+            )
+
+        return self, other, {'labels': labels}
+
+    def _broadcast(self, other, shared_axis=None):
+        """
+        """
+
+        if (
+            (np.ndim(other) == 0)
+            or (self.ndim == 1)
+            or isinstance(other, Domain)
+            or (np.ndim(other) == self.ndim)
+        ):
+            return other
+
+        else:
+            if shared_axis is None:
+                shared_axis = self.domain_axis
+
+            other_axis = (shared_axis + 1) % 2
+
+            other, units = dissect_units(other)
+
+            other = np.expand_dims(other, other_axis)
+
+            assert self.shape[shared_axis] == other.shape[shared_axis]
+
+            if units is None:
+                return other
+
+            else:
+                return other * units
+
+    def equalize_domains(
+        self,
+        other,
+        interval=None,
+        start=None,
+        end=None,
+        equalize_dimensions=True,
+        return_labels=False,
+        copy=False,
+        **kwargs
+    ):
+        """equalize domains for both Signal instances
+        """
+
+        labels = self.labels
+
+        if equalize_dimensions:
+            self, other, labels = self._equalize_dimensionality(other)
+
+        if self.domain != other.domain:
+
+            domain = self.domain.equalize_domains(
+                other.domain,
+                interval=interval,
+                start=start,
+                end=end,
+                **kwargs
+            )
+
+            self = self(domain)
+            other = other(domain)
+
+        elif copy:
+            self = self.copy()
+            other = other.copy()
+
+        if return_labels:
+            return self, other, labels
+        else:
+            return self, other
+
+    def _equalize_dimensionality(self, other):
+        """
+        """
+
+        labels = self.labels
+
+        if self.ndim == 1:
+            if other.ndim == 1:
+                pass
+            else:
+                self = self._expand_dims(other.other_axis)
+                labels = other.labels
+
+        if other.ndim == 1:
+            if self.ndim == 1:
+                pass
+            else:
+                other = other._expand_dims(self.other_axis)
+
+        if self.domain_axis != other.domain_axis:
+            other = other.moveaxis(other.domain_axis, self.domain_axis)
+
+        return self, other, labels
+
+    def _expand_dims(self, axis, copy=True):
+        """
+        """
+
+        assert self.ndim == 1, \
+            'can only expand dimension of one dimensional signal.'
+
+        if axis == 0:
+            domain_axis = 1
+        elif axis == 1:
+            domain_axis = 0
+        else:
+            raise DreyeError('can only expand dimension for axis 0 or 1.')
+
+        values = np.expand_dims(self.magnitude, axis)
+
+        if copy:
+            self = self.copy()
+        self._values = values
+        self._labels = pd.Index([self.labels])
+        self._domain_axis = domain_axis
+        return self
+
+    def _flip_axes_assignment(self):
+        """only used internally
+        """
+        self._domain_axis = self.other_axis

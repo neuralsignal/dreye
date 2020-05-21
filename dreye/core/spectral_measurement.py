@@ -100,6 +100,8 @@ class MeasuredSpectrum(Spectrum):
         **kwargs
     ):
 
+        # TODO label units resolution
+
         super().__init__(*args, **kwargs)
 
         if not self.ndim == 2:
@@ -144,14 +146,14 @@ class MeasuredSpectrum(Spectrum):
 
         # convert to correct units, but only return value
         self.attrs['_zero_boundary'] = _convert_get_val_opt(
-            self.attrs['_zero_boundary'], self.labels.units
+            self.attrs.get('_zero_boundary', None), self.labels.units
         )
         self.attrs['_max_boundary'] = _convert_get_val_opt(
-            self.attrs['_max_boundary'], self.labels.units
+            self.attrs.get('_max_boundary', None), self.labels.units
         )
 
         if (
-            self.attrs['_zero_is_lower'] is None
+            self.attrs.get('_zero_is_lower', None) is None
             and (
                 self.attrs['_max_boundary'] is None
                 or self.attrs['_zero_boundary'] is None
@@ -161,7 +163,7 @@ class MeasuredSpectrum(Spectrum):
                 'Must provide zero_is_lower or max and zero boundary.'
             )
 
-        if self.attrs['_zero_is_lower'] is None:
+        if self.attrs.get('_zero_is_lower', None) is None:
             self.attrs['_zero_is_lower'] = (
                 self.zero_boundary < self.max_boundary
             )
@@ -189,10 +191,9 @@ class MeasuredSpectrum(Spectrum):
 
     @property
     def inputs(self):
+        """alias for labels
         """
-        """
-
-        return self._labels
+        return self.labels
 
     def to_measured_spectra(self, units='uE'):
         return MeasuredSpectraContainer([self], units=units)

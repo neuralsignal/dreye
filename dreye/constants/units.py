@@ -36,7 +36,8 @@ c = pint.Context('flux')
 
 
 def gradient(domain):
-
+    """calculate gradient and preserve units
+    """
     return np.gradient(domain.magnitude) * domain.units
 
 

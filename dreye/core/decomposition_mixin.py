@@ -12,10 +12,10 @@ import pandas as pd
 from sklearn import decomposition as decomp
 from joblib import Parallel, delayed
 
-from dreye.utilities.abstract import AbstractContainer
+from dreye.utilities.abstract import _AbstractContainer
 
 
-class _BootstrappedContainer(AbstractContainer):
+class _BootstrappedContainer(_AbstractContainer):
     _allowed_instances = (
         decomp.PCA, decomp.FastICA, decomp.NMF, decomp.SparsePCA,
         decomp.KernelPCA, decomp.FactorAnalysis, decomp.TruncatedSVD

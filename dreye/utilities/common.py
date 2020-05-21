@@ -11,7 +11,7 @@ import pandas as pd
 import json
 
 from dreye.constants import ureg
-from dreye.utilities.abstract import AbstractSequence
+from dreye.utilities.abstract import _AbstractArray
 
 around = np.vectorize(np.round)
 
@@ -75,6 +75,7 @@ def has_units(value):
     )
 
 
+# TODO settle on better convert
 def convert_units(value, units, optional=True):
     """
     """
@@ -87,7 +88,7 @@ def convert_units(value, units, optional=True):
     return value
 
 
-def _convert_get_val_opt(value, units=None):
+def _convert_get_val_opt(value, units):
 
     if has_units(value) and units is not None:
         return value.to(units).magnitude
@@ -117,17 +118,6 @@ def dissect_units(value):
         return value.magnitude, value.units
     else:
         return value, None
-
-
-def dissect_units_null(value):
-    """dissect units and return none for dimensionless units
-    """
-
-    value, units = dissect_units(value)
-
-    if units == ureg(None).units:
-        return value, None
-    return value, units
 
 
 def get_values(value):
@@ -163,8 +153,15 @@ def is_listlike(value):
 
     value, _ = dissect_units(value)
     return isinstance(
-        value, (Sequence, np.ndarray, AbstractSequence, pd.Index)
+        value, (Sequence, np.ndarray, _AbstractArray, pd.Index)
     ) and not is_string(value)
+
+
+def is_dictlike(value):
+    """
+    """
+
+    return isinstance(value, dict)
 
 
 def is_arraylike(value):
@@ -177,6 +174,6 @@ def is_arraylike(value):
         (
             pd.Series, pd.DataFrame,
             Sequence, np.ndarray,
-            AbstractSequence, pd.Index
+            _AbstractArray, pd.Index
         )
     )
