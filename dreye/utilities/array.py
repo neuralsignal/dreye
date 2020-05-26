@@ -12,18 +12,51 @@ import warnings
 
 import numpy as np
 
-from dreye.constants import DEFAULT_FLOAT_DTYPE, \
-    RELATIVE_ACCURACY, ABSOLUTE_ACCURACY
-from dreye.utilities.common import (
-    round_to_significant, digits_to_decimals, dissect_units
+from dreye.constants import (
+    DEFAULT_FLOAT_DTYPE, RELATIVE_ACCURACY, ABSOLUTE_ACCURACY
 )
+from dreye.utilities.common import get_value
+
+
+around = np.vectorize(np.round)
+# vecotrized round function
 
 
 def asarray(x, *args, **kwargs):
-    """always return array, but dissect units before if necessary
     """
-    x, _ = dissect_units(x)
+    Always return array, but avoid unit stripping warning.
+    """
+    x = get_value(x)
     return np.asarray(x, *args, **kwargs)
+
+
+def digits_to_decimals(x, digits):
+    """
+    Return decimal places for number of significant digits given x.
+    """
+    return -np.floor(np.log10(np.abs(x))) + digits - 1
+
+
+def round_to_significant(x, digits):
+    """
+    Round x to significant digits
+    """
+
+    # strip units and all and return array
+    x = asarray(x)
+
+    if not np.all(np.isfinite(x)):
+        raise ValueError('Cannot round to significant with non-finite value')
+
+    if x.ndim:
+        decimals = digits_to_decimals(x[x != 0], digits).astype(int)
+        x[x != 0] = around(x[x != 0], decimals)
+        return x
+    elif x:
+        decimals = int(digits_to_decimals(x, digits))
+        return np.round(x, decimals)
+    else:
+        return x
 
 
 def array_equal(x, y):
@@ -52,60 +85,7 @@ def unique_significant(x, digits=RELATIVE_ACCURACY, **kwargs):
     """
     Return unique values of array within significant digit range
     """
-
     return np.unique(round_to_significant(x, digits), **kwargs)
-
-
-def closest_indexes(a, b):
-    """
-    Returns the `a` variable closest element indexes to reference
-    `b` variable elements.
-
-    Parameters
-    ----------
-    a : array_like
-        Variable to search for the closest element indexes.
-    b : numeric
-        Reference variable.
-
-    Returns
-    -------
-    numeric
-        Closest `a` variable element indexes.
-
-    Examples
-    --------
-    >>> a = asarray([24.31357115, 63.62396289, 55.71528816,
-    ...               62.70988028, 46.84480573, 25.40026416])
-    >>> print(closest_indexes(a, 63))
-    [3]
-    >>> print(closest_indexes(a, [63, 25]))
-    [3 5]
-    """
-
-    a = np.ravel(a)[:, np.newaxis]
-    b = np.ravel(b)[np.newaxis, :]
-
-    return np.abs(a - b).argmin(axis=0)
-
-
-def diag_chunks(a, ravel=True):
-    """
-    Take diagonal chunks out of 2 dimensional array.
-    """
-
-    assert a.shape[0] <= a.shape[1]
-
-    length = a.shape[-1]
-    idcs = np.arange(length).reshape(a.shape[0], -1)
-
-    # this should have the same shape as shape
-    a = np.take_along_axis(a, idcs, axis=1)
-
-    if ravel:
-        return np.ravel(a)
-    else:
-        return a
 
 
 def spacing(array, unique=True, sorted=False, axis=None):
@@ -243,6 +223,7 @@ def array_domain(array, sorted=False, uniform=None, axis=None):
     """
 
     if axis is None:
+        # ravel array
         axis = -1
         array = np.ravel(array)
 
@@ -318,38 +299,3 @@ def arange(start, stop=None, step=1, dtype=None, error='ignore'):
             raise ValueError(msg)
 
     return range_, interval
-
-
-def as_float(a):
-    """
-    Converts given :math:`a` variable to *numeric* using the type defined by
-    :attr:`dreye.constants.DEFAULT_FLOAT_DTYPE` attribute. In the event where
-    :math:`a` cannot be converted, it is converted to *ndarray* using the type
-    defined by :attr:`dreye.constants.DEFAULT_FLOAT_DTYPE` attribute.
-    Parameters
-    ----------
-    a : object
-        Variable to convert.
-    Returns
-    -------
-    ndarray
-        :math:`a` variable converted to *numeric*.
-    Warnings
-    --------
-    The behaviour of this definition is different than
-    :func:`dreye.utilities.as_numeric` definition when it comes to conversion
-    failure: the former will forcibly convert :math:`a` variable to *ndarray*
-    using the type defined by :attr:`dreye.constants.DEFAULT_FLOAT_DTYPE`
-    attribute while the later will pass the :math:`a` variable as is.
-    Examples
-    --------
-    >>> as_float(asarray([1]))
-    1.0
-    >>> as_float(np.arange(10))
-    array([ 0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9.])
-    """
-
-    try:
-        return DEFAULT_FLOAT_DTYPE(a)
-    except TypeError:
-        return asarray(a, DEFAULT_FLOAT_DTYPE)

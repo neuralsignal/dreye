@@ -5,7 +5,9 @@
 # TODO rename decomposition mixin
 # TODO add preprocessing steps?
 # TODO run for multiple components at once
-# TODO for multiple n_components put into long dataframe (the different attributes)
+# TODO for multiple n_components put into
+#  long dataframe (the different attributes)
+# TODO remove domain_axis etc.
 
 import numpy as np
 import pandas as pd

@@ -5,24 +5,10 @@ Functions for creating or fitting particular spectra
 import numpy as np
 from scipy.stats import norm
 
-from dreye.utilities import is_numeric, asarray
-from dreye.core.spectrum import Spectrum
-from dreye.core.spectral_measurement import MeasuredSpectraContainer
-
-
-def fit_background(
-    measured_spectra, background, return_fit=True, units=True,
-    **kwargs
-):
-    """
-    Fit background spectrum to measurement of light sources.
-    """
-
-    assert isinstance(measured_spectra, MeasuredSpectraContainer)
-    assert isinstance(background, Spectrum)
-
-    return measured_spectra.fit(
-        background, return_fit=return_fit, units=units, **kwargs)
+from dreye.utilities import optional_to
+from dreye.core.spectrum import Spectra
+from dreye.core.signal import _SignalMixin
+from dreye.constants import ureg
 
 
 def create_gaussian_spectrum(
@@ -65,30 +51,28 @@ def create_gaussian_spectrum(
         If True, spectral distribution clipped at 0 and negative values
         discarded.
     """
-    # TODO should this be Signal?
-    if isinstance(background, Spectrum):
-        background = background.to(units)(wavelengths)
+    if isinstance(background, _SignalMixin):
+        background = background(wavelengths).to(units).sum(axis=1)
 
-    wavelengths = asarray(wavelengths)
-    centers = asarray(centers)
-    std = asarray(std)
-    assert is_numeric(intensity)
+    if isinstance(units, str) or units is None:
+        units = ureg(units).units
+
+    wavelengths = optional_to(wavelengths, 'nm')
+    centers = optional_to(centers, 'nm')
+    std = optional_to(std, 'nm')
+    intensity = optional_to(intensity, units * ureg('nm').units)
     assert wavelengths.ndim == 1
 
     if background is not None:
-        background = asarray(background)
+        background = optional_to(background, units)
         assert background.ndim == 1
         assert background.shape == wavelengths.shape
 
-    if (centers.ndim == 1) or (std.ndim == 1):
-        if centers.ndim == 1:
-            centers = centers[None, :]
-        if std.ndim == 1:
-            std = std[None, :]
-
-        wavelengths = wavelengths[:, None]
-        if background is not None:
-            background = background[:, None]
+    centers = np.atleast_2d(centers)
+    std = np.atleast_2d(std)
+    wavelengths = wavelengths[:, None]
+    if background is not None:
+        background = background[:, None]
 
     if cdf is None:
         spectrum_array = norm.pdf(wavelengths, centers, std)
@@ -113,9 +97,8 @@ def create_gaussian_spectrum(
     if zero_cutoff:
         spectrum_array = np.clip(spectrum_array, 0, None)
 
-    return Spectrum(
+    return Spectra(
         spectrum_array,
-        wavelengths,
+        domain=wavelengths,
         units=units,
-        domain_axis=0
     )

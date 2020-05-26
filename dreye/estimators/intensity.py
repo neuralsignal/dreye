@@ -64,7 +64,7 @@ class AbstractFitModel(BaseEstimator):
     def mapped_units(self):
         """mapped units
         """
-        return self.measured_spectra.label_units
+        return self.measured_spectra.labels_units
 
 
 class SpectrumFitModel(AbstractFitModel):
@@ -100,7 +100,7 @@ class ExcitationFitModel(AbstractFitModel):
         self.measured_spectra = measured_spectra
 
     # fit and fit_transform and transform units property,
-    # intensity units, output units, label_units
+    # intensity units, output units, labels_units
     # X are the capture values! or excitation values?
     # map -> transform
 

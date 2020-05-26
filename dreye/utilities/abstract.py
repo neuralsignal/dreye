@@ -1,8 +1,9 @@
 """
 """
 
-
+import copy
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 
 from dreye.err import DreyeError
 
@@ -59,6 +60,12 @@ class _AbstractContainer(ABC):
         self._container = self._check_list(container)
         self._init_attrs()
 
+    def __copy__(self):
+        return type(self)([ele.copy() for ele in self])
+
+    def copy(self):
+        return copy.copy(self)
+
     def _init_attrs(self):
         for key in self._init_keys:
             setattr(self, key, None)
@@ -104,6 +111,11 @@ class _AbstractContainer(ABC):
     def __getitem__(self, key):
         return self.container[key]
 
+    def __setitem__(self, key, value):
+        self._check_ele(value)
+        self._container[key] = value
+        self._init_attrs()
+
     def __call__(self, *args, iter_kwargs=None, **kwargs):
         container = [
             ele(*args, **kwargs)
@@ -137,8 +149,7 @@ class _AbstractContainer(ABC):
         return cls(data)
 
     def _check_list(self, container):
-        from dreye.utilities import is_listlike
-        if is_listlike(container):
+        if isinstance(container, Collection):
             container = list(container)
         else:
             raise DreyeError(

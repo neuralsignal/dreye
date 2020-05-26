@@ -4,26 +4,135 @@ Abstract Base Class for both Signal and Domain.
 
 from abc import abstractmethod
 import copy
+import operator
 
 import numpy as np
-from pint import DimensionalityError
 
-from dreye.err import DreyeError, DreyeUnitError
+from dreye.err import DreyeError
 from dreye.utilities import (
-    dissect_units, has_units,
-    convert_units, is_listlike, is_string,
-    is_dictlike, is_hashable, _convert_get_val_opt,
-    asarray
+    has_units,
+    is_listlike, is_string,
+    is_dictlike, is_hashable,
+    array_equal
 )
 from dreye.utilities.abstract import _AbstractArray
-from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE
+from dreye.constants import ureg
+from dreye.io import read_json, write_json
 
 
 class _UnitArray(_AbstractArray):
+    """
+    Attributes are assigned privately and attribute properties written
+    for each attribute to prevent user-side redefinition.
+    """
 
     _convert_attributes = ()
     _unit_mappings = {}
-    _init_args = ()
+    # _enforce_same_shape = True
+    _init_args = ('attrs', 'contexts', 'name')
+    # all init arguments necessary to copy object except values and units
+    _args_defaults = {}
+    # dictionary of attributes defaults if None
+    _unit_conversion_params = {}
+    # attributes mapping passed to the "to" method of pint
+
+    @abstractmethod
+    def _test_and_assign_values(self, values):
+        """
+        """
+        # values is always a numpy.ndarray/None/or other
+        # assign new values
+        # function can be used to also assign dependent attributes
+        # values = np.array(values).astype(DEFAULT_FLOAT_DTYPE)
+        # self._values = values
+        # this is used in the init to assign new values and when
+        # setting new values
+        pass
+
+    @abstractmethod
+    def _equalize(self, other):
+        """
+        Should just return equalized other_magnitude or NotImplemented
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def _class_new_instance(self):
+        """
+        Class used to initialize a new instance (usually self).
+        """
+        pass
+
+    def __init__(
+        self, values, *, units=None,
+        contexts=None, attrs=None, name=None,
+        **kwargs
+    ):
+        # map the value
+        units = self._unit_mappings.get(units, units)
+
+        # run through unit array and copy over attributes
+        if is_string(values):
+            values = self.load(values)
+
+        # handling of UnitArray type
+        if isinstance(values, _UnitArray):
+            # assign None values
+            if name is None:
+                name = values.name
+            if attrs is None:
+                attrs = values.attrs
+            if contexts is None:
+                contexts = values.contexts
+            for key, value in kwargs.items():
+                if value is None and hasattr(values, key):
+                    kwargs[key] = copy.copy(getattr(values, key))
+            # just get values
+            values = values.values
+
+        # handling units
+        if has_units(values):
+            if units is None:
+                units = values.units
+            else:
+                values = values.to(units)
+            values = values.magnitude
+
+        if units is None:
+            units = ureg(None).units
+        # units are assigned
+        self._units = units
+        # setup names and attributes and contexts
+        self.contexts = contexts
+        self.attrs = attrs
+        self.name = name
+
+        for key, value in kwargs.items():
+            if value is None:
+                value = self._args_defaults.get(key, None)
+            if key in self._init_args:
+                # these has an attribute property
+                assert hasattr(self, key), \
+                    f"must provide property for attribute {key}"
+                # set attribute
+                setattr(self, '_'+key, value)
+            else:
+                # these do not have an attribute property
+                kwargs[key] = value
+
+        # pop all set keys
+        for key in self._init_args:
+            kwargs.pop(key)
+
+        # this should assign the values
+        self._test_and_assign_values(values, kwargs)
+
+    def _get_convert_attribute(self, attr):
+        return getattr(self, attr)
+
+    def _set_convert_attribute(self, attr, value):
+        setattr(self, '_'+attr, value)
 
     @property
     def init_kwargs(self):
@@ -51,46 +160,24 @@ class _UnitArray(_AbstractArray):
     def units(self, value):
         """
         """
-        if value is None:
-            return
-
-        # map the value
-        value = self._unit_mappings.get(value, value)
-
-        if value == self.units:
-            return
-
-        # converts values if possible
-        try:
-            values = self._convert_all_attrs(value)
-        except DimensionalityError:
-            raise DreyeUnitError(
-                str(value), str(self.units),
-                ureg(str(value)).dimensionality,
-                self.units.dimensionality,
-                f' for instance of type {type(self).__name__}.'
-            )
-        self._units = values.units
-        self.values = values.magnitude
+        self.to(value, copy=False)
 
     @property
     def contexts(self):
-        """contexts for unit conversion.
+        """tuple contexts for unit conversion.
         """
-
-        if self._contexts is None:
-            return ()
-        elif isinstance(self._contexts, str):
-            return (self._contexts, )
-        else:
-            return tuple(self._contexts)
+        return self._contexts
 
     @contexts.setter
     def contexts(self, value):
         """reset context
         """
-        if is_listlike(value) or is_string(value) or value is None:
-            self._contexts = value
+        if value is None:
+            self._contexts = ()
+        elif is_string(value):
+            self._contexts = (value, )
+        elif is_listlike(value):
+            self._contexts = tuple(value)
         else:
             raise DreyeError(
                 "Context must be type tuple, str, or None, but "
@@ -102,8 +189,6 @@ class _UnitArray(_AbstractArray):
         """
         Dictionary to hold arbitrary objects
         """
-        if self._attrs is None:
-            self._attrs = {}
         return self._attrs
 
     @attrs.setter
@@ -111,8 +196,10 @@ class _UnitArray(_AbstractArray):
         """reset attribute
         """
 
-        if is_dictlike(value) or value is None:
-            self._attrs = value
+        if value is None:
+            self._attrs = {}
+        if is_dictlike(value):
+            self._attrs = dict(value)
         else:
             raise DreyeError(
                 "Attribute dictionary must be type dict or None, "
@@ -129,8 +216,8 @@ class _UnitArray(_AbstractArray):
     @name.setter
     def name(self, value):
         if not is_hashable(value):
-            raise DreyeError(
-                f'New name value of type {type(value)} is not hashable.')
+            raise DreyeError("New name value of type "
+                             f"{type(value)} is not hashable.")
         self._name = value
 
     @property
@@ -140,17 +227,6 @@ class _UnitArray(_AbstractArray):
         """
         return self._values
 
-    @magnitude.setter
-    def magnitude(self, values):
-        """
-        alias for setting values, but throws an error if has units
-        """
-        if has_units(values):
-            raise DreyeError(
-                "When setting magnitude new magnitude cannot have units."
-            )
-        self.values = values
-
     @property
     def values(self):
         """
@@ -158,62 +234,50 @@ class _UnitArray(_AbstractArray):
         """
         return self.magnitude * self.units
 
-    @values.setter
-    def values(self, values):
+    def to(self, units, *args, copy=True, **kwargs):
         """
-        Setting new values array
+        convert to new units
         """
-
-        values = _convert_get_val_opt(values, self.units)
-        values = asarray(values).astype(DEFAULT_FLOAT_DTYPE)
-
-        if not values.shape == self.shape:
-            raise DreyeError('Array for values assignment must be same shape.')
-
-        self._test_and_assign_new_values(values)
-
-    def _test_and_assign_new_values(self, values):
-        # assign new values
-        # function can be used to also assign dependent attributes
-        self._values = values
-
-    def to(self, units, copy=True):
-        """
-        """
-
         if copy:
             self = self.copy()
 
-        self.units = units
+        # map the value
+        units = self._unit_mappings.get(units, units)
+        if is_string(units) or units is None:
+            units = ureg(units).units
+
+        if units == self.units:
+            return self
+
+        # converts values if possible
+        values = self._convert_all_attrs(units, *args, **kwargs)
+        self._units = values.units
+        self._values = values.magnitude
         return self
 
-    def _convert_values(self, values, units, unitless=False):
+    def _convert_values(self, values, units, *args, unitless=False, **kwargs):
         """
         convert values given the contexts
         """
 
-        try:
-            values = values.to(units, *self.contexts)
-        except TypeError:
-            if not hasattr(self, 'domain'):
-                raise
+        kws = self._unit_conversion_kws
+        kws.update(kwargs)
 
-            domain = self.domain.values
-            if values.ndim == 2:
-                domain = np.expand_dims(
-                    domain.magnitude, axis=self.other_axis
-                ) * domain.units
-            elif values.ndim > 2:
-                raise DreyeError("Values must be 1- or 2-dimensional.")
-
-            values = values.to(units, *self.contexts, domain=domain)
+        values = values.to(units, *(self.contexts + args), **kws)
 
         if unitless:
             return values.magnitude
         else:
             return values
 
-    def _convert_other_attrs(self, units):
+    @property
+    def _unit_conversion_kws(self):
+        return {
+            key: getattr(self, name)
+            for key, name in self._unit_conversion_params.items()
+        }
+
+    def _convert_other_attrs(self, units, *args, **kwargs):
         """
         convert units of stored attributes
         """
@@ -221,206 +285,161 @@ class _UnitArray(_AbstractArray):
         # these have to be accessible as self.attr and set by self._attr
         for attr in self._convert_attributes:
             # attr
-            if hasattr(self, attr):
-                value = getattr(self, attr)
-            else:
-                value = self.attrs.get(attr, None)
-
+            value = self._get_convert_attribute(attr)
             if value is None:
                 continue
-
             unitless = False
             if not has_units(value):
                 value = value * self.units
                 unitless = True
-
             # convert value
-            value = self._convert_values(value, units, unitless=unitless)
+            value = self._convert_values(
+                value, units, *args, unitless=unitless, **kwargs
+            )
+            # set attr
+            self._set_convert_attribute(attr, value)
 
-            if hasattr(self, attr):
-                setattr(self, '_'+attr, value)
-            else:
-                self.attrs[attr] = value
-
-    def _convert_all_attrs(self, units):
+    def _convert_all_attrs(self, units, *args, **kwargs):
         """
         convert units of all relevant attributes
         """
-        self._convert_other_attrs(units)
-        return self._convert_values(self.values, units)
+        self._convert_other_attrs(units, *args, **kwargs)
+        return self._convert_values(
+            self.values, units, *args, unitless=False, **kwargs
+        )
 
-    @abstractmethod
-    def equalize_domains(self, other):
-        pass
-
-    @property
-    @abstractmethod
-    def _class_new_instance(self):
-        pass
-
-    @staticmethod
-    def _other_handler(other):
-        """handles other objects
+    def _instance_handler(self, other, op, reverse=False):
         """
-        if isinstance(other, str):
+        standard instance handler.
+        This is used by operators and
+        should return a new instance of self
+        """
+        # special handling of string and None
+        if is_string(other) or other is None:
             other = ureg(other)
-        return dissect_units(other)
+        elif isinstance(other, ureg.Unit):
+            other = other * 1
+        # apply equalize
+        other_magnitude = self._equalize(other)
+        if other_magnitude is NotImplemented:
+            return other_magnitude
 
-    def _instance_handler(self, other):
-        """
-        standard instance handler (overwritten by Signal class)
-        """
-        return self, other, {}
-
-    def _factor_function(self, other, operation, **kwargs):
-        """
-        operator function for multiplications and divisions
-        """
-        # handle instance
-        self, other, kws = self._instance_handler(other)
-        kwargs.update(kws)
-        # handle units
-        other_magnitude, other_units = self._other_handler(other)
-
-        new = getattr(self.magnitude, operation)(other_magnitude)
-
-        if other_units is None:
-            new_units = self.units
+        # unit handling # make common function?
+        if has_units(other):
+            other_units = other.units
         else:
-            new_units = getattr(self.units, operation)(other_units)
-
-        return self._create_new_instance(new * new_units, **kwargs)
-
-    def _sum_function(self, other, operation, **kwargs):
-        """
-        operator function for additions and subtractions
-        """
-        # handle instance
-        self, other, kws = self._instance_handler(other)
-        kwargs.update(kws)
-        # handle units
-        other_magnitude, other_units = self._other_handler(other)
-
-        if other_units is None or (other_units == self.units):
-            pass
+            # assume dimensionless
+            other_units = ureg(None).units
+        # apply operation with units
+        other_values = other_magnitude * other_units
+        if reverse:
+            new = getattr(operator, op)(other_values, self.values)
         else:
-            # convert units if possible
-            other_magnitude = other.to(self.units).magnitude
-
-        new = getattr(self.magnitude, operation)(other_magnitude)
-
-        return self._create_new_instance(new * self.units, **kwargs)
-
-    def _simple_function(self, other, operation, **kwargs):
-        """
-        operator function for opeartions without unit handling, or
-        other has unit None
-        """
-        # handle instance
-        self, other, kws = self._instance_handler(other)
-        kwargs.update(kws)
-        # handle units
-        other_magnitude, other_units = self._other_handler(other)
-
-        if other_units is None:
-            pass
-        elif other_units != ureg(None).units:
-            raise DreyeError(
-                f'{operation} requires unitless values.'
-            )
-
-        new = getattr(self.magnitude, operation)(other_magnitude)
-        new_units = getattr(self.units, operation)(other_magnitude)
-
-        return self._create_new_instance(new * new_units, **kwargs)
-
-    def _single_function(self, operation, **kwargs):
-        """
-        performs operation and multiplies units
-        """
-        return self._create_new_instance(
-            getattr(self.magnitude, operation)() * self.units,
-            **kwargs
-        )
-
-    def _create_new_instance(self, values, **kwargs):
-        """create new instance given a numpy.array
-        """
-        return self._class_new_instance(
-            values, **{**self.init_kwargs, **kwargs}
-        )
+            new = getattr(operator, op)(self.values, other_values)
+        # create new instance
+        return self._class_new_instance(values=new, **self.init_kwargs)
 
     def __mul__(self, other):
-        return self._factor_function(other, '__mul__')
+        return self._instance_handler(other, 'mul')
 
-    def __div__(self, other):
-        return self._factor_function(other, '__div__')
-
-    def __rdiv__(self, other):
-        return self._factor_function(other, '__rdiv__')
+    def __rmul__(self, other):
+        return self._instance_handler(other, 'mul', True)
 
     def __truediv__(self, other):
-        return self._factor_function(other, '__truediv__')
+        return self._instance_handler(other, 'truediv')
 
     def __rtruediv__(self, other):
-        return self._factor_function(other, '__rtruediv__')
+        return self._instance_handler(other, 'truediv', True)
 
     def __floordiv__(self, other):
-        return self._factor_function(other, '__floordiv__')
+        return self._instance_handler(other, 'floordiv')
+
+    def __rfloordiv__(self, other):
+        return self._instance_handler(other, 'floordiv', True)
 
     def __add__(self, other):
-        return self._sum_function(other, '__add__')
+        return self._instance_handler(other, 'add')
+
+    def __radd__(self, other):
+        return self._instance_handler(other, 'add', True)
 
     def __sub__(self, other):
-        return self._sum_function(other, '__sub__')
+        return self._instance_handler(other, 'sub')
+
+    def __rsub__(self, other):
+        return self._instance_handler(other, 'sub', True)
 
     def __pow__(self, other):
-        return self._simple_function(other, '__pow__')
+        return self._instance_handler(other, 'pow')
 
-    def __mod__(self, other):
-        return self._sum_function(other, '__mod__')
+    def __rpow__(self, other):
+        return self._instance_handler(other, 'pow', True)
+
+    def __contains__(self, other):
+        return self._instance_handler(other, 'contains')
 
     def __pos__(self):
-        return self._single_function('__pos__')
+        return self._class_new_instance(
+            values=operator.pos(self.values), **self.init_kwargs
+        )
 
     def __neg__(self):
-        return self._single_function('__neg__')
+        return self._class_new_instance(
+            values=operator.neg(self.values), **self.init_kwargs
+        )
 
     def __abs__(self):
-        return self._single_function('__abs__')
+        return self._class_new_instance(
+            values=operator.abs(self.values), **self.init_kwargs
+        )
 
     def __iter__(self):
         """
-        Returns a generator for the domain values.
-
-        Returns
-        -------
-        generator
-            domain values generator.
+        Generate over values
         """
-
         return iter(self.values)
-
-    def __contains__(self, other):
-        """
-        Returns if the domain contains given value.
-        """
-        # TODO tolerance for floating point overflow
-
-        return np.all(np.in1d(other, self.values))
 
     def __len__(self):
         return len(self.values)
+
+    def __bool__(self):
+        return True
 
     def __repr__(self):
         return str(self.values)
 
     def __getitem__(self, key):
-        return self.values.__getitem__(key)
+        return self.values[key]
 
-    def __setitem__(self, key, value):
-        value = convert_units(value, self.units)
-        self._values[key] = value
+    def __eq__(self, other):
+        """
+        Equality between self and other
+        """
+
+        if isinstance(other, type(self)):
+
+            if self._init_args != other._init_args:
+                return False
+
+            for sname, oname in zip(self._init_args, other._init_args):
+                truth = getattr(self, sname) != getattr(other, oname)
+                if isinstance(truth, bool):
+                    if not truth:
+                        return False
+                elif is_listlike(truth):
+                    if not np.all(truth):
+                        return False
+                else:
+                    raise NotImplementedError(
+                        f"Unknown comparison for type '{type(truth)}'."
+                    )
+
+            return (
+                (self.units == other.units) and
+                array_equal(self.magnitude, other.magnitude)
+            )
+
+        return False
 
     @property
     def ndim(self):
@@ -439,3 +458,37 @@ class _UnitArray(_AbstractArray):
         Return values as numpy array
         """
         return self.values.magnitude
+
+    def __array__(self):
+        return self.asarray()
+
+    def to_dict(self):
+        """
+        convert object to dictionary
+        """
+        dictionary = {
+            'values': self.magnitude.tolist(),
+            'units': self.units,
+            **self.init_kwargs
+        }
+        return dictionary
+
+    @classmethod
+    def from_dict(cls, data):
+        """
+        Create a class from dictionary.
+        """
+        return cls(**data)
+
+    @classmethod
+    def load(cls, filename):
+        """
+        Load object
+        """
+        return read_json(filename)
+
+    def save(self, filename):
+        """
+        Save object
+        """
+        return write_json(filename, self)

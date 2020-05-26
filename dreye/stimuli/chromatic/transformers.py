@@ -204,7 +204,7 @@ class SignalTransformerMixin:
 
         # reshape back into correct form and assign to stimulus
         # stimulus does not keep units
-        # - should have label_units from measured_spectra
+        # - should have labels_units from measured_spectra
         self._stimulus = self.backward_shape(stimulus.reshape(signal_shape))
         self._add_to_events(
             self.measured_spectra.names, self.stimulus,
