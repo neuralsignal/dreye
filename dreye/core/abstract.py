@@ -123,6 +123,8 @@ class _UnitArray(_AbstractArray):
 
         # pop all set keys
         for key in self._init_args:
+            if key in ('name', 'attrs', 'contexts'):
+                continue
             kwargs.pop(key)
 
         # this should assign the values
