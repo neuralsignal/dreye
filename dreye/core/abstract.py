@@ -37,7 +37,7 @@ class _UnitArray(_AbstractArray):
     # attributes mapping passed to the "to" method of pint
 
     @abstractmethod
-    def _test_and_assign_values(self, values):
+    def _test_and_assign_values(self, values, kwargs):
         """
         """
         # values is always a numpy.ndarray/None/or other
@@ -113,8 +113,8 @@ class _UnitArray(_AbstractArray):
                 value = self._args_defaults.get(key, None)
             if key in self._init_args:
                 # these has an attribute property
-                assert hasattr(self, key), \
-                    f"must provide property for attribute {key}"
+                assert hasattr(type(self), key), \
+                    f"Must provide property for attribute {key}"
                 # set attribute
                 setattr(self, '_'+key, value)
             else:

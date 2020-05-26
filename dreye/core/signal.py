@@ -33,7 +33,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         'contexts', 'attrs',
         'domain_min', 'domain_max',
         'name',
-        'smoothing_method', 'smoothin_window', 'smoothing_args'
+        'smoothing_method', 'smoothing_window', 'smoothing_args'
     )
     _domain_class = Domain
     # just accepts self
@@ -115,7 +115,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     def _get_signal_bound(self, values, bound):
         pass
 
-    def _test_and_assign_values(self, values, **kwargs):
+    def _test_and_assign_values(self, values, kwargs):
         """
         unpacking values
         """
