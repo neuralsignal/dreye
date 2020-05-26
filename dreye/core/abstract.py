@@ -198,7 +198,7 @@ class _UnitArray(_AbstractArray):
 
         if value is None:
             self._attrs = {}
-        if is_dictlike(value):
+        elif is_dictlike(value):
             self._attrs = dict(value)
         else:
             raise DreyeError(
