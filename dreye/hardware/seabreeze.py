@@ -35,11 +35,11 @@ def read_calibration_file(
     """
     assert isinstance(filename, str)
     if filename.endswith('.cal'):
-        area_text = 'Collection-area (cm^2)'
-        integration_time_text = 'Integration Time (sec):'
+        area_text = 'Collection-area(cm^2)'
+        integration_time_text = 'IntegrationTime(sec):'
     elif filename.endswith('.IRRADCAL'):
-        area_text = 'Fiber (micron)'
-        integration_time_text = 'Int. Time(usec)'
+        area_text = 'Fiber(micron)'
+        integration_time_text = 'Int.Time(usec)'
     else:
         raise DreyeError(f"Incorrect file extension for filename '{filename}'"
                          "; file extension must be .cal or .IRRADCAL. "
@@ -60,13 +60,14 @@ def read_calibration_file(
         # just check the first nine lines
         for n in range(9):
             line = next(f)
-            line = line.rstrip()
+            # removes all spaces
+            line = line.replace(' ', '')
             if line.startswith(area_text):
-                area = eval(
-                    line.replace(area_text, ''))
+                area = float(line.replace(area_text, ''))
             elif line.startswith(integration_time_text):
-                integration_time = eval(
-                    line.replace(integration_time_text, ''))
+                integration_time = float(
+                    line.replace(integration_time_text, '')
+                )
 
     if (area is None) or (integration_time is None):
         raise DreyeError(

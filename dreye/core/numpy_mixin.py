@@ -34,7 +34,7 @@ class _NumpyMixin:
         Compute the arithmetic mean along the specified axis.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.mean, self.units, *args, **kwargs
         )
 
@@ -43,7 +43,7 @@ class _NumpyMixin:
         Compute the arithmetic mean along the specified axis, ignoring NaNs.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.nanmean, self.units, *args, **kwargs
         )
 
@@ -52,7 +52,7 @@ class _NumpyMixin:
         Sum of array elements over a given axis.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.sum, self.units, *args, **kwargs
         )
 
@@ -63,7 +63,7 @@ class _NumpyMixin:
 
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.nansum, self.units, *args, **kwargs
         )
 
@@ -72,7 +72,7 @@ class _NumpyMixin:
         Compute the standard deviation along the specified axis.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.std, self.units, *args, **kwargs
         )
 
@@ -82,7 +82,7 @@ class _NumpyMixin:
         NaNs.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.nanstd, self.units, *args, **kwargs
         )
 
@@ -91,7 +91,7 @@ class _NumpyMixin:
         Compute the variance along the specified axis.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.var, self.units ** 2, *args, **kwargs
         )
 
@@ -100,7 +100,7 @@ class _NumpyMixin:
         Compute the variance along the specified axis, while ignoring NaNs.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.nanvar, self.units ** 2, *args, **kwargs
         )
 
@@ -109,7 +109,7 @@ class _NumpyMixin:
         Return the minimum along a given axis.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.min, self.units, *args, **kwargs
         )
 
@@ -120,7 +120,7 @@ class _NumpyMixin:
         is returned for that slice.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.nanmin, self.units, *args, **kwargs
         )
 
@@ -129,7 +129,7 @@ class _NumpyMixin:
         Element-wise maximum of array elements.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.max, self.units, *args, **kwargs
         )
 
@@ -140,7 +140,7 @@ class _NumpyMixin:
         and NaN is returned for that slice.
         """
 
-        return self._numpy_reduce_same_units(
+        return self._numpy_reduce(
             np.nanmax, self.units, *args, **kwargs
         )
 

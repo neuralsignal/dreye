@@ -14,7 +14,8 @@ from dreye.utilities import (
     is_numeric, has_units,
     is_listlike, asarray, get_value,
     is_callable, is_dictlike, optional_to,
-    is_hashable
+    is_hashable, unique_significant,
+    is_integer, is_broadcastable
 )
 from dreye.err import DreyeError
 from dreye.constants import DEFAULT_FLOAT_DTYPE
@@ -25,6 +26,9 @@ from dreye.core.plotting_mixin import _PlottingMixin
 from dreye.core.numpy_mixin import _NumpyMixin
 
 
+# TODO moveaxis testing
+
+
 class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
     _init_args = (
@@ -33,7 +37,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         'contexts', 'attrs',
         'domain_min', 'domain_max',
         'name',
-        'smoothing_method', 'smoothing_window', 'smoothing_args'
+        'smoothing_method', 'smoothing_window', 'smoothing_args',
+        'domain_axis'
     )
     _domain_class = Domain
     # just accepts self
@@ -41,8 +46,9 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         'interpolator_kwargs': {},
         'interpolator': interp1d,
         'smoothing_args': {},
-        'smoothing_window': 1,
-        'smoothing_method': 'savgol'
+        'smoothing_window': 1.0,
+        'smoothing_method': 'savgol',
+        'domain_axis': 0
     }
     # dictionary of attributes defaults if None
     _unit_conversion_params = {
@@ -50,6 +56,17 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     }
     _convert_attributes = ('signal_min', 'signal_max')
     # attributes mapping passed to the "to" method of pint
+
+    @property
+    def _init_aligned_attrs(self):
+        """
+        What attributes are aligned to which axis in the signal values.
+        """
+        return {
+            self.domain_axis: ('domain',),
+            # tuple allow for broadcastable arrays
+            tuple(range(self.ndim)): ('signal_min', 'signal_max',)
+        }
 
     def __init__(
         self,
@@ -69,6 +86,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         domain_max=None,
         attrs=None,
         name=None,
+        domain_axis=None,
         **kwargs
     ):
 
@@ -92,6 +110,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             domain_max=domain_max,
             attrs=attrs,
             name=name,
+            domain_axis=domain_axis,
             **kwargs
         )
 
@@ -99,33 +118,82 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         if 'applied_window_' not in self.attrs:
             self.attrs['applied_window_'] = 'raw'
 
-    @abstractmethod
+    # --- these methods need to be overwritten for multi-D signals --- #
+
     def _preextract_attributes(self, values, kwargs):
-        pass
+        """
+        Extract various attributes from a pandas instance if passed
+        attributes is None. Used by _test_and_assign_values
+        """
+        if isinstance(values, pd.Series):
+            if self.domain is None:
+                self._domain = values.index
+            if self.name is None:
+                self.name = values.name
 
-    @abstractmethod
     def _preprocess_check_values(self, values):
-        pass
+        if values.ndim != 1:
+            raise DreyeError("Values must be a one- or two-dimensional array.")
+        return values
 
-    @abstractmethod
     def _process_other_attributes(self, values, kwargs):
         pass
 
-    @abstractmethod
-    def _get_signal_bound(self, values, bound):
-        pass
+    def to_frame(self):
+        """
+        Convert to pandas.Series.
+        """
+
+        series = pd.Series(
+            self.magnitude,
+            index=pd.MultiIndex.from_arrays(
+                [self.domain.magnitude, self.signal_min, self.signal_max],
+                names=['domain', 'signal_min', 'signal_max']
+            ),
+        )
+        return series
+
+    @property
+    def _iter_values(self):
+        """
+        Iterate over individual domain axis.
+
+        zip(slices, values)
+        """
+
+        return zip([self._none_slices_except_domain_axis], [self.magnitude])
+
+    @property
+    def ndim(self):
+        """
+        Standard dimensionality is
+        """
+        return 1
+
+    # --- methods that should not have to be
+    # --- overwritted for multi-dimensional signal class
+
+    def _get_domain_axis(self, domain_axis):
+        assert is_integer(domain_axis)
+        domain_axis = int(domain_axis % self.ndim)
+        assert (domain_axis >= 0)
+        return domain_axis
 
     def _test_and_assign_values(self, values, kwargs):
         """
         unpacking values
         """
-        self._preextract_attributes(values, kwargs)
-
+        # get values as array
+        old_values = values
         if not is_listlike(values):
             raise DreyeError("Values must be array-like, but are "
                              f"of type '{type(values)}'.")
-
         values = asarray(values, DEFAULT_FLOAT_DTYPE)
+
+        self._domain_axis = self._get_domain_axis(self.domain_axis)
+
+        # extract attributes
+        self._preextract_attributes(old_values, kwargs)
         # check values dimensionality
         values = self._preprocess_check_values(values)
 
@@ -160,27 +228,87 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             values, kwargs.get('signal_max', None))
 
         # clip signal using signal min and max
-        values = self._process_values(values.copy())
+        values = self._process_values(
+            values.copy(), self.signal_min, self.signal_max
+        )
         self._values = values
         self._interpolate = None
 
-    def _process_values(self, values):
+    @staticmethod
+    def _process_values(values, smin, smax):
         """
-        clip values inplace using signal_min and signal_max
+        clip values inplace using signal_min and signal_max.
+
+        Before assigning self._values. But after domain_axis determined.
+
+        Parameters
+        ----------
+        values : np.ndarray
         """
-        not_nan = ~np.isnan(self.signal_min)
+        # signal min and max are same dimensionality as values
+        not_nan = ~np.isnan(smin)
         if np.any(not_nan):
-            values[..., not_nan] = np.maximum(
-                values[..., not_nan],
-                self.signal_min[not_nan]
+            # inplace
+            values[not_nan] = np.where(
+                values[not_nan] < smin[not_nan],
+                smin[not_nan],
+                values[not_nan]
             )
-        not_nan = ~np.isnan(self.signal_max)
+
+        not_nan = ~np.isnan(smax)
         if np.any(not_nan):
-            values[..., not_nan] = np.minimum(
-                values[..., not_nan],
-                self.signal_max[not_nan]
+            # inplace
+            values[not_nan] = np.where(
+                values[not_nan] > smax[not_nan],
+                smax[not_nan],
+                values[not_nan]
             )
         return values
+
+    def _get_signal_bound(self, values, bound):
+        """
+        Standard signal_min and max are numeric types.
+        """
+
+        if bound is None:
+            return np.broadcast_to(np.nan, values.shape)
+        # optional_to takes care of non-listlike values
+        bound = optional_to(
+            bound, self.units,
+            *self.contexts, **self._unit_conversion_kws
+        )
+        bound = np.array(bound, dtype=DEFAULT_FLOAT_DTYPE, ndmin=self.ndim)
+        if bound.ndim > self.ndim:
+            raise DreyeError(
+                "Bound dimensionality bigger "
+                "than self dimensionality."
+            )
+        if not is_broadcastable(bound.shape, values.shape):
+            # try alligning to domain_axis - 1
+            # assumes (domain_axis, ax3, ax2, ax1) (0, -3, -2, -1)
+            assumed_order = self._get_axes_order(0)
+            # get correct order
+            correct_order = self._axes_order  # uses same function
+            bound = np.moveaxis(bound, assumed_order, correct_order)
+            # try rolling backwards until it fits
+            n = 1
+            while (
+                not is_broadcastable(bound.shape, values.shape)
+                and n < self.ndim
+            ):
+                bound = np.moveaxis(
+                    bound,
+                    np.arange(bound.ndim),
+                    np.roll(np.arange(bound.ndim), -n)
+                )
+                n += 1
+            if not is_broadcastable(bound.shape, values.shape):
+                raise DreyeError(
+                    "Bound is not broadcastable "
+                    "to values."
+                )
+        # signal_min and max will have same shape as values
+        return np.broadcast_to(bound, values.shape)
 
     @staticmethod
     def _get_domain_bound(bound, domain):
@@ -213,7 +341,11 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         if domain is None:
             domain = np.arange(values.shape[domain_axis])
 
-        if not isinstance(domain, domain_class):
+        if (
+            not isinstance(domain, domain_class)
+            or domain_units is not None
+            or domain_kwargs is not None
+        ):
             domain = domain_class(
                 domain,
                 units=domain_units,
@@ -274,7 +406,9 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     @signal_min.setter
     def signal_min(self, value):
         self._signal_min = self._get_signal_bound(self.magnitude, value)
-        self._values = self._process_values(self.magnitude.copy())
+        self._values = self._process_values(
+            self.magnitude.copy(), self.signal_min, self.signal_max
+        )
 
     @property
     def signal_max(self):
@@ -287,7 +421,9 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     @signal_max.setter
     def signal_max(self, value):
         self._signal_max = self._get_signal_bound(self.magnitude, value)
-        self._values = self._process_values(self.magnitude.copy())
+        self._values = self._process_values(
+            self.magnitude.copy(), self.signal_min, self.signal_max
+        )
 
     @property
     def domain(self):
@@ -311,6 +447,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             self._domain = self._get_domain(
                 self.magnitude,
                 value,
+                None,
+                None,
                 self.domain_axis,
                 self._domain_class
             )
@@ -329,21 +467,37 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         domain values for unit conversion properly broadcasted
         """
-        return self.domain.values[..., None]
+        return self.domain.values[self._none_slices_except_domain_axis]
+
+    @property
+    def _none_slices_except_domain_axis(self):
+        """
+        None for all except domain axis
+        """
+        slices = self.ndim * [None]
+        slices[self.domain_axis] = slice(None, None, None)
+        return tuple(slices)
+
+    @property
+    def _slices_except_none_domain_axis(self):
+        """
+        None for all except domain axis
+        """
+        slices = self.ndim * [slice(None, None, None)]
+        slices[self.domain_axis] = None
+        return tuple(slices)
 
     @property
     def interpolator(self):
         """
         Returns the interpolator that was selected for use.
         """
-
         return self._interpolator
 
     @interpolator.setter
     def interpolator(self, value):
         """
         """
-
         if value is None:
             self._interpolator = interp1d
         elif is_callable(value):
@@ -365,8 +519,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     @interpolator_kwargs.setter
     def interpolator_kwargs(self, value):
         """
+        Set keyword arguments for interpolator
         """
-
         if value is None:
             self._interpolator_kwargs = {}
         elif isinstance(value, dict):
@@ -375,25 +529,49 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         else:
             raise TypeError('interpolator_kwargs must be dict.')
 
+    def _get_interp_function(
+        self, domain, mag, kwargs, smin, smax
+    ):
+        interp = self.interpolator(
+            domain,
+            mag,
+            **kwargs
+        )
+        min_interp = self.interpolator(
+            domain,
+            smin,
+            **kwargs
+        )
+        max_interp = self.interpolator(
+            domain,
+            smax,
+            **kwargs
+        )
+
+        def clip_wrapper(*args, **kwargs):
+            interpolated = interp(*args, **kwargs)
+            min_interpolated = min_interp(*args, **kwargs)
+            max_interpolated = max_interp(*args, **kwargs)
+            return self._process_values(
+                interpolated, min_interpolated, max_interpolated
+            ), min_interpolated, max_interpolated
+
+        return clip_wrapper
+
     @property
-    def interpolate(self):
+    def _interp_function(self):
         """
         interpolate callable
         """
-
         if self._interpolate is None:
 
-            interp = self.interpolator(
+            self._interpolate = self._get_interp_function(
                 self.domain.magnitude,
                 self.magnitude,
-                **self.interpolator_kwargs
+                self.interpolator_kwargs,
+                self.signal_min,
+                self.signal_max
             )
-
-            def clip_wrapper(*args, **kwargs):
-                interpolated = interp(*args, **kwargs)
-                return self._process_values(interpolated)
-
-            self._interpolate = clip_wrapper
 
         return self._interpolate
 
@@ -401,15 +579,49 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     def domain_axis(self):
         """
         Axis that correspond to the domain (i.e. 0).
+
+        Should always be a positive number
         """
-        return 0
+        return self._domain_axis
+
+    @domain_axis.setter
+    def domain_axis(self, value):
+        """
+        Every other axis should depend on domain_axis.
+
+        Changing domain_axis should automatically change the others.
+        """
+        domain_axis = self._get_domain_axis(value)
+
+        if domain_axis == self.domain_axis:
+            return
+
+        values = np.moveaxis(
+            self.magnitude,
+            self._axes_order,
+            self._get_axes_order(domain_axis)
+        )
+        signal_min = np.moveaxis(
+            self.signal_min,
+            self._axes_order,
+            self._get_axes_order(domain_axis)
+        )
+        signal_max = np.moveaxis(
+            self.signal_max,
+            self._axes_order,
+            self._get_axes_order(domain_axis)
+        )
+
+        self._values = values
+        self._signal_min = signal_min
+        self._signal_max = signal_max
+        self._domain_axis = domain_axis
 
     @property
     def boundaries(self):
         """
         Tuple the minimum and maximum values along zeroth axis.
         """
-
         return (
             np.min(self.magnitude, axis=self.domain_axis),
             np.max(self.magnitude, axis=self.domain_axis)
@@ -425,16 +637,17 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             - np.min(self.magnitude, axis=self.domain_axis)
         )
 
-    def __call__(self, domain):
-        """
-        interpolate to new domain
-        """
+    def _abstract_call(
+        self, interp_function, self_domain, domain,
+        domain_min, domain_max,
+        domain_class, assign_to_name
 
-        if isinstance(domain, type(self.domain)):
-            if domain == self.domain:
+    ):
+        if isinstance(domain, type(self_domain)):
+            if domain == self_domain:
                 return self.copy()
 
-        domain_units = self.domain.units
+        domain_units = self_domain.units
         if has_units(domain):
             domain_units = domain.units
             domain_values = domain.to(domain_units).magnitude
@@ -444,13 +657,15 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         assert domain_values.ndim == 1
 
         # check domain min and max (must be bigger than this range)
+        # staticmethod so can be used as is
         self._check_domain_bounds(
             domain_values,
-            domain_min=self.domain_min.magnitude,
-            domain_max=self.domain_max.magnitude
+            domain_min=domain_min.magnitude,
+            domain_max=domain_max.magnitude
         )
 
-        values = self.interpolate(domain_values)
+        # usually self._interp_function
+        values, smin, smax = interp_function(domain_values)
 
         # for single value simply return quantity instance
         if values.ndim != self.ndim:
@@ -458,17 +673,35 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         else:
             new = self.copy()
             new._values = values
-            new._domain = self._domain_class(
-                domain, units=domain_units,
-                # need to supply interval if size 1
-                interval=(
-                    self.domain.interval
-                    if domain_values.size == 1
-                    else None
-                ),
-                **self.domain.init_kwargs
+            new._signal_min = smin
+            new._signal_max = smax
+            # assign to _domain usually or _labels
+            setattr(
+                new, assign_to_name,
+                domain_class(
+                    domain, units=domain_units,
+                    **self_domain.init_kwargs
+                )
             )
-            return self
+            return new
+
+    def __call__(self, domain):
+        """
+        interpolate to new domain. Alias for domain_interp method.
+        """
+
+        return self.domain_interp(domain)
+
+    def domain_interp(self, domain):
+        """
+        Interpolate to new domain
+        """
+
+        return self._abstract_call(
+            self._interp_function, self.domain, domain,
+            self.domain_min, self.domain_max,
+            self._domain_class, '_domain'
+        )
 
     @staticmethod
     def _check_domain_bounds(domain_values, domain_min, domain_max):
@@ -494,7 +727,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         Returns the signal divided by the integral. Integrates to 1.
         """
-        return self / self.integral[None]
+        return self / self.integral[self._slices_except_none_domain_axis]
 
     @property
     def piecewise_integral(self):
@@ -534,7 +767,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         )
         return self(domain)
 
-    def window_filter(
+    def filter(
         self, domain_interval,
         method='savgol', extrapolate=False,
         **method_args
@@ -545,6 +778,11 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
         assert self.domain.is_uniform, (
             "signal domain must be uniform for filtering"
+        )
+
+        domain_interval = optional_to(
+            domain_interval, self.domain.units,
+            *self.contexts
         )
 
         M = domain_interval/self.domain.interval
@@ -590,8 +828,12 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
                 mode='same'
             )
 
+        # filtering is shape-preserving
+        # -> no need to reassign signal_min and max
+        # sanity check
+        assert values.shape == self.shape, "Shape mismatch for filtering."
         new = self.copy()
-        values = new._process_values(values)
+        values = new._process_values(values, self.signal_min, self.signal_max)
         new._values = values
         return new
 
@@ -615,7 +857,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         if smoothing_window is None:
             smoothing_window = self.smoothing_window
 
-        spectrum = self.window_filter(
+        spectrum = self.filter(
             smoothing_window, self.smoothing_method,
             extrapolate=False,
             **self.smoothing_args
@@ -639,32 +881,37 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
 
         domain = self.domain
-        self_values = self.magnitude
 
         if isinstance(other, _SignalMixin):
             # checks dimensionality, appends domain, converts units
-            assert self._other_shape == other._other_shape
+            assert self._other_shape == other._other_shape, \
+                "Shapes are not compatible."
 
             # concatenate domain
             domain = domain.append(other.domain, left=left)
             # convert units
-            other_values = other.to(self.units).magnitude
+            other = other.to(self.units)
+            other_mag = other.magnitude
+            other_min = other.signal_min
+            other_max = other.signal_max
 
         elif is_listlike(other):
             # handles units, checks other shape, extends domain
-            other_values = optional_to(
+            other_mag = optional_to(
                 other, self.units, *self.contexts,
                 **self._unit_conversion_kws)
 
             assert (
                 self._other_shape
-                == self._get_other_shape(other_values.shape)
-            ), 'shapes do not match for concatenation'
+                == self._get_other_shape(other_mag.shape)
+            ), "shapes do not match for concatenation"
 
             domain = domain.extend(
-                other_values.shape[self.domain_axis],
+                other_mag.shape[self.domain_axis],
                 left=left
             )
+            other_min = self._get_signal_bound(other_mag, None)
+            other_max = self._get_signal_bound(other_mag, None)
 
         else:
             raise DreyeError("Domain axis contenation "
@@ -672,19 +919,38 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
         if left:
             values = np.concatenate(
-                [other_values, self_values],
+                [other_mag, self.magnitude],
+                axis=self.domain_axis
+            )
+            smin = np.concatenate(
+                [other_min, self.signal_min],
+                axis=self.domain_axis
+            )
+            smax = np.concatenate(
+                [other_max, self.signal_max],
                 axis=self.domain_axis
             )
 
         else:
             values = np.concatenate(
-                [self_values, other_values],
+                [self.magnitude, other_mag],
+                axis=self.domain_axis
+            )
+            smin = np.concatenate(
+                [self.signal_min, other_min],
+                axis=self.domain_axis
+            )
+            smax = np.concatenate(
+                [self.signal_max, other_max],
                 axis=self.domain_axis
             )
 
-        values = self._process_values(values)
+        # concatenation is not shape preserving,
+        # but should not require creating from anew
         new = self.copy()
         new._values = values
+        new._signal_min = smin
+        new._signal_max = smax
         new._domain = domain
         return new
 
@@ -692,131 +958,138 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         Append signals.
         """
-
         return self.domain_concat(other, *args, **kwargs)
 
     def equalize_domains(self, other):
         """
-        equalize domains for both Signal instances
+        equalize domains for both Signal instances.
         """
         if self.domain != other.domain:
             domain = self.domain.equalize_domains(other.domain)
             return self(domain), other(domain)
         return self, other
 
-    # TODO peak detection (min/max)
-    # TODO peak summary - FWHM, HWHM-left, HWHM-right, domain value
-    # TODO rolling window single D signal
-
-
-class _Signal2DMixin(_SignalMixin):
-    _init_args = _SignalMixin._init_args + ('labels',)
-
-    def __init__(
-        self,
-        values,
-        domain=None,
-        labels=None,
-        *,
-        units=None,
-        domain_units=None,
-        interpolator=None,
-        interpolator_kwargs=None,
-        contexts=None,
-        domain_kwargs=None,
-        domain_min=None,
-        domain_max=None,
-        signal_min=None,
-        signal_max=None,
-        attrs=None,
-        name=None,
-        **kwargs
-    ):
-        super().__init__(
-            values=values,
-            units=units,
-            domain=domain,
-            domain_units=domain_units,
-            labels=labels,
-            interpolator=interpolator,
-            interpolator_kwargs=interpolator_kwargs,
-            contexts=contexts,
-            domain_kwargs=domain_kwargs,
-            domain_min=domain_min,
-            domain_max=domain_max,
-            signal_min=signal_min,
-            signal_max=signal_max,
-            attrs=attrs,
-            name=name,
-            **kwargs
-        )
-
-    @abstractmethod
-    def _get_labels(self, values, labels, kwargs):
-        pass
-
-    @abstractmethod
-    def labels_concat(self, other):
-        pass
-
-    def _preextract_attributes(self, values, kwargs):
-        if isinstance(values, (pd.DataFrame, pd.Series)):
-            self._extract_attr_from_pandas(values)
-
-    def _extract_attr_from_pandas(self, values):
+    def _slices_ndim(self, ndim):
         """
-        Extract various attributes from a pandas instance if passed
-        attributes is None. Used by _test_and_assign_values
+        Given a dimensionality, return domain-aligned slices.
+
+        (domain_axis, a3, a2, a1) and ndim 2
+        -> (slice, None, None, slice)
+        (a1, domain_axis, a3, a2) and ndim 2
+        -> (slice, slice, None, None)
+
+        Parameters
+        ----------
+        ndim : int
+            Assumes ndim < self.ndim.
         """
-
-        if self.domain is None:
-            self._domain = values.index
-
-        if self.labels is None and not isinstance(values, pd.Series):
-            self._labels = values.columns
-
-        if self.name is None:
-            self.name = values.name
-
-    def _preprocess_check_values(self, values):
-        # must return values processed
-        if values.ndim == 1:
-            values = values[:, None]
-        elif values.ndim != 2:
-            raise DreyeError("Values must be a one- or two-dimensional array.")
-        return values
-
-    def _process_other_attributes(self, values, kwargs):
-        # check labels
-        self._labels = self._get_labels(values, self._labels, kwargs)
+        slices = [None] * self.ndim
+        for i in range(ndim):
+            slices[self.domain_axis - i] = slice(None, None, None)
+        return tuple(slices)
 
     @property
-    def labels(self):
+    def _axes_order(self):
         """
-        Returns signal labels, or the "name" for each signal.
-        """
-        return self._labels
+        Order of axis with domain being zero.
 
-    @labels.setter
-    def labels(self, value):
+        (domain_axis, a3, a2, a1)
+        -> (0, -3, -2, -1)
+        (a3, a2, a1, domain_axis)
+        -> (-3, -2, -1, 0)
+
+        Returns
+        -------
+        axes_order : np.ndarray
         """
-        Set new labels
+        return self._get_axes_order(self.domain_axis)
+
+    def _get_axes_order(self, domain_axis):
         """
-        self._labels = self._get_labels(self.magnitude, value)
+        Get axis order
+        """
+        order = -np.arange(self.ndim)[::-1]
+        return np.roll(order, shift=domain_axis+1)
+
+    def _equalize(self, other):
+        """
+        Should just return equalized other_magnitude or NotImplemented
+        """
+        # TODO error messages!
+        if isinstance(other, _UnitArray):
+            if isinstance(other, Domain):
+                return other.magnitude[
+                    self._none_slices_except_domain_axis
+                ], self
+            elif isinstance(other, _SignalMixin):
+                # Do reverse if self ndim is smaller
+                if self.ndim < other.ndim:
+                    return NotImplemented, self
+                # equalize domains
+                self, other = self.equalize_domains(other)
+                if sum(self._other_shape) < sum(other._other_shape):
+                    # switch roles
+                    self, other = other, self
+                other_magnitude = other.magnitude
+                if self.ndim > other.ndim:
+                    # all possible dim before domain_axis is assumed the same
+                    # and missing dimensions are added (prepending)
+                    # if other (domain, a1) -> (a1, domain):
+                    # self (domain, a2, a1) -> other (domain, None, a1)
+                    # self (a2, a1, domain) -> other (None, a1, domain)
+                    # if other (a1, domain): -> other (a1, domain)
+                    # self (domain, a2, a1) -> other (domain, None, a1)
+                    # self (a2, a1, domain) -> other (None, a1, domain)
+
+                    # move domain position and add missing dimension
+                    # (None, None, ..., a3, a2, a1, domain_axis)
+                    other_magnitude = np.moveaxis(
+                        other_magnitude,
+                        other._axes_order,
+                        # domain axis make last
+                        -np.arange(other.ndim)[::-1]
+                    )[(None,) * (self.ndim - other.ndim)]
+                    # move domain to same position as in self
+                    other_magnitude = np.moveaxis(
+                        other_magnitude,
+                        # domain axis is last
+                        -np.arange(self.ndim)[::-1],
+                        self._axes_order
+                    )
+
+                elif self.domain_axis != other.domain_axis:
+                    # self (domain, a2, a1) and other (a2, a1, domain)
+                    # -> other (domain, a2, a1)
+                    other_magnitude = np.moveaxis(
+                        other_magnitude,
+                        other._axes_order,
+                        self._axes_order
+                    )
+                return other_magnitude, self
+            else:
+                return NotImplemented, self
+        elif is_numeric(other):
+            return get_value(other), self
+        elif is_listlike(other):
+            # TODO error message for larger dimensions,
+            # instead of notimplemented
+            other = asarray(other)
+            if other.ndim == self.ndim:
+                return other, self
+            elif other.ndim > self.ndim:
+                return NotImplemented, self
+            else:
+                slices = self._slices_ndim(other.ndim)
+                return other[slices], self
+        else:
+            return NotImplemented, self
 
     @property
-    def labels_axis(self):
-        """
-        Axis that correspond to the label dimension (i.e. -1).
-        """
-        return -1
-
-    @property
-    def iterlabels(self):
+    def iterdomain(self):
         """
         iterate over labels
         """
-        iter(np.moveaxis(self.magnitude, self.labels_axis, 0) * self.units)
+        iter(np.moveaxis(self.magnitude, self.domain_axis, 0) * self.units)
 
     @property
     def nanless(self):
@@ -825,49 +1098,30 @@ class _Signal2DMixin(_SignalMixin):
         """
         arange = self.domain.magnitude
         values = np.zeros(self.shape)
+        interpolator_kwargs = self.interpolator_kwargs.copy()
+        interpolator_kwargs.pop('axis', None)
 
-        for idx, ivalues in enumerate(self.iterlabels):
-            iarr = ivalues.magnitude
+        for slice, iarr in self._iter_values:
             finites = np.isfinite(iarr)
             # interpolate nans
             ivalues = self.interpolator(
                 arange[finites], iarr[finites],
-                **self.interpolator_kwargs
+                **interpolator_kwargs
             )(arange)
             ivalues[finites] = iarr[finites]
-            values[..., idx] = ivalues
+            values[slice] = ivalues
 
+        # shape-preserving
+        # sanity check
+        assert values.shape == self.shape, "Nanless didn't preserve shape!"
         new = self.copy()
         new._values = values
         return new
 
-    def __str__(self):
-        return (
-            f"{type(self).__name__}"
-            f"(\n\t name={self.name}, \n\t "
-            f"labels={self.labels}, \n\t units={self.units}, \n\t "
-            f"domain={self.domain} \n )"
-        )
-
-    def concat(self, other, *args, **kwargs):
+    def _assign_further_longdf_values(self, df):
         """
-        Concatenate two signals.
+        Assign other values to a long dataframe given self.
         """
-
-        return self.labels_concat(other, *args, **kwargs)
-
-    def to_frame(self):
-        """
-        Convert signal class to dataframe/series.
-        Units for the signal and domain will be lost.
-        """
-        df = pd.DataFrame(
-            self.magnitude,
-            index=self.domain.magnitude,
-            columns=list(get_value(self.labels))
-        )
-        df.columns.name = 'labels'
-        df.index.name = 'domain'
         return df
 
     def to_longframe(self):
@@ -897,25 +1151,14 @@ class _Signal2DMixin(_SignalMixin):
         )
         df['domain_min'] = self.domain_min.magnitude
         df['domain_max'] = self.domain_max.magnitude
-        # merge bounds
-        df_bounds = pd.DataFrame(columns=['signal_min', 'signal_max'])
-        df_bounds['labels'] = list(get_value(self.labels))
-        df_bounds['signal_min'] = self.signal_min
-        df_bounds['signal_max'] = self.signal_max
-        df = df.merge(df_bounds, on='labels', how='left')
 
-        # if labels are multiindex include them
-        if isinstance(self.labels, pd.MultiIndex):
-            df_labels = self.labels.to_frame(index=False)
-            df_labels['labels'] = list(get_value(self.labels))
-            df = df.merge(
-                df_labels, on='labels', how='left',
-                suffixes=('', '_label')
-            )
+        df = self._assign_further_longdf_values(df)
 
         reserved_keys = df.columns
 
         for key, ele in self.attrs.items():
+            if not is_hashable(ele):
+                continue
             if key in reserved_keys:
                 warnings.warn(
                     f"Cannot use key '{key}' from "
@@ -929,43 +1172,265 @@ class _Signal2DMixin(_SignalMixin):
                         f"dictionary 'attrs' contains key '{key}', which"
                         " is reserved."
                     )
-            df[key] = get_value(ele)
+            df[key] = [get_value(ele)] * len(df)
 
         return df
 
-    def _equalize(self, other):
+    def __str__(self):
         """
-        Should just return equalized other_magnitude or NotImplemented
+        Standard string representation for single dimensional signal classes
         """
-        if isinstance(other, _UnitArray):
-            if isinstance(other, Domain):
-                return other.magnitude[..., None]
-            elif isinstance(other, _Signal2DMixin):
-                if (
-                    self.shape[self.labels_axis] == 1
-                    and other.shape[other.labels_axis] > 1
-                ):
-                    # do the reverse
-                    return NotImplemented
-                self, other = self.equalize_domains(other)
-                return other.magnitude
-            else:
-                return NotImplemented
-        elif is_numeric(other):
-            return get_value(other)
-        elif is_listlike(other):
-            other = asarray(other)
-            if other.ndim == 1:
-                return other[:, None]
-            elif other.ndim == 2:
-                return other
-            else:
-                return NotImplemented
+        return (
+            f"{type(self).__name__}"
+            f"(\n\t name={self.name}, \n\t "
+            f"units={self.units}, \n\t "
+            f"domain={self.domain} \n )"
+        )
+
+    # TODO peak detection (min/max)
+    # TODO peak summary - FWHM, HWHM-left, HWHM-right, domain value
+    # TODO rolling window single D signal
+
+
+class _Signal2DMixin(_SignalMixin):
+    _init_args = _SignalMixin._init_args + ('labels',)
+
+    @property
+    def _init_aligned_attrs(self):
+        return {
+            self.domain_axis: ('domain',),
+            self.labels_axis: ('labels',)
+        }
+
+    def __init__(
+        self,
+        values,
+        domain=None,
+        labels=None,
+        *,
+        domain_axis=None,
+        **kwargs
+    ):
+        """
+        Added labels to init.
+        """
+        # change domain axis if necessary
+        if isinstance(values, _Signal2DMixin) and domain_axis is not None:
+            if domain_axis != values.domain_axis:
+                values = values.copy()
+                values.domain_axis = domain_axis
+        super().__init__(
+            values=values,
+            domain=domain,
+            labels=labels,
+            domain_axis=domain_axis,
+            **kwargs
+        )
+
+    @abstractmethod
+    def _get_labels(self, values, labels, kwargs):
+        pass
+
+    @abstractmethod
+    def labels_concat(self, other):
+        pass
+
+    def _preextract_attributes(self, values, kwargs):
+        """
+        Extract various attributes from a pandas instance if passed
+        attributes is None. Used by _test_and_assign_values
+        """
+        if isinstance(values, pd.DataFrame):
+            if self.domain is None:
+                if self.domain_axis:
+                    self._domain = values.columns
+                else:
+                    self._domain = values.index
+            if self.labels is None:
+                if self.domain_axis:
+                    self._labels = values.index
+                else:
+                    self._labels = values.columns
+
+        if isinstance(values, pd.Series):
+            if self.domain is None:
+                self._domain = values.index
+
+        if isinstance(values, (pd.DataFrame, pd.Series)):
+            if self.name is None:
+                self.name = values.name
+
+    def _preprocess_check_values(self, values):
+        # must return values processed
+        if values.ndim != 2:
+            raise DreyeError("Values must be a one- or two-dimensional array.")
+        return values
+
+    def _process_other_attributes(self, values, kwargs):
+        # check labels
+        self._labels = self._get_labels(values, self._labels, kwargs)
+
+    @property
+    def labels(self):
+        """
+        Returns signal labels, or the "name" for each signal.
+        """
+        return self._labels
+
+    @labels.setter
+    def labels(self, value):
+        """
+        Set new labels
+        """
+        self._labels = self._get_labels(self.magnitude, value)
+
+    @property
+    def labels_axis(self):
+        """
+        Axis that correspond to the label dimension (i.e. -1).
+
+        Should always be a positive integer.
+        """
+        # always behind domain axis
+        return (self.domain_axis - 1) % self.ndim
+
+    @property
+    def ndim(self):
+        """
+        Dimensionality of 2D Signal instances classes is 2.
+        """
+        return 2
+
+    @property
+    def iterlabels(self):
+        """
+        iterate over labels
+        """
+        return iter(
+            np.moveaxis(self.magnitude, self.labels_axis, 0)
+            * self.units
+        )
+
+    @property
+    def _iter_values(self):
+        """
+        Iterate over numpy arrays along labels.
+
+        zip(slices, values)
+
+        slice: (index_label, slice(None, None, None)) for domain_axis = 1
+        slice: (slice(None, None, None), index_label) for domain_axis = 0
+        """
+        _slice = list(self._none_slices_except_domain_axis)
+        slices = []
+        for index in range(self.shape[self.labels_axis]):
+            _slice[self.labels_axis] = index
+            slices.append(tuple(_slice))
+        return zip(
+            slices,
+            np.moveaxis(self.magnitude, self.labels_axis, 0)
+        )
+
+    def __str__(self):
+        return (
+            f"{type(self).__name__}"
+            f"(\n\t name={self.name}, \n\t units={self.units}, \n\t "
+            f"domain={self.domain}, \n\t labels={self.labels} \n )"
+        )
+
+    def concat(self, other, *args, **kwargs):
+        """
+        Concatenate two signals.
+        """
+
+        return self.labels_concat(other, *args, **kwargs)
+
+    def to_frame(self, data='magnitude'):
+        """
+        Convert signal class to dataframe/series.
+        Units for the signal and domain will be lost.
+        """
+        if self.domain_axis:
+            index, index_name = list(get_value(self.labels)), 'labels'
+            columns, columns_name = self.domain.magnitude, 'domain'
         else:
-            return NotImplemented
+            columns, columns_name = list(get_value(self.labels)), 'labels'
+            index, index_name = self.domain.magnitude, 'domain'
+
+        df = pd.DataFrame(
+            getattr(self, data),
+            index=index,
+            columns=columns
+        )
+        df.columns.name = columns_name
+        df.index.name = index_name
+        return df
+
+    def _assign_further_longdf_values(self, df):
+        # stack all
+        signal_min = self.to_frame('signal_min').stack()
+        signal_min.name = 'signal_min'
+        signal_min = signal_min.reset_index()
+
+        df = df.merge(signal_min, on=['labels', 'domain'], how='left')
+
+        signal_max = self.to_frame('signal_max').stack()
+        signal_max.name = 'signal_max'
+        signal_max = signal_max.reset_index()
+
+        df = df.merge(signal_max, on=['labels', 'domain'], how='left')
+
+        return df
+
+    @property
+    def T(self):
+        """
+        Transpose array
+        """
+        new = self.copy()
+        new.domain_axis = self.domain_axis - 1
+        return new
 
 
 class _SignalIndexLabels(_Signal2DMixin):
+
+    @property
+    def _init_aligned_attrs(self):
+        return {
+            self.labels_axis: ('labels',),
+            **(super()._init_aligned_attrs)
+        }
+
+    def __init__(
+        self,
+        values,
+        domain=None,
+        labels=None,
+        **kwargs
+    ):
+        if (
+            isinstance(values, _SignalMixin)
+            and (values.ndim == 1)
+            and labels is None
+            and not hasattr(values, 'labels')
+        ):
+            # set labels to name if not existing labels
+            labels = values.name
+
+        super().__init__(
+            values=values,
+            domain=domain,
+            labels=labels,
+            **kwargs
+        )
+
+    def _preprocess_check_values(self, values):
+        # must return values processed
+        if values.ndim == 1:
+            values = values[self._none_slices_except_domain_axis]
+        if values.ndim != 2:
+            raise DreyeError("Values must be a one- or two-dimensional array.")
+        return values
 
     def _get_labels(self, values, labels, kwargs={}):
         if (
@@ -992,23 +1457,23 @@ class _SignalIndexLabels(_Signal2DMixin):
 
         return labels
 
-    def _get_signal_bound(self, values, bound):
-
-        if bound is None:
-            bound = np.nan * np.ones(values.shape[self.labels_axis])
-        else:
-            bound = optional_to(
-                bound, self.units,
-                *self.contexts, **self._unit_conversion_kws
-            )
-            if is_numeric(bound):
-                bound = np.ones(values.shape[self.labels_axis]) * bound
-
-        assert len(bound) == values.shape(self.labels_axis), (
-            "Bounds size must match label axis."
-        )
-
-        return bound
+    # def _get_signal_bound(self, values, bound):
+    #
+    #     if bound is None:
+    #         bound = np.nan * np.ones(values.shape[self.labels_axis])
+    #     else:
+    #         bound = optional_to(
+    #             bound, self.units,
+    #             *self.contexts, **self._unit_conversion_kws
+    #         )
+    #         if is_numeric(bound):
+    #             bound = np.ones(values.shape[self.labels_axis]) * bound
+    #
+    #     assert len(bound) == values.shape[self.labels_axis], (
+    #         "Bounds size must match label axis."
+    #     )
+    #
+    #     return bound
 
     def _concat_labels(self, labels, left=False):
         """
@@ -1025,13 +1490,17 @@ class _SignalIndexLabels(_Signal2DMixin):
         """
         if left:
             return (
-                np.concatenate([signal_min, self.signal_min]),
-                np.concatenate([signal_max, self.signal_max])
+                np.concatenate(
+                    [signal_min, self.signal_min], axis=self.labels_axis),
+                np.concatenate(
+                    [signal_max, self.signal_max], axis=self.labels_axis)
             )
         else:
             return (
-                np.concatenate([self.signal_min, signal_min]),
-                np.concatenate([self.signal_max, signal_max])
+                np.concatenate(
+                    [self.signal_min, signal_min], axis=self.labels_axis),
+                np.concatenate(
+                    [self.signal_max, signal_max], axis=self.labels_axis)
             )
 
     def labels_concat(
@@ -1045,36 +1514,43 @@ class _SignalIndexLabels(_Signal2DMixin):
         enforce the same domain range by using the equalize_domains function.
         """
 
+        # domain_axis must be aligned
+
+        if (
+            isinstance(other, _SignalMixin)
+            and not isinstance(other, _SignalIndexLabels)
+            and other.ndim <= 2
+        ):
+            other = self._class_new_instance(other)
+            other.domain_axis = self.domain_axis
+
         if isinstance(other, _SignalIndexLabels):
             # equalizing domains
-            self, signal = self.equalize_domains(other)
+            self, other = self.equalize_domains(other)
             self_values = self.magnitude
             # convert units - will also convert signal bounds
             other = other.to(self.units)
             other_values = other.magnitude
             # labels
-            if labels is None:
-                labels = other.labels
-            if signal_min is None:
-                signal_min = other.signal_min
-            if signal_max is None:
-                signal_max = other.signal_max
+            labels = other.labels
+            signal_min = other.signal_min
+            signal_max = other.signal_max
 
-        elif is_listlike(signal):
+        elif is_listlike(other):
             # self numpy array
             self_values = self.magnitude
             # check if it has units
             other_values = optional_to(
                 other, self.units, *self.contexts,
                 **self._unit_conversion_kws)
-            # handle labels
+            # handle labels and bounds
             labels = self._get_labels(other_values, labels)
             signal_min = self._get_signal_bound(other_values, signal_min)
             signal_max = self._get_signal_bound(other_values, signal_max)
 
         else:
-            raise DreyeError(
-                f"other axis contenation with type: {type(signal)}.")
+            raise DreyeError("other axis contenation "
+                             f"with type: {type(other)}.")
 
         # handle labels and bounds
         labels = self._concat_labels(labels, left)
@@ -1094,13 +1570,27 @@ class _SignalIndexLabels(_Signal2DMixin):
                 axis=self.labels_axis
             )
 
+        # labels_concat is not shape preserving
         new = self.copy()
-        new._values = values
-        # values dependent
-        new.labels = labels
-        new.signal_min = signal_min
-        new.signal_max = signal_max
+        new._labels = labels
+        new._signal_min = signal_min
+        new._signal_max = signal_max
+        new._values = new._process_values(values, signal_min, signal_max)
         return new
+
+    def _assign_further_longdf_values(self, df):
+        # merge bounds
+        df = super()._assign_further_longdf_values(df)
+
+        # if labels are multiindex include them
+        if isinstance(self.labels, pd.MultiIndex):
+            df_labels = self.labels.to_frame(index=False)
+            df_labels['labels'] = list(get_value(self.labels))
+            df = df.merge(
+                df_labels, on='labels', how='left',
+                suffixes=('', '_label')
+            )
+        return df
 
 
 class _SignalDomainLabels(_Signal2DMixin):
@@ -1112,50 +1602,17 @@ class _SignalDomainLabels(_Signal2DMixin):
         values,
         domain=None,
         labels=None,
-        *,
-        units=None,
-        domain_units=None,
-        labels_units=None,
-        interpolator=None,
-        interpolator_kwargs=None,
-        contexts=None,
-        domain_kwargs=None,
-        labels_kwargs=None,
-        domain_min=None,
-        domain_max=None,
-        labels_min=None,
-        labels_max=None,
-        signal_min=None,
-        signal_max=None,
-        attrs=None,
-        name=None,
         **kwargs
     ):
 
         if isinstance(values, _SignalDomainLabels) and labels is not None:
             if values.labels != labels:
-                values = values.T(labels).T
+                values = values.labels_interp(labels)
 
         super().__init__(
             values=values,
-            units=units,
             domain=domain,
-            domain_units=domain_units,
             labels=labels,
-            labels_units=labels_units,
-            interpolator=interpolator,
-            interpolator_kwargs=interpolator_kwargs,
-            contexts=contexts,
-            domain_kwargs=domain_kwargs,
-            labels_kwargs=labels_kwargs,
-            domain_min=domain_min,
-            labels_min=labels_min,
-            domain_max=domain_max,
-            labels_max=labels_max,
-            signal_min=signal_min,
-            signal_max=signal_max,
-            attrs=attrs,
-            name=name,
             **kwargs
         )
 
@@ -1167,7 +1624,7 @@ class _SignalDomainLabels(_Signal2DMixin):
         if isinstance(other, _SignalDomainLabels):
             if self.labels != other.labels:
                 labels = self.labels.equalize_domains(other.labels)
-                return self.T(labels).T, other.T(labels).T
+                return self.labels_interp(labels), other.labels_interp(labels)
         return self, other
 
     @property
@@ -1175,12 +1632,12 @@ class _SignalDomainLabels(_Signal2DMixin):
         return self.labels.units
 
     @property
-    def T(self):
+    def switch(self):
         """
-        Transpose Array.
+        switch domain and labels
         """
         return self._class_new_instance(
-            values=self.magnitude.T,
+            values=self.magnitude,
             units=self.units,
             **{
                 **self.init_kwargs,
@@ -1190,42 +1647,54 @@ class _SignalDomainLabels(_Signal2DMixin):
                     domain_min=self.labels_min,
                     domain_max=self.labels_max,
                     labels_min=self.domain_min,
-                    labels_max=self.domain_max
+                    labels_max=self.domain_max,
+                    signal_min=self.signal_min,
+                    signal_max=self.signal_max,
+                    domain_axis=self.domain_axis-1,
                 )
             }
+        )
+
+    @property
+    def _labels_interp_function(self):
+        """
+        interpolate callable
+        """
+        if self._labels_interpolate is None:
+
+            interpolator_kwargs = self.interpolator_kwargs
+            interpolator_kwargs['axis'] = self.labels_axis
+
+            self._labels_interpolate = self._get_interp_function(
+                self.labels.magnitude,
+                self.magnitude,
+                interpolator_kwargs,
+                self.signal_min,
+                self.signal_max
+            )
+
+        return self._labels_interpolate
+
+    def labels_interp(self, domain):
+        """
+        interpolate to new labels
+        """
+
+        return self._abstract_call(
+            self._labels_interp_function, self.labels, domain,
+            self.labels_min, self.labels_max,
+            self._domain_labels_class, '_labels'
         )
 
     def labels_concat(self, other, left=False):
         """
         Concatenate Labels
         """
-        return self.T.domain_concat(other, left=left).T
-
-    def _get_signal_bound(self, values, bound):
-
-        if bound is None:
-            bound = np.array(np.nan)
-        else:
-            bound = optional_to(
-                bound, self.units,
-                *self.contexts, **self._unit_conversion_kws
-            )
-            if not is_numeric(bound):
-                if len(set(bound)) != 1:
-                    raise DreyeError("Bound must be numeric, "
-                                     f"but is of type {type(bound)}.")
-                bound = bound[0]
-            bound = np.array(DEFAULT_FLOAT_DTYPE(bound))
-
-        return bound
+        return self.switch.domain_concat(other, left=left).switch
 
     def _get_labels(self, values, labels, kwargs):
         labels_units = kwargs.get('labels_units', None)
         labels_kwargs = kwargs.get('labels_kwargs', None)
-        if labels_units is None and hasattr(labels, 'units'):
-            labels_units = labels.units
-        if labels_kwargs is None and hasattr(labels, 'init_kwargs'):
-            labels_kwargs = labels.init_kwargs
         return self._get_domain(
             values,
             labels,
@@ -1282,6 +1751,59 @@ class _SignalDomainLabels(_Signal2DMixin):
             domain_min=self.labels_min.magnitude
         )
         self._labels_max = labels_max
+
+
+class Signal(_SignalMixin):
+    """
+    TODO docstring
+    """
+
+    @property
+    def _class_new_instance(self):
+        return Signal
+
+    def __init__(
+        self,
+        values,
+        domain=None,
+        *,
+        units=None,
+        domain_units=None,
+        interpolator=None,
+        interpolator_kwargs=None,
+        contexts=None,
+        domain_kwargs=None,
+        domain_min=None,
+        domain_max=None,
+        signal_min=None,
+        signal_max=None,
+        smoothing_method=None,
+        smoothing_window=None,
+        smoothing_args=None,
+        attrs=None,
+        name=None,
+        domain_axis=None
+    ):
+        super().__init__(
+            values=values,
+            units=units,
+            domain=domain,
+            domain_units=domain_units,
+            interpolator=interpolator,
+            interpolator_kwargs=interpolator_kwargs,
+            contexts=contexts,
+            domain_kwargs=domain_kwargs,
+            domain_min=domain_min,
+            domain_max=domain_max,
+            signal_min=signal_min,
+            signal_max=signal_max,
+            smoothing_method=smoothing_method,
+            smoothing_window=smoothing_window,
+            smoothing_args=smoothing_args,
+            attrs=attrs,
+            name=name,
+            domain_axis=domain_axis
+        )
 
 
 class Signals(_SignalIndexLabels):
@@ -1359,8 +1881,12 @@ class Signals(_SignalIndexLabels):
         domain_max=None,
         signal_min=None,
         signal_max=None,
+        smoothing_method=None,
+        smoothing_window=None,
+        smoothing_args=None,
         attrs=None,
         name=None,
+        domain_axis=None
     ):
         super().__init__(
             values=values,
@@ -1376,8 +1902,12 @@ class Signals(_SignalIndexLabels):
             domain_max=domain_max,
             signal_min=signal_min,
             signal_max=signal_max,
+            smoothing_method=smoothing_method,
+            smoothing_window=smoothing_window,
+            smoothing_args=smoothing_args,
             attrs=attrs,
             name=name,
+            domain_axis=domain_axis
         )
 
 
@@ -1385,6 +1915,10 @@ class DomainSignal(_SignalDomainLabels):
     """
     """
     # TODO docstring
+
+    @property
+    def _class_new_instance(self):
+        return DomainSignal
 
     def __init__(
         self,
@@ -1406,8 +1940,12 @@ class DomainSignal(_SignalDomainLabels):
         labels_max=None,
         signal_min=None,
         signal_max=None,
+        smoothing_method=None,
+        smoothing_window=None,
+        smoothing_args=None,
         attrs=None,
         name=None,
+        domain_axis=None,
     ):
 
         super().__init__(
@@ -1428,10 +1966,10 @@ class DomainSignal(_SignalDomainLabels):
             labels_max=labels_max,
             signal_min=signal_min,
             signal_max=signal_max,
+            smoothing_method=smoothing_method,
+            smoothing_window=smoothing_window,
+            smoothing_args=smoothing_args,
             attrs=attrs,
             name=name,
+            domain_axis=domain_axis,
         )
-
-    @property
-    def _class_new_instance(self):
-        return DomainSignal

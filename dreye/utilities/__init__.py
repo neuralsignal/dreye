@@ -13,7 +13,8 @@ from .array import (
     around, digits_to_decimals,
     round_to_significant, array_equal,
     unique_significant, spacing, asarray,
-    is_uniform, array_domain, arange
+    is_uniform, array_domain, arange,
+    is_broadcastable
 )
 from .stats import (
     convert_truncnorm_clip
@@ -31,6 +32,7 @@ __all__ = [
     'digits_to_decimals',
     'round_to_significant',
     'around',
+    'is_broadcastable',
     # common
     'has_units',
     'optional_to',
@@ -44,5 +46,5 @@ __all__ = [
     'get_value',
     'is_callable',
     # stats
-    'convert_truncnorm_clip'
+    'convert_truncnorm_clip',
 ]

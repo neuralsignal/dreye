@@ -6,7 +6,7 @@ import numpy as np
 from scipy.stats import norm
 
 from dreye.utilities import optional_to
-from dreye.core.spectrum import Spectra
+from dreye.core.spectrum import IntensitySpectra
 from dreye.core.signal import _SignalMixin
 from dreye.constants import ureg
 
@@ -14,15 +14,16 @@ from dreye.constants import ureg
 def create_gaussian_spectrum(
     wavelengths, centers, std=10,
     intensity=1,
-    units='microspectralphotonflux',
+    units='uE',
     cdf=None,
     background=None,
     filter=False,
     add_background=False,
     zero_cutoff=True,
+    **kwargs
 ):
     """
-    get Gaussian spectra
+    Get IntensitySpectra instance from Gaussian probability distribution.
 
     wavelengths : array-like
         Wavelength array in nm.
@@ -52,8 +53,9 @@ def create_gaussian_spectrum(
         discarded.
     """
     if isinstance(background, _SignalMixin):
-        background = background(wavelengths).to(units).sum(axis=1)
+        background = background(wavelengths).to(units)
 
+    units = IntensitySpectra._unit_mappings.get(units, units)
     if isinstance(units, str) or units is None:
         units = ureg(units).units
 
@@ -97,8 +99,9 @@ def create_gaussian_spectrum(
     if zero_cutoff:
         spectrum_array = np.clip(spectrum_array, 0, None)
 
-    return Spectra(
+    return IntensitySpectra(
         spectrum_array,
-        domain=wavelengths,
+        domain=np.squeeze(wavelengths),
         units=units,
+        **kwargs
     )

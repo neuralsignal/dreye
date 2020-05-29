@@ -10,7 +10,7 @@ AbstractOutput
 
    .. autosummary::
 
-      ~AbstractOutput.max_boundary
+      ~AbstractOutput.max_intensity_bound
       ~AbstractOutput.max_val
       ~AbstractOutput.min_val
       ~AbstractOutput.mspectrum
@@ -19,7 +19,7 @@ AbstractOutput
       ~AbstractOutput.object_name
       ~AbstractOutput.spm
       ~AbstractOutput.units
-      ~AbstractOutput.zero_boundary
+      ~AbstractOutput.zero_intensity_bound
 
    .. rubric:: Methods Summary
 
@@ -42,7 +42,7 @@ AbstractOutput
 
    .. rubric:: Attributes Documentation
 
-   .. autoattribute:: max_boundary
+   .. autoattribute:: max_intensity_bound
    .. autoattribute:: max_val
    .. autoattribute:: min_val
    .. autoattribute:: mspectrum
@@ -51,7 +51,7 @@ AbstractOutput
    .. autoattribute:: object_name
    .. autoattribute:: spm
    .. autoattribute:: units
-   .. autoattribute:: zero_boundary
+   .. autoattribute:: zero_intensity_bound
 
    .. rubric:: Methods Documentation
 

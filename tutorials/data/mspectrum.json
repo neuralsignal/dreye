@@ -117059,8 +117059,8 @@
       "attrs": {
         "applied_window_": 1,
         "_smoothing_window": 1,
-        "_zero_boundary": 4.4,
-        "_max_boundary": 0.0,
+        "_zero_intensity_bound": 4.4,
+        "_max_intensity_bound": 0.0,
         "_zero_is_lower": false
       },
       "domain_min": null,

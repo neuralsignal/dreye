@@ -213,8 +213,8 @@ class NiDaqMxSystem(AbstractSystem):
             else:
                 self.trigger = NiDaqMxOutput(
                     trigger, 'trigger',
-                    max_boundary=5,
-                    zero_boundary=0, units='V',
+                    max_intensity_bound=5,
+                    zero_intensity_bound=0, units='V',
                 )
             self.trigger.rate = trigger_rate
 
@@ -256,8 +256,8 @@ class NiDaqMxSystem(AbstractSystem):
             assert self.trigger is not None
             trigger_values = self._create_trigger_array(
                 values.shape[0], rate, self.trigger.rate,
-                on=self.trigger.max_boundary.magnitude,
-                off=self.trigger.zero_boundary.magnitude
+                on=self.trigger.max_intensity_bound.magnitude,
+                off=self.trigger.zero_intensity_bound.magnitude
             )
             values = np.hstack([
                 values, trigger_values[:, None]

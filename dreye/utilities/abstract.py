@@ -55,6 +55,7 @@ class CallableList(list):
 class _AbstractContainer(ABC):
 
     _init_keys = []
+    _enforce_instance = None
 
     def __init__(self, container):
         self._container = self._check_list(container)
@@ -99,6 +100,10 @@ class _AbstractContainer(ABC):
     def container(self):
         return self._container
 
+    @container.setter
+    def container(self, container):
+        self.__init__(container)
+
     def __iter__(self):
         return iter(self.container)
 
@@ -112,7 +117,7 @@ class _AbstractContainer(ABC):
         return self.container[key]
 
     def __setitem__(self, key, value):
-        self._check_ele(value)
+        value = self._check_ele(value)
         self._container[key] = value
         self._init_attrs()
 
@@ -168,9 +173,10 @@ class _AbstractContainer(ABC):
                 f'New element of type {type(ele)} is'
                 f'not a {self._allowed_instances} instance.'
             )
+        return ele
 
     def append(self, value):
-        self._check_ele(value)
+        value = self._check_ele(value)
         self._container.append(value)
         self._init_attrs()
 

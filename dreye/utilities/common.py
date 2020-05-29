@@ -7,7 +7,7 @@ from collections.abc import Hashable, Mapping, Callable
 
 import numpy as np
 
-from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE
+from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE, DEFAULT_INT_DTYPE
 
 
 def has_units(value):
@@ -77,8 +77,10 @@ def is_integer(obj):
     True if integer (ignoring units)
     """
     value = get_value(obj)
-    if hasattr(value, 'dtype') and hasattr(value, 'ndim'):
-        return not value.ndim and issubclass(value.dtype, numbers.Integral)
+    if hasattr(value, 'item') and hasattr(value, 'ndim'):
+        if value.ndim:
+            return False
+        value = value.item()
     return isinstance(value, numbers.Integral)
 
 
@@ -87,8 +89,10 @@ def is_numeric(obj):
     Returns True if allowed numeric type (ignoring units)
     """
     value = get_value(obj)
-    if hasattr(value, 'dtype') and hasattr(value, 'ndim'):
-        return not value.ndim and issubclass(value.dtype, numbers.Number)
+    if hasattr(value, 'item') and hasattr(value, 'ndim'):
+        if value.ndim:
+            return False
+        value = value.item()
     return isinstance(value, numbers.Number)
 
 

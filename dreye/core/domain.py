@@ -8,11 +8,14 @@ import numpy as np
 from dreye.utilities import (
     is_listlike, asarray, array_domain, is_uniform,
     optional_to, is_numeric, arange, get_value,
-    is_integer
+    is_integer, has_units
 )
 from dreye.err import DreyeError
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import _UnitArray
+
+
+# TODO reverse domain
 
 
 class Domain(_UnitArray):
@@ -43,6 +46,7 @@ class Domain(_UnitArray):
     _convert_attributes = (
         'start', 'end', 'interval'
     )
+    _init_args = ('attrs', 'contexts', 'name', 'interval_')
 
     @property
     def _class_new_instance(self):
@@ -58,10 +62,20 @@ class Domain(_UnitArray):
         contexts=None,
         attrs=None,
         name=None,
+        interval_=None
     ):
         if is_listlike(start) and values is None:
             values = start
             start = None
+        if units is None:
+            if has_units(values):
+                units = values.units
+            elif has_units(start):
+                units = start.units
+            elif has_units(end):
+                units = end.units
+            elif has_units(interval):
+                units = interval.units
 
         super().__init__(
             values=values,
@@ -71,8 +85,30 @@ class Domain(_UnitArray):
             name=name,
             start=start,
             end=end,
-            interval=interval
+            interval=interval,
+            interval_=interval_
         )
+
+    @property
+    def interval_(self):
+        """
+        Used Internally.
+
+        Backup interval used in the case when values is of size 1.
+
+        See _test_and_assign_values.
+        """
+        # always ensures that it is a float
+        if hasattr(self, '_interval'):
+            return np.mean(self._interval)
+        return self._interval_
+
+    @property
+    def ndim(self):
+        """
+        Dimensionality of domain is always 1.
+        """
+        return 1
 
     def _test_and_assign_values(self, values, kwargs):
         if values is None:
@@ -105,8 +141,11 @@ class Domain(_UnitArray):
                 start = values[0]
                 end = values[0]
                 interval = kwargs.get('interval', None)
-                assert interval is not None, \
-                    "Need to supply interval if domain is of size 1."
+                # take backup interval
+                if interval is None:
+                    interval = self.interval_
+                assert is_numeric(interval), \
+                    "Need to supply numeric interval if domain is of size 1."
                 interval = optional_to(interval, self.units, *self.contexts)
             else:
                 start, end, interval = array_domain(
@@ -163,20 +202,20 @@ class Domain(_UnitArray):
         Should just return equalized other_magnitude or NotImplemented
         """
         if is_numeric(other):
-            return get_value(other)
+            return get_value(other), self
         elif isinstance(other, _UnitArray):
             if isinstance(other, Domain):
-                return other.magnitude
+                return other.magnitude, self
             else:
-                return NotImplemented
+                return NotImplemented, self
         elif is_listlike(other):
             other = asarray(other)
             if other.ndim > 1:
-                return NotImplemented
+                return NotImplemented, self
             else:
-                return other
+                return other, self
         else:
-            return NotImplemented
+            return NotImplemented, self
 
     @property
     def start(self):
@@ -204,7 +243,30 @@ class Domain(_UnitArray):
         """
         Check if distribution is uniform.
         """
+        # if np.nan then True
         return is_numeric(self.interval)
+
+    @property
+    def has_interval(self):
+        """
+        Does the domain have a defined interval
+        """
+        return np.all(np.isfinite(self.interval))
+
+    @property
+    def is_descending(self):
+        """
+        Is the domain in descending order
+        """
+        return np.all(np.diff(self.magnitude) < 0)
+
+    @property
+    def is_sorted(self):
+        """
+        Is the domain sorted
+        """
+        ascending = np.diff(self.magnitude) > 0
+        return np.all(ascending) or not np.any(ascending)
 
     def __str__(self):
         """
@@ -215,7 +277,7 @@ class Domain(_UnitArray):
             "Domain(start={0}, end={1}, interval={2}, units={3})"
         ).format(self.start, self.end, self.interval, self.units)
 
-    def enforce_uniformity(self, method=np.mean, on_gradient=True):
+    def enforce_uniformity(self, method=np.mean, on_gradient=False):
         """
         Returns the domain with a uniform interval, calculated from the average
         of all original interval values.
@@ -230,10 +292,13 @@ class Domain(_UnitArray):
             value = method(self.interval)
 
         # change values and interval
-        new = self.copy()
-        new._values, new._interval = new._create_values(
-            self.start, self.end, value)
-        return new
+        return self._class_new_instance(
+            start=self.start,
+            end=self.end,
+            interval=value,
+            units=self.units,
+            **self.init_kwargs
+        )
 
     def equalize_domains(self, other):
         """
@@ -291,6 +356,7 @@ class Domain(_UnitArray):
             end=end,
             interval=interval,
             units=self.units,
+            **self.init_kwargs
         )
 
         if not domain.is_uniform:

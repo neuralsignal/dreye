@@ -10,10 +10,12 @@ import numpy as np
 
 from dreye.err import DreyeError
 from dreye.utilities import (
-    has_units,
+    has_units, asarray,
     is_listlike, is_string,
     is_dictlike, is_hashable,
-    array_equal
+    array_equal, is_integer,
+    is_numeric, get_units,
+    get_value
 )
 from dreye.utilities.abstract import _AbstractArray
 from dreye.constants import ureg
@@ -35,6 +37,10 @@ class _UnitArray(_AbstractArray):
     # dictionary of attributes defaults if None
     _unit_conversion_params = {}
     # attributes mapping passed to the "to" method of pint
+
+    @property
+    def _init_aligned_attrs(self):
+        return {}
 
     @abstractmethod
     def _test_and_assign_values(self, values, kwargs):
@@ -99,8 +105,10 @@ class _UnitArray(_AbstractArray):
                 values = values.to(units)
             values = values.magnitude
 
-        if units is None:
-            units = ureg(None).units
+        if (units is None) or isinstance(units, str):
+            units = ureg(units).units
+        elif has_units(units):
+            units = units.units
         # units are assigned
         self._units = units
         # setup names and attributes and contexts
@@ -322,7 +330,7 @@ class _UnitArray(_AbstractArray):
         elif isinstance(other, ureg.Unit):
             other = other * 1
         # apply equalize
-        other_magnitude = self._equalize(other)
+        other_magnitude, self = self._equalize(other)
         if other_magnitude is NotImplemented:
             return other_magnitude
 
@@ -402,7 +410,7 @@ class _UnitArray(_AbstractArray):
         return iter(self.values)
 
     def __len__(self):
-        return len(self.values)
+        return len(self.magnitude)
 
     def __bool__(self):
         return True
@@ -411,7 +419,74 @@ class _UnitArray(_AbstractArray):
         return str(self.values)
 
     def __getitem__(self, key):
-        return self.values[key]
+        values = self.values[key]
+        if hasattr(values, 'ndim'):
+            if values.size == 0:
+                return values
+            # keep self
+            # TODO reverse?
+            if values.ndim == self.ndim:
+                # if not is tuple make tuple
+                if not isinstance(key, tuple):
+                    key = (key,)
+
+                for idx, ikey in enumerate(key):
+                    if ikey is Ellipsis:
+                        before = key[:idx]
+                        if len(key) > idx+1:
+                            after = key[idx+1:]
+                        else:
+                            after = ()
+                        toadd = values.ndim - len(after + before)
+                        key = (
+                            before
+                            + (slice(None, None, None),) * toadd
+                            + after
+                        )
+                    elif isinstance(ikey, slice):
+                        if ikey.step is not None and ikey.step < 0:
+                            return values
+                    else:
+                        # only allow slices and ellipsis
+                        return values
+                # get new inits
+                init_kwargs = self.init_kwargs
+                # indices are assumed to be positive
+                for idx, attrs in self._init_aligned_attrs.items():
+                    for attr in attrs:
+                        if idx is None:
+                            init_kwargs[attr] = None
+                        elif isinstance(idx, tuple):
+                            # this assumes numpy.ndarray instances
+                            if any(map(lambda x: x < 0), idx):
+                                raise ValueError(
+                                    "_init_aligned_attrs was set inproperly."
+                                )
+                            attr_value = getattr(self, attr)
+                            ikey = tuple(
+                                key[iidx]
+                                if iidx < len(key)
+                                else slice(None, None, None)
+                                for iidx in idx
+                            )
+                            init_kwargs[attr] = attr_value[ikey]
+                        else:
+                            if idx < 0:
+                                raise ValueError(
+                                    "_init_aligned_attrs was set inproperly."
+                                )
+                            attr_value = getattr(self, attr)
+                            # assumes same length and
+                            # not broadcastable as in tuple case
+                            if idx < len(key):
+                                ikey = key[idx]
+                                init_kwargs[attr] = attr_value[ikey]
+                            else:
+                                init_kwargs[attr] = attr_value
+                return self._class_new_instance(
+                    values=values, **init_kwargs
+                )
+        return values
 
     def __eq__(self, other):
         """
@@ -423,23 +498,47 @@ class _UnitArray(_AbstractArray):
             if self._init_args != other._init_args:
                 return False
 
-            for sname, oname in zip(self._init_args, other._init_args):
-                truth = getattr(self, sname) != getattr(other, oname)
-                if isinstance(truth, bool):
-                    if not truth:
-                        return False
-                elif is_listlike(truth):
-                    if not np.all(truth):
-                        return False
-                else:
-                    raise NotImplementedError(
-                        f"Unknown comparison for type '{type(truth)}'."
-                    )
+            if self.units != other.units:
+                return False
 
-            return (
-                (self.units == other.units) and
-                array_equal(self.magnitude, other.magnitude)
-            )
+            if not array_equal(self.magnitude, other.magnitude):
+                return False
+
+            for name in self._init_args:
+                # convention that if attribute ends with underscore
+                # do not compare!
+                if name.endswith('_'):
+                    continue
+                sattr = getattr(self, name)
+                oattr = getattr(other, name)
+                if not isinstance(oattr, type(sattr)):
+                    return False
+                elif (
+                    (is_listlike(sattr) and is_listlike(oattr))
+                    or (is_numeric(sattr) and is_numeric(oattr))
+                ):
+                    svalue, sunits = get_value(sattr), get_units(sattr)
+                    ovalue, ounits = get_value(oattr), get_units(oattr)
+                    if sunits != ounits:
+                        return False
+
+                    ovalue = np.array(ovalue)
+                    svalue = np.array(svalue)
+                    if ovalue.shape != svalue.shape:
+                        return False
+                    if not np.all(np.isnan(svalue) == np.isnan(ovalue)):
+                        return False
+
+                    truth = np.all(
+                        svalue[~np.isnan(svalue)]
+                        == ovalue[~np.isnan(ovalue)]
+                    )
+                else:
+                    truth = sattr == oattr
+                if not truth:
+                    return False
+
+            return True
 
         return False
 

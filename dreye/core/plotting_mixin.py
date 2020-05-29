@@ -36,9 +36,10 @@ def get_label(units):
     if units.dimensionless:
         label = 'a.u.'
     else:
-        label = get_labels_formatted(units.dimensionality)
-        units = get_labels_formatted(units)
-        label = f'${label}$ (${units}$)'
+        label = units.format_babel()
+        # label = get_labels_formatted(units.dimensionality)
+        # units = get_labels_formatted(units)
+        # label = f'${label}$ (${units}$)'
 
     return label
 
@@ -78,7 +79,7 @@ class _PlottingMixin:
         data = data.fillna(value)
 
         default_kws = dict(
-            hue='labels',
+            hue=('labels' if 'labels' in data.columns else None),
             kind='line'
         )
         default_kws.update(kwargs)
@@ -101,6 +102,8 @@ class _PlottingMixin:
             palette=palette,
             **kwargs
         )
+
+        # TODO signal_min and max?
 
         if xlabel is None:
             xlabel = get_label(self.domain_units)

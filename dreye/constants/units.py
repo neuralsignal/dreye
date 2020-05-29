@@ -26,11 +26,11 @@ ureg.define('radiance = radiant_intensity / meter ** 2')
 ureg.define('spectral_radiance = radiance / nanometer = spectralradiance')
 ureg.define('irradiance = radiant_flux / meter ** 2 = irrad = flux_density')
 ureg.define('spectral_irradiance = irradiance / '
-            'nanometer = spectral_flux_density = spectralirradiance')
+            'nanometer = spectral_flux_density = spectralirradiance = I')
 ureg.define('E_Q = mole / meter^2 / second = photonflux = photon_flux')
 ureg.define(
     'spectral_E_Q = mole / meter^2 / second / nanometer = spectral_photonflux'
-    ' = spectral_photon_flux = spectralphotonflux')
+    ' = spectral_photon_flux = spectralphotonflux = E')
 
 c = pint.Context('flux')
 
@@ -38,7 +38,13 @@ c = pint.Context('flux')
 def gradient(domain):
     """calculate gradient and preserve units
     """
-    return np.gradient(domain.magnitude) * domain.units
+    slices = tuple(
+        None
+        if i == 1
+        else slice(None, None, None)
+        for i in domain.shape
+    )
+    return np.gradient(np.squeeze(domain.magnitude))[slices] * domain.units
 
 
 c.add_transformation(
@@ -49,7 +55,7 @@ c.add_transformation(
         / (
             ureg.planck_constant
             * ureg.speed_of_light
-            * ureg.avogadro_number)
+            * ureg.N_A)
     )
 )
 
@@ -61,7 +67,7 @@ c.add_transformation(
         x * domain / (
             ureg.planck_constant
             * ureg.speed_of_light
-            * ureg.avogadro_number)
+            * ureg.N_A)
     )
 )
 
@@ -74,7 +80,7 @@ c.add_transformation(
         * (
             ureg.planck_constant
             * ureg.speed_of_light
-            * ureg.avogadro_number)
+            * ureg.N_A)
     )
 )
 
@@ -86,7 +92,7 @@ c.add_transformation(
         x * (
             ureg.planck_constant
             * ureg.speed_of_light
-            * ureg.avogadro_number)
+            * ureg.N_A)
     ) / domain
 )
 
@@ -99,7 +105,7 @@ c.add_transformation(
         * (
             ureg.planck_constant
             * ureg.speed_of_light
-            * ureg.avogadro_number)
+            * ureg.N_A)
     ) / domain / gradient(domain)
 )
 
@@ -111,7 +117,7 @@ c.add_transformation(
         / (
             ureg.planck_constant
             * ureg.speed_of_light
-            * ureg.avogadro_number)
+            * ureg.N_A)
     ) * domain * gradient(domain)
 )
 
@@ -124,7 +130,7 @@ c.add_transformation(
         * (
             ureg.planck_constant
             * ureg.speed_of_light
-            * ureg.avogadro_number
+            * ureg.N_A
         )
     ) / domain
 )
@@ -138,7 +144,7 @@ c.add_transformation(
         / (
             ureg.planck_constant
             * ureg.speed_of_light
-            * ureg.avogadro_number
+            * ureg.N_A
         )
     ) * domain
 )
@@ -171,7 +177,21 @@ c.add_transformation(
     lambda ureg, x, domain: x / gradient(domain)
 )
 
+c.add_transformation(
+    '[substance]',
+    '',
+    lambda ureg, x: x * ureg.N_A
+)
+
+c.add_transformation(
+    '',
+    '[substance]',
+    lambda ureg, x: x / ureg.N_A
+)
+
 
 ureg.add_context(c)
+ureg.enable_contexts('flux')
+ureg.setup_matplotlib()
 
 pint.set_application_registry(ureg)

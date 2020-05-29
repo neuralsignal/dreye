@@ -19,7 +19,7 @@ MeasuredSpectraContainer
       ~MeasuredSpectraContainer.irradiance
       ~MeasuredSpectraContainer.lower_boundary
       ~MeasuredSpectraContainer.mapper
-      ~MeasuredSpectraContainer.max_boundary
+      ~MeasuredSpectraContainer.max_intensity_bound
       ~MeasuredSpectraContainer.names
       ~MeasuredSpectraContainer.normalized_spectrum
       ~MeasuredSpectraContainer.normalized_spectrum_list
@@ -29,7 +29,7 @@ MeasuredSpectraContainer
       ~MeasuredSpectraContainer.units
       ~MeasuredSpectraContainer.upper_boundary
       ~MeasuredSpectraContainer.wavelengths
-      ~MeasuredSpectraContainer.zero_boundary
+      ~MeasuredSpectraContainer.zero_intensity_bound
       ~MeasuredSpectraContainer.zero_is_lower
 
    .. rubric:: Methods Summary
@@ -60,7 +60,7 @@ MeasuredSpectraContainer
    .. autoattribute:: irradiance
    .. autoattribute:: lower_boundary
    .. autoattribute:: mapper
-   .. autoattribute:: max_boundary
+   .. autoattribute:: max_intensity_bound
    .. autoattribute:: names
    .. autoattribute:: normalized_spectrum
    .. autoattribute:: normalized_spectrum_list
@@ -70,7 +70,7 @@ MeasuredSpectraContainer
    .. autoattribute:: units
    .. autoattribute:: upper_boundary
    .. autoattribute:: wavelengths
-   .. autoattribute:: zero_boundary
+   .. autoattribute:: zero_intensity_bound
    .. autoattribute:: zero_is_lower
 
    .. rubric:: Methods Documentation

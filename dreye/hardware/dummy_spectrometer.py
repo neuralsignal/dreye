@@ -3,7 +3,7 @@
 
 import numpy as np
 
-from dreye.core.spectrum import Spectrum
+from dreye.core.spectrum import IntensitySpectra
 from dreye.core.spectral_measurement import CalibrationSpectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.dummy_system import DummySystem
@@ -19,7 +19,7 @@ class DummySpectrometer(AbstractSpectrometer):
         noise_scale=1
     ):
 
-        assert isinstance(dummy_leds, Spectrum)
+        assert isinstance(dummy_leds, IntensitySpectra)
         assert isinstance(dummy_system, DummySystem)
         assert dummy_leds.ndim == 2
         assert dummy_leds.other_len == len(dummy_system)
@@ -77,8 +77,8 @@ class DummySpectrometer(AbstractSpectrometer):
         for idx, output in enumerate(self.system):
             if output._open:
                 value = output._current_value
-                zero_boundary = output.zero_boundary
-                max_boundary = output.max_boundary
+                zero_intensity_bound = output.zero_intensity_bound
+                max_intensity_bound = output.max_intensity_bound
                 assert value is not None
                 break
         led = self.leds[:, idx]
@@ -87,8 +87,8 @@ class DummySpectrometer(AbstractSpectrometer):
         led += np.random.normal(0, self.noise_scale, size=led.shape)
         led *= self.ideal_mid_point / np.max(led)
 
-        rel_value = np.abs(value - zero_boundary)
-        rel_value /= np.abs(zero_boundary - max_boundary)
+        rel_value = np.abs(value - zero_intensity_bound)
+        rel_value /= np.abs(zero_intensity_bound - max_intensity_bound)
         led *= rel_value
         return asarray(led)
 

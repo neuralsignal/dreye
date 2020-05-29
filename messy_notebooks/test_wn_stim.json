@@ -74108,7 +74108,7 @@
                                 "smoothing_window": 25,
                                 "smoothing_method": "boxcar",
                                 "smoothing_args": {},
-                                "zero_boundary": {
+                                "zero_intensity_bound": {
                                     "#array#": [
                                         0,
                                         0,
@@ -74116,7 +74116,7 @@
                                         0
                                     ]
                                 },
-                                "max_boundary": {
+                                "max_intensity_bound": {
                                     "#array#": [
                                         NaN,
                                         NaN,

@@ -2,22 +2,23 @@
 """
 
 import numpy as np
-from scipy.optimize import lsq_linear
 from scipy.interpolate import interp1d
 from sklearn.isotonic import IsotonicRegression
 
 from dreye.utilities import (
-    has_units, is_numeric, asarray,
-    optional_to
+    has_units, is_numeric,
+    optional_to, is_listlike, has_units
 )
 from dreye.constants import ureg
-from dreye.core.signal import Signals
-from dreye.core.spectrum import Spectra, IntensityDomainSpectrum
+from dreye.core.signal import Signals, Signal
+from dreye.core.spectrum import (
+    Spectra, IntensityDomainSpectrum, Spectrum
+)
 from dreye.core.signal_container import DomainSignalContainer
 from dreye.err import DreyeError
 
 
-class CalibrationSpectrum(Spectra):
+class CalibrationSpectrum(Spectrum):
     """
     Subclass of signal to define calibration spectrum.
 
@@ -28,18 +29,24 @@ class CalibrationSpectrum(Spectra):
     def __init__(
         self,
         values,
-        *args,
+        domain=None,
+        labels=None,
+        *,
         area=None,
+        units=None,
         **kwargs
     ):
 
         if area is None and not isinstance(values, CalibrationSpectrum):
-            raise DreyeError(
-                f"Must provide 'area' argument to "
-                f"initialize {type(self).__name__}."
-            )
+            # assume area of 1 cm ** 2
+            area = 1
+        if units is None and not has_units(values):
+            units = ureg('microjoule').units
 
-        super.__init__(values, *args, **kwargs)
+        super.__init__(
+            values=values, domain=domain, labels=labels, units=units,
+            **kwargs
+        )
 
         if area is None:
             area = self.attrs.get('area_', None)
@@ -59,49 +66,56 @@ class CalibrationSpectrum(Spectra):
 
 class MeasuredSpectrum(IntensityDomainSpectrum):
     """
-    Contain Measured Spectrum
+    Measured spectrum (e.g. LED)
     """
 
     # TODO docstring and init
+    # always in uE?
 
     def __init__(
-        self, *args,
-        zero_boundary=None,
-        max_boundary=None,
+        self, values, domain=None, labels=None, *,
+        zero_intensity_bound=None,
+        max_intensity_bound=None,
         resolution=None,
         **kwargs
     ):
 
-        super().__init__(
-            *args,
-            **kwargs
-        )
+        super().__init__(values=values, domain=domain, labels=labels, **kwargs)
 
         if self.name is None:
             raise DreyeError(f'name variable must be provided '
                              f'for {type(self).__name__} instance.')
 
         # getting correct values and converting units
-        if zero_boundary is None:
-            zero_boundary = self.attrs.get('zero_boundary_', None)
-        if max_boundary is None:
-            max_boundary = self.attrs.get('max_boundary_', None)
+        if zero_intensity_bound is None:
+            zero_intensity_bound = self.attrs.get(
+                'zero_intensity_bound_', None)
+        if max_intensity_bound is None:
+            max_intensity_bound = self.attrs.get(
+                'max_intensity_bound_', None)
         if resolution is None:
             resolution = self.attrs.get('resolution_', None)
 
-        self.attrs['zero_boundary_'] = self._get_domain_bound(
-            zero_boundary, self.labels
+        self.attrs['zero_intensity_bound_'] = self._get_domain_bound(
+            zero_intensity_bound, self.labels
         )
-        self.attrs['max_boundary_'] = self._get_domain_bound(
-            max_boundary, self.labels
+        self.attrs['max_intensity_bound_'] = self._get_domain_bound(
+            max_intensity_bound, self.labels
         )
-        # should be the minimum step that can be taken
-        self.attrs['resolution_'] = self._get_domain_bound(
-            resolution, self.labels
-        )
+        # should be the minimum step that can be taken - or an array?
+        if is_listlike(resolution):
+            self.attrs['resolution_'] = optional_to(
+                resolution, self.labels.units, *self.contexts
+            ) * self.labels.units
+        elif resolution is None:
+            self.attrs['resolution_'] = None
+        else:
+            raise DreyeError("resolution must be list-like or None")
 
         self._intensity = None
         self._normalized_spectrum = None
+        self._mapper = None
+        self._regressor = None
 
     @property
     def zero_is_lower(self):
@@ -111,102 +125,80 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         Calculated automatically.
         """
         if (
-            np.isnan(self.zero_boundary.magnitude)
-            or np.isnan(self.max_boundary.magnitude)
+            np.isnan(self.zero_intensity_bound.magnitude)
+            or np.isnan(self.max_intensity_bound.magnitude)
         ):
             # integral across wavelengths
             total_intensity = self.intensity.magnitude
             return total_intensity[0] < total_intensity[-1]
         else:
-            return self.zero_boundary.magnitude < self.max_boundary.magnitude
+            return (
+                self.zero_intensity_bound.magnitude
+                < self.max_intensity_bound.magnitude
+            )
 
     @property
     def resolution(self):
         """
-        Smallest possible label/input value differences.
+        Smallest possible label/output value differences.
 
         Includes units
         """
+        if self.attrs['resolution_'] is None:
+            return
         return self.attrs['resolution_'].to(self.labels.units)
 
     @property
-    def zero_boundary(self):
+    def zero_intensity_bound(self):
         """
         Label value corresponding to zero intensity across wavelengths.
 
         Includes units.
         """
-        return self.attrs['zero_boundary_'].to(self.labels.units)
+        return self.attrs['zero_intensity_bound_'].to(self.labels.units)
 
     @property
-    def max_boundary(self):
+    def max_intensity_bound(self):
         """
-        Label/input value corresponding to max intensity across wavelengths.
+        Label/output value corresponding to max intensity across wavelengths.
 
         Includes units.
         """
-        return self.attrs['max_boundary_'].to(self.labels.units)
+        return self.attrs['max_intensity_bound_'].to(self.labels.units)
 
     @property
-    def lower_input_bound(self):
+    def output_bounds(self):
         """
-        Lower boundary of input labels, e.g. 0 volts.
-
-        Does not include units
-        """
-        if self.zero_is_lower:
-            if np.isnan(self.zero_boundary.magnitude):
-                return self.labels.start
-            else:
-                return self.zero_boundary.magnitude
-        else:
-            if np.isnan(self.zero_boundary.magnitude):
-                return self.labels.end
-            else:
-                return self.zero_boundary.magnitude
-
-    @property
-    def upper_input_bound(self):
-        """
-        Upper boundary of input labels, e.g. 5 volts.
-
-        Does not include units.
-        """
-        if self.zero_is_lower:
-            if np.isnan(self.max_boundary.magnitude):
-                return self.labels.end
-            else:
-                return self.max_boundary.magnitude
-        else:
-            if np.isnan(self.max_boundary.magnitude):
-                return self.labels.start
-            else:
-                return self.max_boundary.magnitude
-
-    @property
-    def input_bounds(self):
-        """
-        Bounds of input, e.g. 0 adn 5 volts.
+        Bounds of output, e.g. 0 adn 5 volts.
 
         Does not include units
         """
 
-        input_bounds = list(self.input.boundaries)
+        output_bounds = list(self.output.boundaries)
 
         idx_zero = 1 - int(self.zero_is_lower)
-        if not np.isnan(self.zero_boundary.magnitude):
-            input_bounds[idx_zero] = self.zero_boundary.magnitude
-        if not np.isnan(self.max_boundary.magnitude):
-            input_bounds[idx_zero - 1] = self.max_boundary.magnitude
+        if not np.isnan(self.zero_intensity_bound.magnitude):
+            output_bounds[idx_zero] = self.zero_intensity_bound.magnitude
+        if not np.isnan(self.max_intensity_bound.magnitude):
+            output_bounds[idx_zero - 1] = self.max_intensity_bound.magnitude
 
-        return tuple(input_bounds)
+        return tuple(output_bounds)
 
     @property
-    def input(self):
+    def output(self):
         """
-        Alias for labels
+        Alias for labels unless resolution is not None.
+
+        If resolution is not None, label values will be mapped to closest
+        resolution value.
         """
-        return self.labels
+        if self.resolution is None:
+            return self.labels
+        return self.labels._class_new_instance(
+            self._resolution_mapping(self.labels.magnitude),
+            units=self.labels.units,
+            **self.labels.init_kwargs
+        )
 
     @property
     def intensity_bounds(self):
@@ -218,7 +210,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
         integral = self.intensity.magnitude
 
-        if not np.isnan(self.zero_boundary.magnitude):
+        if not np.isnan(self.zero_intensity_bound.magnitude):
             lower = 0.0
             upper = np.max(integral)
         else:
@@ -237,12 +229,12 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
 
         if self._normalized_spectrum is None:
-            values = self.mean(axis=1)
-            spectra = Spectra(
+            values = self.mean(axis=self.labels_axis)
+            spectra = Spectrum(
                 values=values,
                 domain=self.domain,
-                labels=self.name,
-                attrs=self.attrs
+                name=self.name,
+                attrs=self.attrs,
             )
             self._normalized_spectrum = spectra.normalized_signal
 
@@ -255,30 +247,59 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
 
         if self._intensity is None:
-            self._intensity = Signals(
+            self._intensity = Signal(
                 self.integral,
-                domain=self.labels,
-                labels=self.name,
-                attrs=self.attrs
+                domain=self.output,
+                name=self.name,
+                attrs=self.attrs,
+                contexts=self.contexts
             )
         return self._intensity
 
     def to_measured_spectra(self, units='uE'):
         return MeasuredSpectraContainer([self], units=units)
 
+    def _resolution_mapping(self, values):
+        """map output values to given resolution
+
+        Parameters
+        ----------
+        values : np.ndarray or float
+            Array that should already be in units of self.labels.units.
+        """
+
+        if self.resolution is None:
+            return values
+
+        numeric_type = is_numeric(values)
+        new_values = np.atleast_1d(values)
+
+        res_idx = np.argmin(
+            np.abs(
+                new_values[:, None]
+                - self.resolution.magnitude[None, :]
+            ),
+            axis=1
+        )
+
+        new_values = self.resolution.magnitude[res_idx]
+        if numeric_type:
+            return np.squeeze(new_values)
+        return new_values
+
     def map(self, values, return_units=True):
         """
-        Map Intensity values to input values.
+        Map Intensity values to output values.
 
         Parameters
         ----------
         values : array-like
-            samples in intensity units or no units.
+            samples in intensity-convertible units or no units.
         return_units : bool
             Whether to return mapped values with units.
         """
 
-        values = optional_to(values, units=self.intesity.units)
+        values = optional_to(values, self.intensity.units, *self.contexts)
         assert values.ndim < 2, 'values must be 1 dimensional'
 
         # check intensity bound of values
@@ -287,59 +308,106 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         assert truth, 'Some values to be mapped are out of bounds.'
 
         mapped_values = self._mapper_func(values)
+        mapped_values = self._resolution_mapping(mapped_values)
 
         if return_units:
-            return mapped_values * self.input.units
+            return mapped_values * self.labels.units
 
         return mapped_values
 
-    @property
-    def _mapper_func(self):
+    def inverse_map(self, values, return_units=True):
+        """
+        Go from output values to intensity values
+        """
+        # this is going to be two dimensional, since it is a Signals instance
+        values = optional_to(values, self.labels.units, *self.contexts)
+        intensity = self.regressor.transform(values)
+
+        if return_units:
+            return intensity * self.intensity.units
+        else:
+            return intensity
+
+    def get_residuals(self, values, return_units=True):
+        """
+        Get residuals between values and mapped values
+        """
+
+        values = optional_to(values, units=self.intensity.units)
+        mapped_values = self.map(values, return_units=False)
+
+        # interpolate to new values given resolution
+        res = self.inverse_map(mapped_values, return_units=False) - values
+
+        if return_units:
+            return res * self.intensity.units
+        else:
+            return res
+
+    def score(self, values, **kwargs):
+        """
+        R^2 score.
+        """
+        mapped_values = self.map(values, return_units=False)
+        return self.regressor.score(mapped_values, values, **kwargs)
+
+    def _mapper_func(self, *args, **kwargs):
         """mapping using isotonic regression
         """
 
+        if self._mapper is None:
+            self._assign_mapper()
+
+        return np.clip(
+            self._mapper(*args, **kwargs),
+            a_min=self.output_bounds[0],
+            a_max=self.output_bounds[1]
+        )
+
+    @property
+    def regressor(self):
+        if self._regressor is None:
+            self._assign_mapper()
+        return self._regressor
+
+    def _assign_mapper(self):
         # 1D signal
         y = self.intesity.magnitude  # integral across intensities
-        x = self.labels.magnitude
+        x = self.output.magnitude
         y_min, y_max = self.intensity_bounds
         zero_is_lower = self.zero_is_lower
-        zero_boundary = self.zero_boundary.magnitude
+        zero_intensity_bound = self.zero_intensity_bound.magnitude
 
         # a little redundant but should ensure safety of method
-        if zero_is_lower and zero_boundary < np.min(x):
-            x = np.concatenate([[zero_boundary], x])
+        if zero_is_lower and zero_intensity_bound < np.min(x):
+            x = np.concatenate([[zero_intensity_bound], x])
             y = np.concatenate([[0], y])
         # a little redundant but should ensure safety of method
-        elif not zero_is_lower and zero_boundary > np.max(x):
-            x = np.concatenate([x, [zero_boundary]])
+        elif not zero_is_lower and zero_intensity_bound > np.max(x):
+            x = np.concatenate([x, [zero_intensity_bound]])
             y = np.concateante([y, [0]])
 
         # perform isotonic regression
+        # TODO score and such
         isoreg = IsotonicRegression(
             # lower and upper intensity values
             y_min=y_min,
             y_max=y_max,
             increasing=zero_is_lower
         )
+        self._regressor = isoreg
 
         new_y = isoreg.fit_transform(x, y)
-        interp_func = interp1d(
+
+        # interpolation function
+        self._mapper = interp1d(
             new_y, x,
             bounds_error=False,
             # allow going beyond bounds
             # but fill values to lower and upper bounds
-            # lower and upper input values
-            fill_value=self.input_bounds
+            # lower and upper output values
+            fill_value=self.output_bounds
         )
-
-        def clip_wrapper(*args, **kwargs):
-            return np.clip(
-                interp_func(*args, **kwargs),
-                a_min=self.input_bounds[0],
-                a_max=self.input_bounds[1]
-            )
-
-        return clip_wrapper
 
 
 class MeasuredSpectraContainer(DomainSignalContainer):
@@ -349,7 +417,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
     distribution across intensities (e.g. LEDs).
     """
 
-    _xlabel = 'wavelength (nm)'
+    _xlabel = r'$\lambda$ (nm)'
     _cmap = 'viridis'
     _init_keys = [
         '_intensities',
@@ -360,6 +428,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
     def map(self, values, return_units=True):
         """
+        From intensity to output.
 
         Parameters
         ----------
@@ -384,36 +453,99 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         return y
 
+    def inverse_map(self, values, return_units=True):
+        """
+        From output to intensity
+        """
+        values = optional_to(values, units=self.labels_units)
+        assert values.ndim < 3, 'values must be 1 or 2 dimensional'
+        x = np.atleast_2d(values)
+
+        y = np.empty(x.shape)
+        for idx, measured_spectrum in enumerate(self):
+            y[:, idx] = measured_spectrum.inverse_map(
+                x[:, idx], return_units=False
+            )
+
+        if values.ndim == 1:
+            y = y[0]
+
+        if return_units:
+            return y * self.intensities.units
+
+        return y
+
+    def get_residuals(self, values, return_units=True):
+        """
+        Residuals given resolution.
+        """
+
+        values = optional_to(values, units=self.intensities.units)
+        assert values.ndim < 3, 'values must be 1 or 2 dimensional'
+        x = np.atleast_2d(values)
+
+        y = np.empty(x.shape)
+        for idx, measured_spectrum in enumerate(self):
+            y[:, idx] = measured_spectrum.get_residuals(
+                x[:, idx], return_units=False
+            )
+
+        if values.ndim == 1:
+            y = y[0]
+
+        if return_units:
+            return y * self.intensities.units
+
+        return y
+
+    def score(self, values, average=True, **kwargs):
+        """
+        Score as mean of residuals given resolution
+        """
+        values = optional_to(values, units=self.intensities.units)
+        assert values.ndim < 3, 'values must be 1 or 2 dimensional'
+        x = np.atleast_2d(values)
+
+        scores = np.array([
+            measured_spectrum.score(x[:, idx], **kwargs)
+            for idx, measured_spectrum in enumerate(self)
+        ])
+
+        if average:
+            return np.mean(scores)
+
+        return scores
+
     @property
     def zero_is_lower(self):
         """
-        Whether zero intensity input value is lower than the max intensity
-        input value.
+        Whether zero intensity output value is lower than the max intensity
+        output value.
         """
         return np.array(self.__getattr__('zero_is_lower'))
 
     @property
-    def zero_boundary(self):
+    def zero_intensity_bound(self):
         """
-        Boundary of input corresponding to zero intensity spectrum
+        Boundary of output corresponding to zero intensity spectrum
 
-        Contains input units.
+        Contains output units.
         """
         return np.array([
             ele.magnitude
-            for ele in self.__getattr__('zero_boundary')
+            for ele in self.__getattr__('zero_intensity_bound')
         ]) * self.labels_units
 
     @property
-    def max_boundary(self):
+    def max_intensity_bound(self):
         """
-        Boundary of input corresponding to maximum intensity spectrum.
+        Boundary of output corresponding to maximum intensity spectrum.
 
-        Contains input units.
+        Contains output units.
         """
         return np.array([
             ele.magnitude
-            for ele in self.__getattr__('max_boundary')
+            for ele in self.__getattr__('max_intensity_bound')
         ]) * self.labels_units
 
     @property
@@ -427,23 +559,25 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         return tuple(np.array(self._getattr__('intensity_bounds')).T)
 
     @property
-    def input_bounds(self):
+    def output_bounds(self):
         """
-        Input bounds for Measured Spectra in two-tuple array form.
+        output bounds for Measured Spectra in two-tuple array form.
 
         Unit removed
         """
 
-        return tuple(np.array(self._getattr__('input_bounds')).T)
+        return tuple(np.array(self._getattr__('output_bounds')).T)
 
     @property
     def normalized_spectra(self):
         if self._normalized_spectra is None:
             for idx, ele in enumerate(self):
                 if idx == 0:
-                    spectra = ele.normalized_spectrum
+                    spectra = Spectra(ele.normalized_spectrum)
                 else:
-                    spectra = spectra.labels_concat(ele.normalized_spectrum)
+                    spectra = spectra.labels_concat(
+                        Spectra(ele.normalized_spectrum)
+                    )
 
             self._normalized_spectra = spectra
         return self._normalized_spectra
@@ -453,9 +587,11 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         if self._intensities is None:
             for idx, ele in enumerate(self):
                 if idx == 0:
-                    intensities = ele.intensity
+                    intensities = Signals(ele.intensity)
                 else:
-                    intensities = intensities.labels_concat(ele.intensity)
+                    intensities = intensities.labels_concat(
+                        Signals(ele.intensity)
+                    )
 
             self._intensities = intensities
         return self._intensities

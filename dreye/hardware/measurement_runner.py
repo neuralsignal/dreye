@@ -113,7 +113,7 @@ class MeasurementRunner:
             if self.remove_zero:
                 spectrum_array -= spectrum_array[:, :1]
             # flip if reversed
-            if output.zero_boundary > output.max_boundary:
+            if output.zero_intensity_bound > output.max_intensity_bound:
                 spectrum_array = spectrum_array[:, ::-1]
                 values = values[::-1]
                 its = its[::-1]
@@ -130,6 +130,7 @@ class MeasurementRunner:
             # zero output device
             output._zero()
             # convert everything correctly
+            # TODO
             mspectrum = create_measured_spectrum(
                 spectrum_array=spectrum_array,
                 inputs=values,
@@ -139,9 +140,9 @@ class MeasurementRunner:
                 axis=0,
                 smoothing_window=self.smoothing_window,
                 input_units=output.units,
-                zero_boundary=output.zero_boundary,
-                max_boundary=output.max_boundary,
-                zero_is_lower=output.zero_boundary < output.max_boundary,
+                zero_intensity_bound=output.zero_intensity_bound,
+                max_intensity_bound=output.max_intensity_bound,
+                zero_is_lower=output.zero_intensity_bound < output.max_intensity_bound,
                 name=output.name
             )
             if self.wls is not None:

@@ -83,12 +83,8 @@ class TestDomain:
         new_domain = self.domain1.equalize_domains(
             self.domain7.enforce_uniformity())
 
-        with raises(err.DreyeError):
-            self.domain7.start = 0
         with raises(err.DreyeUnitError):
             self.domain1.units = 'V'
-
-        self.domain1.start = 0
 
         assert new_domain.start == 0.1
         assert new_domain.end == 0.8

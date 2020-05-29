@@ -10,6 +10,9 @@ from dreye.constants import RELATIVE_ACCURACY
 from dreye.err import DreyeError
 
 
+# TODO if numeric type then use Govardoskii fit method
+
+
 class Sensitivity(Spectra):
     """
     Same as AbstractSpectrum, but assigns domain min and max,
@@ -17,8 +20,8 @@ class Sensitivity(Spectra):
     sensitivity are always considered.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, values, domain=None, labels=None, **kwargs):
+        super().__init__(values=values, domain=domain, labels=labels, **kwargs)
         self._set_sig_domain_bounds()
 
     def _set_sig_domain_bounds(self):

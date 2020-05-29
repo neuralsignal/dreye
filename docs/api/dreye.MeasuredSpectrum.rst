@@ -33,7 +33,7 @@ MeasuredSpectrum
       ~MeasuredSpectrum.irradiance
       ~MeasuredSpectrum.labels
       ~MeasuredSpectrum.magnitude
-      ~MeasuredSpectrum.max_boundary
+      ~MeasuredSpectrum.max_intensity_bound
       ~MeasuredSpectrum.name
       ~MeasuredSpectrum.nanless
       ~MeasuredSpectrum.ndim
@@ -56,7 +56,7 @@ MeasuredSpectrum
       ~MeasuredSpectrum.units
       ~MeasuredSpectrum.values
       ~MeasuredSpectrum.wavelengths
-      ~MeasuredSpectrum.zero_boundary
+      ~MeasuredSpectrum.zero_intensity_bound
       ~MeasuredSpectrum.zero_is_lower
 
    .. rubric:: Methods Summary
@@ -122,7 +122,7 @@ MeasuredSpectrum
    .. autoattribute:: irradiance
    .. autoattribute:: labels
    .. autoattribute:: magnitude
-   .. autoattribute:: max_boundary
+   .. autoattribute:: max_intensity_bound
    .. autoattribute:: name
    .. autoattribute:: nanless
    .. autoattribute:: ndim
@@ -145,7 +145,7 @@ MeasuredSpectrum
    .. autoattribute:: units
    .. autoattribute:: values
    .. autoattribute:: wavelengths
-   .. autoattribute:: zero_boundary
+   .. autoattribute:: zero_intensity_bound
    .. autoattribute:: zero_is_lower
 
    .. rubric:: Methods Documentation

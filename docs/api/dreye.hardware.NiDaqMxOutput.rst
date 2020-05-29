@@ -12,7 +12,7 @@ NiDaqMxOutput
 
       ~NiDaqMxOutput.channel
       ~NiDaqMxOutput.device
-      ~NiDaqMxOutput.max_boundary
+      ~NiDaqMxOutput.max_intensity_bound
       ~NiDaqMxOutput.max_val
       ~NiDaqMxOutput.min_val
       ~NiDaqMxOutput.mspectrum
@@ -23,7 +23,7 @@ NiDaqMxOutput
       ~NiDaqMxOutput.task
       ~NiDaqMxOutput.units
       ~NiDaqMxOutput.writer
-      ~NiDaqMxOutput.zero_boundary
+      ~NiDaqMxOutput.zero_intensity_bound
 
    .. rubric:: Methods Summary
 
@@ -48,7 +48,7 @@ NiDaqMxOutput
 
    .. autoattribute:: channel
    .. autoattribute:: device
-   .. autoattribute:: max_boundary
+   .. autoattribute:: max_intensity_bound
    .. autoattribute:: max_val
    .. autoattribute:: min_val
    .. autoattribute:: mspectrum
@@ -59,7 +59,7 @@ NiDaqMxOutput
    .. autoattribute:: task
    .. autoattribute:: units
    .. autoattribute:: writer
-   .. autoattribute:: zero_boundary
+   .. autoattribute:: zero_intensity_bound
 
    .. rubric:: Methods Documentation
 

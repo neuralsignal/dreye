@@ -8,7 +8,8 @@ import numpy as np
 from dreye.utilities.abstract import _AbstractContainer
 from dreye.utilities import is_numeric
 from dreye.core.signal import (
-    Signals, _SignalDomainLabels, _SignalIndexLabels
+    Signals, _SignalDomainLabels, _SignalIndexLabels,
+    DomainSignal, Signal
 )
 from dreye.core.plotting_mixin import _PlottingMixin
 
@@ -73,9 +74,20 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
     def units(self):
         return self[0].units
 
+    @units.setter
+    def units(self, value):
+        for idx, ele in enumerate(self):
+            ele = ele.to(value)
+            self[idx] = ele
+
     @property
     def domain_units(self):
         return self[0].domain.units
+
+    @domain_units.setter
+    def domain_units(self, value):
+        for idx, ele in enumerate(self):
+            ele.domain = ele.domain.to(value)
 
     @property
     def names(self):
@@ -91,7 +103,7 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
 
 
 class SignalsContainer(_SignalContainer):
-    _allowed_instances = (_SignalIndexLabels, _SignalDomainLabels)
+    _allowed_instances = (_SignalIndexLabels, _SignalDomainLabels, Signal)
     _enforce_instance = Signals
     _init_keys = ['_signals']
 
@@ -110,8 +122,7 @@ class SignalsContainer(_SignalContainer):
         # convert to correct units
         for idx, ele in enumerate(self):
             ele = ele.to(self.units)
-            domain = ele.domain.to(domain_units)
-            ele._domain = domain
+            ele.domain = ele.domain.to(domain_units)
             self[idx] = ele
 
     @property
@@ -155,6 +166,7 @@ class SignalsContainer(_SignalContainer):
 
 class DomainSignalContainer(_SignalContainer):
     _allowed_instances = _SignalDomainLabels
+    _enforce_instance = DomainSignal
     _init_keys = [
         '_stacked_values',
         '_equalized_domain',
@@ -191,12 +203,17 @@ class DomainSignalContainer(_SignalContainer):
     def labels_units(self):
         return self[0].labels.units
 
+    @labels_units.setter
+    def labels_units(self, value):
+        for idx, ele in enumerate(self):
+            ele.labels = ele.labels.to(value)
+
     @property
     def equalized_labels(self):
         if self._equalized_labels is None:
             labels = self[0].labels
             for signal in self[1:]:
-                labels = labels.equalize_labelss(signal.labels)
+                labels = labels.equalize_labels(signal.labels)
             self._equalized_labels = labels.copy()
         return self._equalized_labels
 
@@ -209,11 +226,11 @@ class DomainSignalContainer(_SignalContainer):
                 len(self.equalized_labels)
             ))
             for idx, signal in enumerate(self):
-                values[idx] = signal(
+                values[idx] = self._enforce_instance(signal)(
                     self.equalized_domain
-                ).T(
+                ).labels_interp(
                     self.equalized_labels
-                ).T.magnitude
+                ).magnitude
 
             self._stack_values = values * self.units
         return self._stacked_values

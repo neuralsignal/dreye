@@ -22,6 +22,18 @@ around = np.vectorize(np.round)
 # vecotrized round function
 
 
+def is_broadcastable(shape1, shape2):
+    """
+    Is array with shape1 broadcastable and lower or equal size than shape2.
+    """
+    for a, b in zip(shape1[::-1], shape2[::-1]):
+        if a == 1 or a == b:
+            pass
+        else:
+            return False
+    return True
+
+
 def asarray(x, *args, **kwargs):
     """
     Always return array, but avoid unit stripping warning.

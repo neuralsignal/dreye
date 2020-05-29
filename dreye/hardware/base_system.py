@@ -41,10 +41,10 @@ class AbstractSender(ABC):
         self.send_value(value)
 
     def map(self, values):
-        if self.spm is None:
-            raise DreyeError('Need to assign a MeasuredSpectraContainer.')
+        if self.measured_spectra is None:
+            raise DreyeError("Need to assign a 'measured_spectra'.")
 
-        return self.spm.map(values)
+        return self.measured_spectra.map(values)
 
     def map_send(self, values, rate=None):
         values = self.map(values, rate)
@@ -52,7 +52,7 @@ class AbstractSender(ABC):
 
     @property
     @abstractmethod
-    def spm(self):
+    def measured_spectra(self):
         pass
 
     @abstractmethod
@@ -86,20 +86,25 @@ class AbstractSender(ABC):
 class AbstractOutput(AbstractSender):
 
     def __init__(
-        self, object_name, name, max_boundary, zero_boundary, units,
-        mspectrum=None
+        self,
+        object_name,
+        name,
+        max_intensity_bound,
+        zero_intensity_bound,
+        units,
+        measured_spectrum=None
     ):
         assert isinstance(object_name, str)
         assert isinstance(name, str)
-        assert is_numeric(max_boundary)
-        assert is_numeric(zero_boundary)
+        assert is_numeric(max_intensity_bound)
+        assert is_numeric(zero_intensity_bound)
         assert isinstance(units, str)
         self._name = name
         self._object_name = object_name
-        self._max_boundary = max_boundary
-        self._zero_boundary = zero_boundary
+        self._max_intensity_bound = max_intensity_bound
+        self._zero_intensity_bound = zero_intensity_bound
         self._units = units
-        self._mspectrum = mspectrum
+        self._measured_spectrum = measured_spectrum
 
     def channel_exists(self):
         return False
@@ -108,7 +113,8 @@ class AbstractOutput(AbstractSender):
         return (
             f"{type(self).__name__}("
             f"object={self.object_name}, name={self.name}, "
-            f"max={self.max_boundary}, zero={self.zero_boundary})"
+            f"max={self.max_intensity_bound}, "
+            f"zero={self.zero_intensity_bound})"
         )
 
     @property
@@ -124,62 +130,55 @@ class AbstractOutput(AbstractSender):
         return self._object_name
 
     @property
-    def max_boundary(self):
-        return self._max_boundary * self.units
+    def max_intensity_bound(self):
+        return self._max_intensity_bound * self.units
 
     @property
-    def zero_boundary(self):
-        return self._zero_boundary * self.units
+    def zero_intensity_bound(self):
+        return self._zero_intensity_bound * self.units
 
     @property
     def min_val(self):
-        return np.min([self._max_boundary, self._zero_boundary])
+        return np.min([self._max_intensity_bound, self._zero_intensity_bound])
 
     @property
     def max_val(self):
-        return np.max([self._max_boundary, self._zero_boundary])
+        return np.max([self._max_intensity_bound, self._zero_intensity_bound])
 
     @property
     def units(self):
         return ureg(self._units).units
 
     @property
-    def spm(self):
-        if self._spm is None:
-            self._assign_new_measurement()
-        return self._spm
+    def measured_spectra(self):
+        return self.measured_spectrum
 
     @property
-    def mspectrum(self):
-        return self._mspectrum
+    def measured_spectrum(self):
+        return self._measured_spectrum
 
-    @mspectrum.setter
-    def mspectrum(self, value):
+    @measured_spectrum.setter
+    def measured_spectrum(self, value):
         assert isinstance(value, MeasuredSpectrum)
-        self._mspectrum = value
-        self._spm = None
+        self._measured_spectrum = value
 
     def _zero(self):
-        self.send_value(self._zero_boundary)
+        self.send_value(self._zero_intensity_bound)
 
     def steps(self, n_steps):
         return np.linspace(
-            self._zero_boundary,
-            self._max_boundary,
+            self._zero_intensity_bound,
+            self._max_intensity_bound,
             n_steps
         )
-
-    def _assign_new_measurement(self, units='uE'):
-        if self.mspectrum is not None:
-            self._spm = self.mspectrum.to_measured_spectra(units=units)
 
     def to_dict(self):
         dictionary = {
             "name": self.name,
-            "max_boundary": self._max_boundary,
-            "zero_boundary": self._zero_boundary,
+            "max_intensity_bound": self._max_intensity_bound,
+            "zero_intensity_bound": self._zero_intensity_bound,
             "units": self._units,
-            "mspectrum": self._mspectrum,
+            "measured_spectrum": self._measured_spectrum,
             "object_name": self._object_name
         }
         return dictionary
@@ -220,7 +219,7 @@ class AbstractSystem(AbstractSender):
             self._outputs = outputs
 
         # attributes calculated on the go
-        self._spms = None
+        self._measured_spectra = None
 
     def __repr__(self):
         return (
@@ -273,17 +272,14 @@ class AbstractSystem(AbstractSender):
         return self.outputs
 
     @property
-    def spms(self):
-        if self._spms is None:
-            container = [output.mspectrum for output in self]
+    def measured_spectra(self):
+        if self._measured_spectra is None:
+            container = [output.measured_spectrum for output in self]
             if all([ele is not None for ele in container]):
-                # TODO units
-                self._spms = MeasuredSpectraContainer(container)
-        return self._spms
-
-    @property
-    def spm(self):
-        return self.spms
+                self._measured_spectra = MeasuredSpectraContainer(
+                    container
+                )
+        return self._measured_spectra
 
     @classmethod
     def from_dict(cls, data):
