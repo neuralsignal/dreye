@@ -25,7 +25,7 @@ def optional_to(obj, units, *args, **kwargs):
     """
     convert to units and return magnitude (number or array)
     """
-    if has_units(units):
+    if has_units(obj):
         if units is None:
             obj = obj.magnitude
         else:
@@ -65,7 +65,14 @@ def is_hashable(obj):
     """
     returns True if allowed hashable (e.g. string, integer, tuple).
     """
-    return isinstance(obj, Hashable)
+    return (
+        is_integer(obj)
+        or is_string(obj)
+        or isinstance(obj, tuple)
+        or obj is None
+    )
+    # return isinstance(obj, (numbers.Integral, str, tuple))
+    # return isinstance(obj, Hashable)  # problem with pint.Quantity
 
 
 def is_string(obj):

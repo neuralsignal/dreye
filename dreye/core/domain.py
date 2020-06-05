@@ -128,16 +128,23 @@ class Domain(_UnitArray):
 
             start = DEFAULT_FLOAT_DTYPE(start)
             end = DEFAULT_FLOAT_DTYPE(end)
+            reverse = (start > end) or np.all(interval < 0)
+            # always positive interval and ascending
+            if reverse:
+                start, end = end, start
+            interval = np.abs(interval)
         else:
             values = asarray(values, DEFAULT_FLOAT_DTYPE)
-            assert values.ndim == 1, "array must be 1-dimensional"
+            assert values.ndim == 1, "Array must be 1-dimensional"
+            reverse = np.all(np.sort(values) == values[::-1])
 
             # check if domain is sorted
-            if not np.all(np.sort(values) == values):
+            if not reverse and not np.all(np.sort(values) == values):
                 raise DreyeError("Values for domain initialization "
                                  f"must be sorted: {values}.")
 
             if values.size == 1:
+                # start and end equal
                 start = values[0]
                 end = values[0]
                 interval = kwargs.get('interval', None)
@@ -148,18 +155,25 @@ class Domain(_UnitArray):
                     "Need to supply numeric interval if domain is of size 1."
                 interval = optional_to(interval, self.units, *self.contexts)
             else:
+                # returns start and end in ascending order
                 start, end, interval = array_domain(
                     values, uniform=is_uniform(values)
                 )
 
-        self._start = start
-        self._end = end
+            # always positive interval
+            interval = np.abs(interval)
+
+        if reverse:
+            self._start, self._end = end, start
+        else:
+            self._start, self._end = start, end
+
         self._values, self._interval = self._create_values(
-            start, end, interval
+            start, end, interval, reverse
         )
 
     @staticmethod
-    def _create_values(start, end, interval):
+    def _create_values(start, end, interval, reverse):
         """create values from start, end, and interval
         """
         if is_listlike(interval):
@@ -184,7 +198,7 @@ class Domain(_UnitArray):
         elif is_numeric(interval):
             if end == start:
                 values = np.array([start]).astype(DEFAULT_FLOAT_DTYPE)
-            elif interval > end - start:
+            elif interval > (end - start):
                 raise DreyeError(f"Interval Attribute value '{interval}' "
                                  f"bigger than span '{start-end}'.")
             else:
@@ -195,6 +209,10 @@ class Domain(_UnitArray):
         else:
             raise DreyeError("Interval not correct type, "
                              f"but type '{type(interval)}'.")
+
+        if reverse:
+            values = values[::-1]
+            interval = -interval
         return values, interval
 
     def _equalize(self, other):
@@ -258,15 +276,17 @@ class Domain(_UnitArray):
         """
         Is the domain in descending order
         """
-        return np.all(np.diff(self.magnitude) < 0)
+        return np.all(self.interval < 0)
+        # return np.all(np.diff(self.magnitude) < 0)
 
     @property
     def is_sorted(self):
         """
         Is the domain sorted
         """
-        ascending = np.diff(self.magnitude) > 0
-        return np.all(ascending) or not np.any(ascending)
+        return True
+        # ascending = np.diff(self.magnitude) > 0
+        # return np.all(ascending) or not np.any(ascending)
 
     def __str__(self):
         """
@@ -310,14 +330,22 @@ class Domain(_UnitArray):
 
         # handles only one-dimensional uniform arrays.
         if not self.is_uniform:
-            raise DreyeError(
-                "Cannot equalize domains, if self is not uniform."
-            )
+            self = self.enforce_uniformity()
+            # TODO warning
+            # raise DreyeError("Cannot equalize domains, "
+            #                  "if self is not uniform.")
+        self = (self[::-1] if self.is_descending else self)
 
         if self == other:
             return self.copy()
 
         if isinstance(other, Domain):
+            if not other.is_uniform:
+                other = other.enforce_uniformity()
+                # TODO warning
+                # raise DreyeError("Cannot equalize domains, "
+                #                  "if other is not uniform.")
+            other = (other[::-1] if other.is_descending else other)
             other = other.to(self.units)
             start = other.start
             end = other.end
@@ -332,16 +360,17 @@ class Domain(_UnitArray):
                 raise DreyeError("Other array does not "
                                  "have a unique interval!")
 
-            start, end, interval = array_domain(other_magnitude, uniform=True)
+            start, end, interval = array_domain(
+                other_magnitude, uniform=True
+            )
         else:
             raise DreyeError("Other is of wrong type "
                              f"'{type(other)}' to equalize domains.")
 
         if (start > self.end) or (end < self.start):
-            raise DreyeError(
-                f"Cannot equalize domains with boundaries ({start}, {end}) "
-                f"and boundaries ({self.start}, {self.end})."
-            )
+            raise DreyeError("Cannot equalize domains with boundaries "
+                             f"({start}, {end}) and boundaries "
+                             f"({self.start}, {self.end}).")
 
         if start < self.start:
             start = self.start
@@ -369,6 +398,7 @@ class Domain(_UnitArray):
         Append a domain to domain.
         """
 
+        # Works with reverse
         if isinstance(domain, Domain):
             domain = domain.to(self.units)
             domain = domain.magnitude
@@ -396,7 +426,7 @@ class Domain(_UnitArray):
         """
         Extend Domain by a certain number of index length.
         """
-
+        # works with reversed/descending values
         assert is_integer(length), "Length must be integer type."
         assert self.is_uniform, \
             "Domain must be uniform to use method 'extend'."
@@ -429,11 +459,12 @@ class Domain(_UnitArray):
         """
         Span of the domain
         """
-        return self.end - self.start
+        return np.max(self.magnitude) - np.min(self.magnitude)
 
     @property
     def boundaries(self):
         """
         Tuple of start and end.
         """
-        return (self.start, self.end)
+        return (np.min(self.magnitude), np.max(self.magnitude))
+        # return (self.start, self.end)

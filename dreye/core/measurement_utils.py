@@ -80,7 +80,9 @@ def create_measured_spectrum(
     zero_intensity_bound=None,
     max_intensity_bound=None,
     assume_contains_output_bounds=True,
-    resolution=None
+    resolution=None,
+    name=None,
+    **kwargs
 ):
     """
     Parameters
@@ -133,7 +135,9 @@ def create_measured_spectrum(
         spectrum_cls=MeasuredSpectrum,
         zero_intensity_bound=zero_intensity_bound,
         max_intensity_bound=max_intensity_bound,
-        resolution=resolution
+        resolution=resolution,
+        name=name,
+        **kwargs
     )
 
 
@@ -175,9 +179,11 @@ def get_led_spectra_container(
     wavelengths=None,  # wavelengths (two-tuple or array-like)
     output_bounds=None,  # two-tuple of min and max output
     resolution=None,  # array-like
-    intensity_units='uE',  # units
+    intensity_units=None,  # units
     output_units=None,
-    transform_func=None  # callable
+    transform_func=None,  # callable
+    steps=10,
+    names=None,
 ):
     """
     Convenience function to created measured spectra container from
@@ -186,59 +192,73 @@ def get_led_spectra_container(
     # create fake LEDs
     if led_spectra is None or is_numeric(led_spectra):
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.1)
+            wavelengths = np.arange(300, 700.1, 0.5)
         if led_spectra is None:
-            centers = np.arange(350, 700, 50)  # 7 LEDs
+            centers = np.arange(350, 700, 50)[None, :]  # 7 LEDs
         else:
-            centers = np.arange(350, 650, int(led_spectra))
+            centers = np.linspace(350, 650, int(led_spectra))[None, :]
         led_spectra = norm.pdf(wavelengths[:, None], centers, 20)
-    # check if we can obtain wavelengths
-    if wavelengths is None:
-        if hasattr(led_spectra, 'domain'):
-            wavelengths = led_spectra.domain
-        elif hasattr(led_spectra, 'wavelengths'):
-            wavelengths = led_spectra.wavelengths
-        elif isinstance(led_spectra, (pd.DataFrame, pd.Index)):
-            wavelengths = asarray(led_spectra.index)
-        else:
-            raise DreyeError("Must provide wavelengths.")
-    if isinstance(led_spectra, _Signal2DMixin):
+    # wavelengths
+    if isinstance(led_spectra, _Signal2DMixin) and wavelengths is not None:
         led_spectra = led_spectra(wavelengths)
         led_spectra.domain_axis = 0
+    # check if we can obtain wavelengths (replace wavelengths)
+    if hasattr(led_spectra, 'domain'):
+        wavelengths = led_spectra.domain
+    elif hasattr(led_spectra, 'wavelengths'):
+        wavelengths = led_spectra.wavelengths
+    elif isinstance(led_spectra, (pd.DataFrame, pd.Index)):
+        wavelengths = led_spectra.index
+    elif wavelengths is None:
+        raise DreyeError("Must provide wavelengths.")
 
     led_spectra = asarray(led_spectra)
-    led_spectra /= np.trapz(led_spectra, wavelengths, axis=0)
+    led_spectra /= np.trapz(led_spectra, asarray(wavelengths), axis=0)
+
+    intensities = np.broadcast_to(
+        np.linspace(*intensity_bounds, steps).T,
+        (led_spectra.shape[1], steps)
+    )
+
+    # handle intenisty units
+    if isinstance(intensity_units, str):
+        units = ureg(intensity_units).units / ureg('nm').units
+    elif has_units(intensity_units):
+        units = intensity_units.units / ureg('nm').units
+    elif intensity_units is None:
+        units = 'uE'  # assumes in microspectralphotonflux
+        intensity_units = 'microphotonflux'
+    else:
+        # assumes is ureg.Unit
+        units = intensity_units / ureg('nm').units
+
+    if output_bounds is None:
+        # assume output bounds is in same units
+        if output_units is None:
+            output_units = intensity_units
+        output = intensities.copy()
+    elif transform_func is not None:
+        output = transform_func(intensities)
+    else:
+        output = np.linspace(*output_bounds, steps)
+    output = np.broadcast_to(output.T, (led_spectra.shape[1], steps))
 
     measured_spectra = []
     for idx, led_spectrum in enumerate(led_spectra.T):
         # always do 100 hundred steps
-        led_spectrum = led_spectrum * np.linspace(*intensity_bounds, 100)[None]
-        if output_bounds is None:
-            output = np.linspace(*intensity_bounds, 100)
-        elif transform_func is not None:
-            output = transform_func(np.linspace(*intensity_bounds, 100))
-        else:
-            output = np.linspace(*output_bounds, 100)
-
-        if intensity_units in MeasuredSpectrum._unit_mappings:
-            units = intensity_units
-        elif isinstance(intensity_units, str):
-            units = ureg(intensity_units).units / ureg('nm').units
-        elif has_units(intensity_units):
-            units = intensity_units.units / ureg('nm').units
-        elif units is None:
-            units = 'uE'  # assumes in microspectralphotonflux
-        else:
-            # assumes is ureg.Unit
-            units = intensity_units / ureg('nm').units
+        led_spectrum = (
+            led_spectrum[:, None]
+            * intensities[idx, None]
+        )
 
         measured_spectrum = MeasuredSpectrum(
             values=led_spectrum,
             domain=wavelengths,
-            labels=output,
+            labels=output[idx],
             labels_units=output_units,
             units=units,
-            resolution=resolution
+            resolution=resolution,
+            name=(None if names is None else names[idx])
         )
         measured_spectra.append(measured_spectrum)
 

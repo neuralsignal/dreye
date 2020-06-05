@@ -74,7 +74,6 @@ def round_to_significant(x, digits):
 def array_equal(x, y):
     """Determine if two arrays are equal
     """
-
     # asarrays
     x = asarray(x)
     y = asarray(y)
@@ -97,7 +96,11 @@ def unique_significant(x, digits=RELATIVE_ACCURACY, **kwargs):
     """
     Return unique values of array within significant digit range
     """
-    return np.unique(round_to_significant(x, digits), **kwargs)
+    x = x.copy()
+    x[x == 0] = ABSOLUTE_ACCURACY
+    xtol = np.nanmin(digits_to_decimals(x, RELATIVE_ACCURACY))
+    return np.unique(np.round(x, int(xtol)), **kwargs)
+    # return np.unique(round_to_significant(x, digits), **kwargs)
 
 
 def spacing(array, unique=True, sorted=False, axis=None):

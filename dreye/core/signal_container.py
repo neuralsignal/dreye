@@ -25,9 +25,9 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
         '_equalized_domain',
     ]
 
-    def to_longframe(self):
+    def to_longframe(self, *args, **kwargs):
         return pd.concat(
-            self.__getattr__('to_longframe')(),
+            self.__getattr__('to_longframe')(*args, **kwargs),
             ignore_index=True, sort=True
         )
 
@@ -40,7 +40,7 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
         # and that columns are wrapped in threes
         if not {'row', 'col'} & set(kwargs):
             kwargs['col'] = 'name'
-            kwargs['col_wrap'] = 3
+            kwargs['col_wrap'] = kwargs.get('col_wrap', 3)
         return super().plot(**kwargs)
 
     def __getitem__(self, key):

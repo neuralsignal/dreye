@@ -57,7 +57,7 @@ class _AbstractContainer(ABC):
     _init_keys = []
     _enforce_instance = None
 
-    def __init__(self, container):
+    def __init__(self, container=[]):
         self._container = self._check_list(container)
         self._init_attrs()
 

@@ -6,7 +6,7 @@ import numpy as np
 DEFAULT_FLOAT_DTYPE = np.float64
 DEFAULT_INT_DTYPE = np.int64
 
-RELATIVE_ACCURACY = 10
+RELATIVE_ACCURACY = 5
 """
 Relative accuracy in number of significant digits used in dreye for any
 float. For example, it is used

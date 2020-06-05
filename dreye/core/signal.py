@@ -1124,7 +1124,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         return df
 
-    def to_longframe(self):
+    def to_longframe(self, ignore_signal_bounds=True):
         """
         Convert signal class to a long dataframe,
         which will also contain the attributes units,
@@ -1133,14 +1133,14 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         It also includes the dimensionality of the units.
         It will also preserve multiindex values for labels.
         """
+        self._ignore_signal_bounds = ignore_signal_bounds
 
         df = self.to_frame()
         while isinstance(df, pd.DataFrame):
             df = df.stack()
 
+        df.name = 'values'
         df = df.reset_index()
-
-        df.rename(columns={0: 'values'}, inplace=True)
 
         df['name'] = self.name
         df['units'] = str(self.units)
@@ -1172,7 +1172,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
                         f"dictionary 'attrs' contains key '{key}', which"
                         " is reserved."
                     )
-            df[key] = [get_value(ele)] * len(df)
+            df[key] = get_value(ele)
 
         return df
 
@@ -1282,7 +1282,7 @@ class _Signal2DMixin(_SignalMixin):
         """
         Set new labels
         """
-        self._labels = self._get_labels(self.magnitude, value)
+        self._labels = self._get_labels(self.magnitude, value, {})
 
     @property
     def labels_axis(self):
@@ -1368,17 +1368,18 @@ class _Signal2DMixin(_SignalMixin):
 
     def _assign_further_longdf_values(self, df):
         # stack all
-        signal_min = self.to_frame('signal_min').stack()
-        signal_min.name = 'signal_min'
-        signal_min = signal_min.reset_index()
+        if not self._ignore_signal_bounds:
+            signal_min = self.to_frame('signal_min').stack()
+            signal_min.name = 'signal_min'
+            signal_min = signal_min.reset_index()
 
-        df = df.merge(signal_min, on=['labels', 'domain'], how='left')
+            df = df.merge(signal_min, on=['labels', 'domain'], how='left')
 
-        signal_max = self.to_frame('signal_max').stack()
-        signal_max.name = 'signal_max'
-        signal_max = signal_max.reset_index()
+            signal_max = self.to_frame('signal_max').stack()
+            signal_max.name = 'signal_max'
+            signal_max = signal_max.reset_index()
 
-        df = df.merge(signal_max, on=['labels', 'domain'], how='left')
+            df = df.merge(signal_max, on=['labels', 'domain'], how='left')
 
         return df
 
@@ -1692,7 +1693,7 @@ class _SignalDomainLabels(_Signal2DMixin):
         """
         return self.switch.domain_concat(other, left=left).switch
 
-    def _get_labels(self, values, labels, kwargs):
+    def _get_labels(self, values, labels, kwargs={}):
         labels_units = kwargs.get('labels_units', None)
         labels_kwargs = kwargs.get('labels_kwargs', None)
         return self._get_domain(

@@ -424,7 +424,6 @@ class _UnitArray(_AbstractArray):
             if values.size == 0:
                 return values
             # keep self
-            # TODO reverse?
             if values.ndim == self.ndim:
                 # if not is tuple make tuple
                 if not isinstance(key, tuple):
@@ -444,8 +443,7 @@ class _UnitArray(_AbstractArray):
                             + after
                         )
                     elif isinstance(ikey, slice):
-                        if ikey.step is not None and ikey.step < 0:
-                            return values
+                        continue
                     else:
                         # only allow slices and ellipsis
                         return values

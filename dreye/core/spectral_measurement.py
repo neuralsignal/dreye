@@ -7,7 +7,8 @@ from sklearn.isotonic import IsotonicRegression
 
 from dreye.utilities import (
     has_units, is_numeric,
-    optional_to, is_listlike, has_units
+    optional_to, is_listlike, has_units,
+    get_units, get_value, digits_to_decimals
 )
 from dreye.constants import ureg
 from dreye.core.signal import Signals, Signal
@@ -82,10 +83,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
         super().__init__(values=values, domain=domain, labels=labels, **kwargs)
 
-        if self.name is None:
-            raise DreyeError(f'name variable must be provided '
-                             f'for {type(self).__name__} instance.')
-
         # getting correct values and converting units
         if zero_intensity_bound is None:
             zero_intensity_bound = self.attrs.get(
@@ -117,6 +114,11 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         self._mapper = None
         self._regressor = None
 
+        if self.name is None:
+            idx = np.argmax(self.normalized_spectrum.magnitude)
+            peak = self.domain.magnitude[idx]
+            self.name = f"peak_at_{int(peak)}"
+
     @property
     def zero_is_lower(self):
         """
@@ -129,8 +131,9 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             or np.isnan(self.max_intensity_bound.magnitude)
         ):
             # integral across wavelengths
-            total_intensity = self.intensity.magnitude
-            return total_intensity[0] < total_intensity[-1]
+            intensity = self.intensity.magnitude
+            argsort = np.argsort(self.output.magnitude)
+            return intensity[argsort][0] < intensity[argsort][-1]
         else:
             return (
                 self.zero_intensity_bound.magnitude
@@ -169,7 +172,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
     @property
     def output_bounds(self):
         """
-        Bounds of output, e.g. 0 adn 5 volts.
+        Bounds of output, e.g. 0 and 5 volts.
 
         Does not include units
         """
@@ -214,7 +217,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             lower = 0.0
             upper = np.max(integral)
         else:
-            lower = np.min(integral)
+            lower = np.max([np.min(integral), 0.0])
             upper = np.max(integral)
 
         return (lower, upper)
@@ -230,13 +233,24 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
         if self._normalized_spectrum is None:
             values = self.mean(axis=self.labels_axis)
-            spectra = Spectrum(
+            units, values = get_units(values), get_value(values)
+            # dealing with noise close to zero
+            # assume negative intensity value are due to noise!
+            # TODO
+            # min_value = np.min(values)
+            # if min_value < 0:
+            #     decimals = int(digits_to_decimals(min_value, 0))
+            #     values = np.round(values, decimals)
+            # create spectrum
+            spectrum = Spectrum(
                 values=values,
                 domain=self.domain,
                 name=self.name,
+                units=units,
                 attrs=self.attrs,
+                signal_min=0  # enforce zero as signal minimum
             )
-            self._normalized_spectrum = spectra.normalized_signal
+            self._normalized_spectrum = spectrum.normalized_signal
 
         return self._normalized_spectrum
 
@@ -321,6 +335,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
         # this is going to be two dimensional, since it is a Signals instance
         values = optional_to(values, self.labels.units, *self.contexts)
+        values = self._resolution_mapping(values)
         intensity = self.regressor.transform(values)
 
         if return_units:
@@ -348,8 +363,13 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
         R^2 score.
         """
+        values = optional_to(values, self.intensity.units, *self.contexts)
         mapped_values = self.map(values, return_units=False)
-        return self.regressor.score(mapped_values, values, **kwargs)
+        fit_values = self.inverse_map(mapped_values, return_units=False)
+        res = (values - fit_values) ** 2
+        tot = (values - values.mean()) ** 2
+        return 1 - res.sum()/tot.sum()
+        # return self.regressor.score(mapped_values, values, **kwargs)
 
     def _mapper_func(self, *args, **kwargs):
         """mapping using isotonic regression
@@ -372,8 +392,13 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
     def _assign_mapper(self):
         # 1D signal
-        y = self.intesity.magnitude  # integral across intensities
+        y = self.intensity.magnitude  # integral across intensities
         x = self.output.magnitude
+        # sort x, y (not necessary)
+        argsort = np.argsort(x)
+        x = x[argsort]
+        y = y[argsort]
+        # y_min and y_max
         y_min, y_max = self.intensity_bounds
         zero_is_lower = self.zero_is_lower
         zero_intensity_bound = self.zero_intensity_bound.magnitude
@@ -388,7 +413,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             y = np.concateante([y, [0]])
 
         # perform isotonic regression
-        # TODO score and such
         isoreg = IsotonicRegression(
             # lower and upper intensity values
             y_min=y_min,
@@ -399,15 +423,22 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
         new_y = isoreg.fit_transform(x, y)
 
+        # should throw bounds_error, since zero intensity bound
+        # has been added
+        # self._mapper = interp1d(new_y, x)
         # interpolation function
-        self._mapper = interp1d(
-            new_y, x,
-            bounds_error=False,
-            # allow going beyond bounds
-            # but fill values to lower and upper bounds
-            # lower and upper output values
-            fill_value=self.output_bounds
-        )
+        if zero_is_lower:
+            self._mapper = interp1d(
+                new_y, x,
+                bounds_error=False,
+                fill_value=self.output_bounds
+            )
+        else:
+            self._mapper = interp1d(
+                new_y, x,
+                bounds_error=False,
+                fill_value=self.output_bounds[::-1]
+            )
 
 
 class MeasuredSpectraContainer(DomainSignalContainer):
@@ -515,6 +546,18 @@ class MeasuredSpectraContainer(DomainSignalContainer):
             return np.mean(scores)
 
         return scores
+
+    @property
+    def resolution(self):
+        """
+        Resolution of devices
+        """
+        resolutions = self.__getattr__('resolution')
+        nones = ([r is None for r in resolutions])
+        if all(nones):
+            return
+        else:
+            return resolutions
 
     @property
     def zero_is_lower(self):

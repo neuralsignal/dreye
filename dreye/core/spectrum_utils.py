@@ -6,9 +6,33 @@ import numpy as np
 from scipy.stats import norm
 
 from dreye.utilities import optional_to
-from dreye.core.spectrum import IntensitySpectra
+from dreye.core.spectrum import IntensitySpectra, Spectrum
 from dreye.core.signal import _SignalMixin
 from dreye.constants import ureg
+
+
+def get_spectrum(
+    intensities=None,
+    wavelengths=None,
+    **kwargs
+):
+    """
+    convenience function to create a Spectrum instance
+    """
+
+    if intensities is None:
+        if wavelengths is None:
+            wavelengths = np.arange(300, 700.1, 0.5)
+        intensities = np.ones(len(wavelengths))
+        intensities /= np.trapz(intensities, wavelengths)
+    elif wavelengths is None:
+        wavelengths = np.linspace(300, 700, len(wavelengths))
+
+    return Spectrum(
+        values=intensities,
+        domain=wavelengths,
+        **kwargs
+    )
 
 
 def create_gaussian_spectrum(
@@ -91,7 +115,11 @@ def create_gaussian_spectrum(
             / np.max(spectrum_array, axis=0, keepdims=True)
         )
     else:
-        spectrum_array *= intensity
+        spectrum_array *= (
+            intensity
+            # integral to ensure it integrate to intensity
+            / np.trapz(spectrum_array, wavelengths, axis=0)
+        )
 
     if add_background and background is not None:
         spectrum_array += background
