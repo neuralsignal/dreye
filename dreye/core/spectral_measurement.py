@@ -31,7 +31,6 @@ class CalibrationSpectrum(Spectrum):
         self,
         values,
         domain=None,
-        labels=None,
         *,
         area=None,
         units=None,
@@ -44,8 +43,8 @@ class CalibrationSpectrum(Spectrum):
         if units is None and not has_units(values):
             units = ureg('microjoule').units
 
-        super.__init__(
-            values=values, domain=domain, labels=labels, units=units,
+        super().__init__(
+            values=values, domain=domain, units=units,
             **kwargs
         )
 
@@ -441,6 +440,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             )
 
 
+# TODO allow curve fit instead of isotonic regression? - SKlearn type class
 class MeasuredSpectraContainer(DomainSignalContainer):
     """Container for measured spectra
 

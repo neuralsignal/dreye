@@ -1,25 +1,15 @@
 """
 """
 
-import time
-import os
-import datetime
-
 import numpy as np
-import pandas as pd
 
 from dreye.constants import ureg
-from dreye.core.spectrum import AbstractSpectrum
 from dreye.core.spectral_measurement import CalibrationSpectrum
-from dreye.core.measurement_utils import (
-    create_calibration_spectrum, convert_measurement,
-    create_measured_spectrum, create_measured_spectra
-)
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.err import DreyeError
 from dreye.utilities import is_numeric
 
-#HARDWARE API IMPORTS
+# HARDWARE API IMPORTS
 try:
     import seabreeze.spectrometers as sb
     SEABREEZE = True
@@ -85,8 +75,10 @@ def read_calibration_file(
         area = area * ureg('cm**2')
 
     if create_spectrum:
-        cal = create_calibration_spectrum(
-            cal_data[:, 1], cal_data[:, 0], area
+        cal = CalibrationSpectrum(
+            values=cal_data[:, 1],
+            domain=cal_data[:, 0],
+            area=area
         )
         if return_integration_time:
             return cal, integration_time

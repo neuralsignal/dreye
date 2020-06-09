@@ -35,147 +35,168 @@ ureg.define(
 c = pint.Context('flux')
 
 
-def gradient(domain):
-    """calculate gradient and preserve units
-    """
-    slices = tuple(
-        None
-        if i == 1
-        else slice(None, None, None)
-        for i in domain.shape
+# def gradient(domain):
+#     """calculate gradient and preserve units
+#     """
+#     slices = tuple(
+#         None
+#         if i == 1
+#         else slice(None, None, None)
+#         for i in domain.shape
+#     )
+#     return np.gradient(np.squeeze(domain.magnitude))[slices] * domain.units
+
+
+def irr2flux(ureg, x, domain):
+    return x * domain / (
+        ureg.planck_constant
+        * ureg.speed_of_light
+        * ureg.N_A
     )
-    return np.gradient(np.squeeze(domain.magnitude))[slices] * domain.units
 
 
-c.add_transformation(
-    '[length] * [mass] / [time] ** 3',
-    '[substance] / [length] ** 2 / [time]',
-    lambda ureg, x: (
-        x
-        / (
-            ureg.planck_constant
-            * ureg.speed_of_light
-            * ureg.N_A)
-    )
-)
-
-
-c.add_transformation(
-    '[mass] / [time] ** 3',
-    '[substance] / [length] ** 2 / [time]',
-    lambda ureg, x, domain: (
-        x * domain / (
-            ureg.planck_constant
-            * ureg.speed_of_light
-            * ureg.N_A)
-    )
-)
-
-
-c.add_transformation(
-    '[substance] / [length] ** 2 / [time]',
-    '[length] * [mass] / [time] ** 3',
-    lambda ureg, x: (
-        x
-        * (
-            ureg.planck_constant
-            * ureg.speed_of_light
-            * ureg.N_A)
-    )
-)
-
-
-c.add_transformation(
-    '[substance] / [length] ** 2 / [time]',
-    '[mass] / [time] ** 3',
-    lambda ureg, x, domain: (
+def flux2irr(ureg, x, domain):
+    return (
         x * (
             ureg.planck_constant
             * ureg.speed_of_light
             * ureg.N_A)
     ) / domain
-)
 
 
 c.add_transformation(
+    '[length] * [mass] / [time] ** 3',
     '[substance] / [length] ** 2 / [time]',
-    '[mass] / [length] / [time] ** 3',
-    lambda ureg, x, domain: (
-        x
-        * (
-            ureg.planck_constant
-            * ureg.speed_of_light
-            * ureg.N_A)
-    ) / domain / gradient(domain)
-)
-
-c.add_transformation(
-    '[mass] / [length] / [time] ** 3',
-    '[substance] / [length] ** 2 / [time]',
-    lambda ureg, x, domain: (
+    lambda ureg, x: (
         x
         / (
             ureg.planck_constant
             * ureg.speed_of_light
             * ureg.N_A)
-    ) * domain * gradient(domain)
-)
-
-
-c.add_transformation(
-    '[substance] / [length] ** 3 / [time]',
-    '[mass] / [time] ** 3 / [length]',
-    lambda ureg, x, domain: (
-        x
-        * (
-            ureg.planck_constant
-            * ureg.speed_of_light
-            * ureg.N_A
-        )
-    ) / domain
-)
-
-
-c.add_transformation(
-    '[mass] / [time] ** 3 / [length]',
-    '[substance] / [length] ** 3 / [time]',
-    lambda ureg, x, domain: (
-        x
-        / (
-            ureg.planck_constant
-            * ureg.speed_of_light
-            * ureg.N_A
-        )
-    ) * domain
+    )
 )
 
 
 c.add_transformation(
     '[mass] / [time] ** 3',
-    '[mass] / [length] / [time] ** 3',
-    lambda ureg, x, domain: x / gradient(domain)
+    '[substance] / [length] ** 2 / [time]',
+    irr2flux,
+    # lambda ureg, x, domain: (
+    #     x * domain / (
+    #         ureg.planck_constant
+    #         * ureg.speed_of_light
+    #         * ureg.N_A)
+    # )
 )
 
 
+# c.add_transformation(
+#     '[substance] / [length] ** 2 / [time]',
+#     '[length] * [mass] / [time] ** 3',
+#     lambda ureg, x: (
+#         x
+#         * (
+#             ureg.planck_constant
+#             * ureg.speed_of_light
+#             * ureg.N_A)
+#     )
+# )
+
+
 c.add_transformation(
-    '[mass] / [length] / [time] ** 3',
+    '[substance] / [length] ** 2 / [time]',
     '[mass] / [time] ** 3',
-    lambda ureg, x, domain: x * gradient(domain)
+    flux2irr
+    # lambda ureg, x, domain: (
+    #     x * (
+    #         ureg.planck_constant
+    #         * ureg.speed_of_light
+    #         * ureg.N_A)
+    # ) / domain
 )
+
+
+# c.add_transformation(
+#     '[substance] / [length] ** 2 / [time]',
+#     '[mass] / [length] / [time] ** 3',
+#     lambda ureg, x, domain: (
+#         x
+#         * (
+#             ureg.planck_constant
+#             * ureg.speed_of_light
+#             * ureg.N_A)
+#     ) / domain / gradient(domain)
+# )
+#
+# c.add_transformation(
+#     '[mass] / [length] / [time] ** 3',
+#     '[substance] / [length] ** 2 / [time]',
+#     lambda ureg, x, domain: (
+#         x
+#         / (
+#             ureg.planck_constant
+#             * ureg.speed_of_light
+#             * ureg.N_A)
+#     ) * domain * gradient(domain)
+# )
 
 
 c.add_transformation(
     '[substance] / [length] ** 3 / [time]',
-    '[substance] / [length] ** 2 / [time]',
-    lambda ureg, x, domain: x * gradient(domain)
+    '[mass] / [time] ** 3 / [length]',
+    flux2irr
+    # lambda ureg, x, domain: (
+    #     x
+    #     * (
+    #         ureg.planck_constant
+    #         * ureg.speed_of_light
+    #         * ureg.N_A
+    #     )
+    # ) / domain
 )
 
 
 c.add_transformation(
-    '[substance] / [length] ** 2 / [time]',
+    '[mass] / [time] ** 3 / [length]',
     '[substance] / [length] ** 3 / [time]',
-    lambda ureg, x, domain: x / gradient(domain)
+    irr2flux
+    # lambda ureg, x, domain: (
+    #     x
+    #     / (
+    #         ureg.planck_constant
+    #         * ureg.speed_of_light
+    #         * ureg.N_A
+    #     )
+    # ) * domain
 )
+
+
+# c.add_transformation(
+#     '[mass] / [time] ** 3',
+#     '[mass] / [length] / [time] ** 3',
+#     lambda ureg, x, domain: x / gradient(domain)
+# )
+#
+#
+# c.add_transformation(
+#     '[mass] / [length] / [time] ** 3',
+#     '[mass] / [time] ** 3',
+#     lambda ureg, x, domain: x * gradient(domain)
+# )
+#
+#
+# c.add_transformation(
+#     '[substance] / [length] ** 3 / [time]',
+#     '[substance] / [length] ** 2 / [time]',
+#     lambda ureg, x, domain: x * gradient(domain)
+# )
+#
+#
+# c.add_transformation(
+#     '[substance] / [length] ** 2 / [time]',
+#     '[substance] / [length] ** 3 / [time]',
+#     lambda ureg, x, domain: x / gradient(domain)
+# )
 
 c.add_transformation(
     '[substance]',

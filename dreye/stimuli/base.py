@@ -2,9 +2,6 @@
 """
 
 from abc import ABC, abstractmethod
-import inspect
-import importlib
-import warnings
 import random
 
 import numpy as np
@@ -55,17 +52,24 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     time_axis = 0
     channel_axis = 1
+    _add_mean_to_events = True
+    _added_to_events = False
 
-    def __init__(self, *, rate=None, seed=None, **kwargs):
+    def __init__(self, *, estimator=None, rate=None, seed=None, **kwargs):
         """base initialization
         """
 
+        self.estimator = estimator
         self.seed = seed
         self.rate = rate
         if rate is not None:
             assert is_numeric(rate), 'rate must be numeric'
         if seed is not None:
             assert is_numeric(seed), 'seed must be numeric'
+        if estimator is not None:
+            assert hasattr(estimator, 'fit_transform'), (
+                'Estimator requires methods `fit` and `transform`.'
+            )
 
         # directly set elements
         for key, ele in kwargs.items():
@@ -73,6 +77,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         self._stimulus = None
         self._signal = None
+        self._fitted_signal = None
         self._metadata = {}
         self._events = pd.DataFrame()
 
@@ -80,6 +85,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
         settings = {
             'rate': self.rate,
             'seed': self.seed,
+            'estimator': self.estimator,
             **kwargs
         }
         if hasattr(self, '_settings'):
@@ -89,15 +95,33 @@ class BaseStimulus(ABC, StimPlottingMixin):
         else:
             self._settings = settings
 
+    @property
+    def _plot_attrs(self):
+        plot_attrs = super()._plot_attrs
+        if hasattr(self.estimator, '_X_length'):
+            plot_attrs = (
+                plot_attrs[:-1] + self.estimator._X_length + plot_attrs[-1:]
+            )
+        return plot_attrs
+
     @abstractmethod
     def create(self):
         """create signal and metadata
         """
 
-    @abstractmethod
     def transform(self):
         """transform signal to stimulus
         """
+
+        if self.estimator is None:
+            self._stimulus = self.signal
+        else:
+            self._stimulus = self.estimator.fit_transform(self.signal)
+
+        if hasattr(self.estimator, 'fitted_X'):
+            self._fitted_signal = self.estimator.fitted_X
+        else:
+            self._fitted_signal = self.signal
 
     # --- short hand for metadata dictionary --- #
 
@@ -133,15 +157,58 @@ class BaseStimulus(ABC, StimPlottingMixin):
         return self._metadata
 
     @property
+    def ch_names(self):
+        """
+        Name for each channel
+        """
+        return list(range(self.signal.shape[self.channel_axis]))
+
+    @property
     def events(self):
         """a pandas dataframe of events in the stimulus (custom-formatted).
         Each row is a single event.
         """
 
         if self._signal is None:
-            self.create()
+            self.transform()
 
-        return _check_events(self._events)
+        if not self._added_to_events:
+            events = _check_events(self._events)
+            if hasattr(self.estimator, 'fitted_X'):
+                events = self._add_to_events(
+                    events, self.ch_names, self.estimator.fitted_X, 'fitted_'
+                )
+            if hasattr(self.estimator, '_X_length'):
+                for attr in self.estimator._X_length:
+                    # special cases
+                    if (
+                        'intensities_' in attr
+                        and hasattr(self.estimator, 'measured_spectra_')
+                    ):
+                        labels = self.estimator.measured_spectra_.names
+                        prefix = attr.replace('intensities_', '')
+                    elif (
+                        'excite_X_' in attr
+                        and hasattr(self.estimator, 'photoreceptor_model_')
+                    ):
+                        labels = self.estimator.photoreceptor_model_.names
+                        prefix = attr.replace('excite_X_', 'f_')
+                    elif (
+                        'capture_X_' in attr
+                        and hasattr(self.estimator, 'photoreceptor_model_')
+                    ):
+                        labels = self.estimator.photoreceptor_model_.names
+                        prefix = attr.replace('capture_X_', 'q_')
+                    else:
+                        labels = None
+                        prefix = attr
+                    events = self._add_to_events(
+                        events, labels, getattr(self.estimator, attr), prefix
+                    )
+            self._events = events
+            self._added_to_events = True
+
+        return self._events
 
     def time2frame(self, key=DELAY_KEY):
         """get idcs for delay period
@@ -163,13 +230,22 @@ class BaseStimulus(ABC, StimPlottingMixin):
         return self._signal
 
     @property
+    def fitted_signal(self):
+        """
+        fitted array using the estimator (if hasattr fitted_X)
+        """
+
+        if self._fitted_signal is None:
+            self.transform()
+
+        return self._fitted_signal
+
+    @property
     def stimulus(self):
         """processed numpy array of stimulus (for sending to hardware)
         """
 
         if self._stimulus is None:
-            if self._signal is None:
-                self.create()
             self.transform()
 
         return self._stimulus
@@ -241,6 +317,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
         return {
             'stimulus': self.stimulus,
             'signal': self.signal,
+            'fitted_signal': self.fitted_signal,
             'metadata': self.metadata,
             'events': self.events.to_dict('list'),
             'settings': self.settings,
@@ -284,6 +361,68 @@ class BaseStimulus(ABC, StimPlottingMixin):
         """
 
         return read_json(filename)
+
+    def _add_to_events(self, events, labels, signal, prefix):
+        """
+        method used to add transformations of signals
+        """
+        # has to be an array
+        signal = asarray(signal)
+
+        if labels is None:
+            labels = [
+                f'{prefix}{idx}'
+                for idx in range(signal.shape[self.channel_axis])
+            ]
+        else:
+            labels = [
+                f"{prefix}{label}" for label in labels
+            ]
+        # add opsin channels to events
+        # warn if channel names already exist
+        truth = (
+            set(labels)
+            & set(events.columns)
+        )
+        if truth:
+            raise DreyeError('Events Dataframe already contains columns'
+                             f' for labels {labels}.')
+        # assert sizes match
+        assert len(labels) == signal.shape[self.channel_axis]
+        # if signal high-dimensional then events columns need to be object type
+        events = {}
+        for channel in labels:
+            events[channel] = []
+
+        for idx, row in events.iterrows():
+            # get indices for event
+            if self.rate is None:
+                idcs = asarray([row[DELAY_KEY]]).astype(int)
+            else:
+                dur_length = row[DUR_KEY] * self.rate
+                delay_idx = row[DELAY_KEY] * self.rate
+                idcs = (np.arange(dur_length) + delay_idx).astype(int)
+            # extract signal from event
+            _signal = np.take(signal, idcs, axis=self.time_axis)
+            # for each channel in labels take channel in signal
+            # and average across time (and channel)
+            for jdx, channel in enumerate(labels):
+                # taking a list ensures that the axis are still aligned!
+                value = np.take(_signal, [jdx], axis=self.channel_axis)
+                if self._add_mean_to_events:
+                    value = value.mean(
+                        axis=(self.time_axis, self.channel_axis)
+                    )
+                else:
+                    value = value.mean(axis=self.channel_axis)
+                # assign entry
+                events[channel].append(value)
+
+        events = pd.DataFrame(events, index=events.index)
+        # reassign events
+        events = pd.concat([events, events], axis=1)
+
+        return events
 
 
 class ChainedStimuli:

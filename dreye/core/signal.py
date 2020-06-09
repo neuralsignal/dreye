@@ -730,6 +730,13 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         return self / self.integral[self._slices_except_none_domain_axis]
 
     @property
+    def max_normalized(self):
+        """
+        Returns max normalized signal (across non-domain axes)
+        """
+        return self / self.max(axis=self.domain_axis, keepdims=True)
+
+    @property
     def piecewise_integral(self):
         """
         Returns the calculated integral at each point using the trapezoidal

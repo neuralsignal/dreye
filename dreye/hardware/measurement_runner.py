@@ -46,13 +46,12 @@ class MeasurementRunner:
         self, system, spectrometer,
         n_steps=10, step_kwargs={},
         n_avg=10, sleep=None,
-        wls=None, remove_zero=True,
+        wls=None, remove_zero=False,
         smoothing_window=None
     ):
         assert isinstance(system, AbstractSystem)
         assert isinstance(spectrometer, AbstractSpectrometer)
         system.check_channels()
-        # TODO instance checking
         self.system = system
         self.spectrometer = spectrometer
         self.n_steps = n_steps
@@ -70,7 +69,7 @@ class MeasurementRunner:
                 '---------------\n'
             )
         # reset spms
-        self.system._spms = None
+        self.system._measured_spectra = None
         # iterate over system devices
         for n, output in enumerate(self.system):
             if verbose:
@@ -113,10 +112,11 @@ class MeasurementRunner:
             if self.remove_zero:
                 spectrum_array -= spectrum_array[:, :1]
             # flip if reversed
-            if output.zero_intensity_bound > output.max_intensity_bound:
-                spectrum_array = spectrum_array[:, ::-1]
-                values = values[::-1]
-                its = its[::-1]
+            # not necessary anymore
+            # if output.zero_intensity_bound > output.max_intensity_bound:
+            #     spectrum_array = spectrum_array[:, ::-1]
+            #     values = values[::-1]
+            #     its = its[::-1]
             if verbose == 1:
                 sys.stdout.write('\n')
             if verbose:
@@ -130,19 +130,16 @@ class MeasurementRunner:
             # zero output device
             output._zero()
             # convert everything correctly
-            # TODO
             mspectrum = create_measured_spectrum(
                 spectrum_array=spectrum_array,
-                inputs=values,
+                output=values,
                 wavelengths=self.spectrometer.wavelengths,
                 calibration=self.spectrometer.cal,
                 integration_time=its,
-                axis=0,
                 smoothing_window=self.smoothing_window,
-                input_units=output.units,
+                output_units=output.units,
                 zero_intensity_bound=output.zero_intensity_bound,
                 max_intensity_bound=output.max_intensity_bound,
-                zero_is_lower=output.zero_intensity_bound < output.max_intensity_bound,
                 name=output.name
             )
             if self.wls is not None:
@@ -150,7 +147,7 @@ class MeasurementRunner:
             if self.smoothing_window is not None:
                 mspectrum = mspectrum.smooth()
 
-            output.mspectrum = mspectrum
+            output.measured_spectrum = mspectrum
             output.close()
 
             if verbose:

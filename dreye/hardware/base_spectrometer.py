@@ -6,7 +6,7 @@ import time
 
 import numpy as np
 
-from dreye.core.spectrum import Spectra
+from dreye.core.spectrum import Spectrum
 from dreye.core.measurement_utils import convert_measurement
 from dreye.err import DreyeError
 
@@ -104,7 +104,7 @@ class AbstractSpectrometer(ABC):
     @property
     def signal(self):
         return convert_measurement(
-            Spectra(
+            Spectrum(
                 self.intensity,
                 domain=self.wls,
             ),
@@ -141,7 +141,7 @@ class AbstractSpectrometer(ABC):
         ints = self.avg_ints(n, sleep)
 
         if return_spectrum:
-            ints = Spectra(
+            ints = Spectrum(
                 ints,
                 domain=self.wls
             )

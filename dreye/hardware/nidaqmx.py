@@ -2,16 +2,14 @@
 """
 
 import time
-import os
 import sys
-import datetime
 
 import numpy as np
 import pandas as pd
 
 from dreye.err import DreyeError
 from dreye.hardware.base_system import AbstractOutput, AbstractSystem
-from dreye.utilities import convert_units, asarray
+from dreye.utilities import optional_to, asarray
 
 # HARDWARE API IMPORTS
 try:
@@ -92,7 +90,7 @@ class NiDaqMxOutput(AbstractOutput):
         self.writer = None
 
     def send(self, values, rate=None, return_value=None):
-        dt = float(convert_units(1 / rate, 's'))
+        dt = float(optional_to(1 / rate, 's'))
         self.open()
         for value in asarray(values).astype(np.float64):
             now = time.clock()
@@ -220,7 +218,7 @@ class NiDaqMxSystem(AbstractSystem):
 
         self.open()
 
-        dt = float(convert_units(1 / rate, 's'))
+        dt = float(optional_to(1 / rate, 's'))
         values = asarray(values, dtype=np.float64)
         grouped_values = self._group_values(values, rate)
         length = len(grouped_values)

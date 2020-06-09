@@ -26,12 +26,6 @@ class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
         self._events, self._metadata = self._create_events()
         self._signal = self._create_signal(self._events)
 
-    def transform(self):
-        """transform signal to stimulus to be sent
-        """
-
-        self._stimulus = asarray(self.signal)
-
 
 class StepStimulus(AbstractStepStimulus, SetStepMixin):
     """Step stimulus
@@ -74,6 +68,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
     def __init__(
         self,
         *,
+        estimator=None,
         values=1,
         durations=1,
         pause_durations=0,
@@ -92,6 +87,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
 
         # call init method of BaseStimulus class
         super().__init__(
+            estimator=estimator,
             rate=rate,
             values=values,
             durations=durations,
@@ -119,6 +115,10 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
             durations=durations, pause_durations=pause_durations,
             aligned_durations=aligned_durations
         )
+
+    @property
+    def ch_names(self):
+        return list(self.values.columns)
 
     # --- methods for create method --- #
 
@@ -255,6 +255,7 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
     def __init__(
         self,
         *,
+        estimator=None,
         values=[0, 1],
         values_probs=None,
         loc=0,
@@ -272,6 +273,7 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
 
         # call init of BaseStimulus class
         super().__init__(
+            estimator=estimator,
             values=values,
             values_probs=values_probs,
             rate=rate,
@@ -298,6 +300,10 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
             )
 
     # --- methods for create method --- #
+
+    @property
+    def ch_names(self):
+        return list(self.values.keys())
 
     def _create_events(self):
         """create events dataframe

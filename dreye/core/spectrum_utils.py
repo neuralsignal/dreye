@@ -5,8 +5,8 @@ Functions for creating or fitting particular spectra
 import numpy as np
 from scipy.stats import norm
 
-from dreye.utilities import optional_to
-from dreye.core.spectrum import IntensitySpectra, Spectrum
+from dreye.utilities import optional_to, is_integer, asarray
+from dreye.core.spectrum import Spectra, Spectrum
 from dreye.core.signal import _SignalMixin
 from dreye.constants import ureg
 
@@ -26,13 +26,50 @@ def get_spectrum(
         intensities = np.ones(len(wavelengths))
         intensities /= np.trapz(intensities, wavelengths)
     elif wavelengths is None:
-        wavelengths = np.linspace(300, 700, len(wavelengths))
+        wavelengths = np.linspace(300, 700, len(intensities))
 
     return Spectrum(
         values=intensities,
         domain=wavelengths,
         **kwargs
     )
+
+
+def get_max_normalized_gaussian_spectra(
+    intensities=None,
+    wavelengths=None,
+    **kwargs
+):
+    """
+    Convenience function to create a Spectra instance
+    """
+    kwargs['units'] = kwargs.get('units', None)
+    if intensities is None or is_integer(intensities):
+        if wavelengths is None:
+            wavelengths = np.arange(300, 700.1, 0.5)
+        if intensities is None:
+            intensities = 10
+        spectra = create_gaussian_spectrum(
+            wavelengths, np.linspace(300, 700, intensities),
+            **kwargs
+        )
+        return spectra.max_normalized
+    elif asarray(intensities).ndim == 1:
+        if wavelengths is None:
+            wavelengths = np.arange(300, 700.1, 0.5)
+        spectra = create_gaussian_spectrum(
+            wavelengths, intensities,
+            **kwargs
+        )
+        return spectra.max_normalized
+    elif wavelengths is None:
+        wavelengths = np.linspace(300, 700, len(intensities))
+
+    return Spectra(
+        values=intensities,
+        domain=wavelengths,
+        **kwargs
+    ).max_normalized
 
 
 def create_gaussian_spectrum(
@@ -44,6 +81,7 @@ def create_gaussian_spectrum(
     filter=False,
     add_background=False,
     zero_cutoff=True,
+    max_normalized=False,
     **kwargs
 ):
     """
@@ -79,7 +117,7 @@ def create_gaussian_spectrum(
     if isinstance(background, _SignalMixin):
         background = background(wavelengths).to(units)
 
-    units = IntensitySpectra._unit_mappings.get(units, units)
+    units = Spectra._unit_mappings.get(units, units)
     if isinstance(units, str) or units is None:
         units = ureg(units).units
 
@@ -114,6 +152,10 @@ def create_gaussian_spectrum(
             * spectrum_array
             / np.max(spectrum_array, axis=0, keepdims=True)
         )
+    elif max_normalized:
+        spectrum_array = intensity * (
+            spectrum_array / np.max(spectrum_array, axis=0, keepdims=True)
+        )
     else:
         spectrum_array *= (
             intensity
@@ -127,7 +169,7 @@ def create_gaussian_spectrum(
     if zero_cutoff:
         spectrum_array = np.clip(spectrum_array, 0, None)
 
-    return IntensitySpectra(
+    return Spectra(
         spectrum_array,
         domain=np.squeeze(wavelengths),
         units=units,

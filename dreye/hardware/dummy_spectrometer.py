@@ -3,11 +3,11 @@
 
 import numpy as np
 
-from dreye.core.spectrum import IntensitySpectra
+from dreye.core.spectrum import Spectra
 from dreye.core.spectral_measurement import CalibrationSpectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.dummy_system import DummySystem
-from dreye.utilities import asarray
+from dreye.utilities import asarray, get_value
 
 
 class DummySpectrometer(AbstractSpectrometer):
@@ -16,16 +16,16 @@ class DummySpectrometer(AbstractSpectrometer):
 
     def __init__(
         self, wavelengths, dummy_leds, dummy_system,
-        noise_scale=1
+        noise_scale=0.01
     ):
 
-        assert isinstance(dummy_leds, IntensitySpectra)
+        assert isinstance(dummy_leds, Spectra)
         assert isinstance(dummy_system, DummySystem)
         assert dummy_leds.ndim == 2
-        assert dummy_leds.other_len == len(dummy_system)
-        self.leds = dummy_leds.irradiance.moveaxis(
-            dummy_leds.domain_axis, 0
-        ).magnitude
+        assert dummy_leds.shape[dummy_leds.domain_axis-1] == len(dummy_system)
+        leds = dummy_leds.to('spectralirradiance')
+        leds.domain_axis = 0
+        self.leds = leds.magnitude
         self.system = dummy_system
         self.noise_scale = noise_scale
         self._wavelengths = asarray(wavelengths)
@@ -77,19 +77,24 @@ class DummySpectrometer(AbstractSpectrometer):
         for idx, output in enumerate(self.system):
             if output._open:
                 value = output._current_value
-                zero_intensity_bound = output.zero_intensity_bound
-                max_intensity_bound = output.max_intensity_bound
+                zero_intensity_bound = get_value(output.zero_intensity_bound)
+                max_intensity_bound = get_value(output.max_intensity_bound)
                 assert value is not None
                 break
+        else:
+            idx = 0
+            output = self.system[0]
+            zero_intensity_bound = get_value(output.zero_intensity_bound)
+            max_intensity_bound = get_value(output.max_intensity_bound)
+            value = max_intensity_bound
         led = self.leds[:, idx]
-        led /= np.max(led)
-        led *= self.ideal_mid_point
-        led += np.random.normal(0, self.noise_scale, size=led.shape)
-        led *= self.ideal_mid_point / np.max(led)
+        led = led + np.random.normal(0, self.noise_scale, size=led.shape)
+        led = led / np.max(led)
+        led = led * self.ideal_mid_point
 
         rel_value = np.abs(value - zero_intensity_bound)
         rel_value /= np.abs(zero_intensity_bound - max_intensity_bound)
-        led *= rel_value
+        led = led * rel_value
         return asarray(led)
 
     def close(self):

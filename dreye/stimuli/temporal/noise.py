@@ -45,6 +45,8 @@ class AbstractNoiseStimulus(BaseStimulus):
         dreye.algebra.Filter1D.
     """
 
+    _add_mean_to_events = False
+
     def __init__(
         self,
         *,
@@ -176,6 +178,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
     def __init__(
         self,
         *,
+        estimator=None,
         rate=1,
         n_channels=1,
         stim_dur=10,
@@ -197,6 +200,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
     ):
 
         super().__init__(
+            estimator=estimator,
             rate=rate,
             stim_dur=stim_dur,
             mean=mean,
@@ -237,6 +241,10 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         if np.all(self.maximum == self.minimum):
             self.maximum += 10**-5
             self.minimum -= 10**-5
+
+    @property
+    def ch_names(self):
+        return self.channel_names
 
     def create_random_signal(self):
         """create of truncated white noise signal
@@ -334,12 +342,6 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         self._metadata = metadata
 
         return self
-
-    def transform(self):
-        """transform signal to stimulus to be sent
-        """
-
-        self._stimulus = asarray(self.signal)
 
 
 class BrownNoiseStimulus(WhiteNoiseStimulus):

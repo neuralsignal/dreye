@@ -141,6 +141,10 @@ class Photoreceptor(ABC):
         return self.sensitivity.labels
 
     @property
+    def names(self):
+        return self.labels
+
+    @property
     def filterfunc(self):
         return self._filterfunc
 

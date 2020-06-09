@@ -162,6 +162,21 @@ class AbstractOutput(AbstractSender):
         assert isinstance(value, MeasuredSpectrum)
         self._measured_spectrum = value
 
+    def assign_measured_spectrum(
+        self, values, wavelengths, output, units=None
+    ):
+        self._measured_spectrum = MeasuredSpectrum(
+            values=values,
+            units=units,
+            domain=wavelengths,
+            labels=output,
+            zero_intensity_bound=self.zero_intensity_bound,
+            max_intensity_bound=self.max_intensity_bound,
+            name=self.name,
+            labels_units=self.units
+        )
+        return self
+
     def _zero(self):
         self.send_value(self._zero_intensity_bound)
 

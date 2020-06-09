@@ -1,17 +1,7 @@
 """Dummy system
 """
 
-import time
-import os
-import sys
-import datetime
-
-import numpy as np
-import pandas as pd
-
-from dreye.err import DreyeError
 from dreye.hardware.base_system import AbstractOutput, AbstractSystem
-from dreye.utilities import convert_units
 
 
 class DummyOutput(AbstractOutput):

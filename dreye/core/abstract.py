@@ -75,6 +75,7 @@ class _UnitArray(_AbstractArray):
         contexts=None, attrs=None, name=None,
         **kwargs
     ):
+        convert_units = False
         # map the value
         units = self._unit_mappings.get(units, units)
 
@@ -94,15 +95,13 @@ class _UnitArray(_AbstractArray):
             for key, value in kwargs.items():
                 if value is None and hasattr(values, key):
                     kwargs[key] = copy.copy(getattr(values, key))
-            # just get values
             values = values.values
 
-        # handling units
         if has_units(values):
-            if units is None:
-                units = values.units
-            else:
-                values = values.to(units)
+            if units is not None:
+                convert_units = True
+                convert_to = units
+            units = values.units
             values = values.magnitude
 
         if (units is None) or isinstance(units, str):
@@ -137,6 +136,10 @@ class _UnitArray(_AbstractArray):
 
         # this should assign the values
         self._test_and_assign_values(values, kwargs)
+
+        # this ensure that things like the domain are carried over
+        if convert_units:
+            self.units = convert_to
 
     def _get_convert_attribute(self, attr):
         return getattr(self, attr)
@@ -182,12 +185,13 @@ class _UnitArray(_AbstractArray):
     def contexts(self, value):
         """reset context
         """
+        # always flux context
         if value is None:
-            self._contexts = ()
+            self._contexts = ('flux',)
         elif is_string(value):
-            self._contexts = (value, )
+            self._contexts = (value, 'flux',)
         elif is_listlike(value):
-            self._contexts = tuple(value)
+            self._contexts = tuple(list(value) + ['flux'])
         else:
             raise DreyeError(
                 "Context must be type tuple, str, or None, but "
@@ -512,8 +516,9 @@ class _UnitArray(_AbstractArray):
                 if not isinstance(oattr, type(sattr)):
                     return False
                 elif (
-                    (is_listlike(sattr) and is_listlike(oattr))
-                    or (is_numeric(sattr) and is_numeric(oattr))
+                    not is_hashable(sattr) and
+                    (is_listlike(sattr))
+                    or (is_numeric(sattr))
                 ):
                     svalue, sunits = get_value(sattr), get_units(sattr)
                     ovalue, ounits = get_value(oattr), get_units(oattr)
@@ -524,13 +529,18 @@ class _UnitArray(_AbstractArray):
                     svalue = np.array(svalue)
                     if ovalue.shape != svalue.shape:
                         return False
-                    if not np.all(np.isnan(svalue) == np.isnan(ovalue)):
-                        return False
-
-                    truth = np.all(
-                        svalue[~np.isnan(svalue)]
-                        == ovalue[~np.isnan(ovalue)]
-                    )
+                    if (
+                        np.issubdtype(svalue.dtype, np.number)
+                        and np.issubdtype(ovalue.dtype, np.number)
+                    ):
+                        if not np.all(np.isnan(svalue) == np.isnan(ovalue)):
+                            return False
+                        truth = np.all(
+                            svalue[~np.isnan(svalue)]
+                            == ovalue[~np.isnan(ovalue)]
+                        )
+                    else:
+                        truth = np.all(svalue == ovalue)
                 else:
                     truth = sattr == oattr
                 if not truth:

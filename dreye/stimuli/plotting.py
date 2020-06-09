@@ -16,7 +16,7 @@ class StimPlottingMixin:
     # variables preset for class
     _cmap = 'tab10'
     _color = 'black'
-    _plot_attrs = ['stimulus']
+    _plot_attrs = ['signal', 'fitted_signal', 'stimulus']
 
     def _get_colors(self, length, cmap, color):
         if cmap is None:
