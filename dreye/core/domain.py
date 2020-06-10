@@ -15,9 +15,6 @@ from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import _UnitArray
 
 
-# TODO reverse domain
-
-
 class Domain(_UnitArray):
     """
     Defines the base class for domains. Includes a range of values sorted from
@@ -331,20 +328,16 @@ class Domain(_UnitArray):
         # handles only one-dimensional uniform arrays.
         if not self.is_uniform:
             self = self.enforce_uniformity()
-            # TODO warning
-            # raise DreyeError("Cannot equalize domains, "
-            #                  "if self is not uniform.")
-        self = (self[::-1] if self.is_descending else self)
+            warnings.warn("Enforcing uniformity in self.")
 
+        self = (self[::-1] if self.is_descending else self)
         if self == other:
             return self.copy()
 
         if isinstance(other, Domain):
             if not other.is_uniform:
+                warnings.warn("Enforcing uniformity in other.")
                 other = other.enforce_uniformity()
-                # TODO warning
-                # raise DreyeError("Cannot equalize domains, "
-                #                  "if other is not uniform.")
             other = (other[::-1] if other.is_descending else other)
             other = other.to(self.units)
             start = other.start

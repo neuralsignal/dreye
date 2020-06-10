@@ -27,9 +27,9 @@ class TestDomain:
         with raises(err.DreyeError):
             # non-unique
             dreye.Domain([0.1, 0.1, 0.2, 0.2, 0.3, 0.3], units='s')
-        with raises(err.DreyeError):
-            # not sorted
-            dreye.Domain([0.4, 0.3, 0.2], units='s')
+        # reverse domain allowed
+        self.domain_reverse = dreye.Domain([0.4, 0.3, 0.2], units='s')
+        assert isinstance(self.domain_reverse, dreye.Domain)
 
     def test_add(self):
         self.test_init()
@@ -75,16 +75,16 @@ class TestDomain:
 
     def test_methods(self):
         self.test_init()
-        with raises(err.DreyeError):
-            self.domain1.equalize_domains(self.domain7)
-        with raises(err.DreyeUnitError):
-            self.domain1.equalize_domains(self.domain5)
+        # with raises(err.DreyeError):
+        #     self.domain1.equalize_domains(self.domain7)
+        # with raises(err.DreyeUnitError):
+        #     self.domain1.equalize_domains(self.domain5)
 
         new_domain = self.domain1.equalize_domains(
             self.domain7.enforce_uniformity())
 
-        with raises(err.DreyeUnitError):
-            self.domain1.units = 'V'
+        # with raises(err.DreyeUnitError):
+        #     self.domain1.units = 'V'
 
         assert new_domain.start == 0.1
         assert new_domain.end == 0.8
