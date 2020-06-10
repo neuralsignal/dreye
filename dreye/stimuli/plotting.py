@@ -22,11 +22,14 @@ class StimPlottingMixin:
     def _get_colors(self, name, length, cmap, color):
         if cmap is None:
             if color is None:
-                if name not in self._colormaps:
-                    colors = sns.color_palette(self._cmap, length)
-                else:
+                if name in self._colormaps:
                     colors = self._colormaps[name]
                     assert len(colors) == length
+                elif name.replace('fitted_', '') in self._colormaps:
+                    colors = self._colormaps[name.replace('fitted_', '')]
+                    assert len(colors) == length
+                else:
+                    colors = sns.color_palette(self._cmap, length)
             elif isinstance(color, str):
                 colors = [color] * length
             else:
