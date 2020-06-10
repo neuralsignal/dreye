@@ -17,11 +17,16 @@ class StimPlottingMixin:
     _cmap = 'tab10'
     _color = 'black'
     _plot_attrs = ['signal', 'fitted_signal', 'stimulus']
+    _colormaps = {}
 
-    def _get_colors(self, length, cmap, color):
+    def _get_colors(self, name, length, cmap, color):
         if cmap is None:
             if color is None:
-                colors = sns.color_palette(self._cmap, length)
+                if name not in self._colormaps:
+                    colors = sns.color_palette(self._cmap, length)
+                else:
+                    colors = self._colormaps[name]
+                    assert len(colors) == length
             elif isinstance(color, str):
                 colors = [color] * length
             else:
@@ -59,8 +64,18 @@ class StimPlottingMixin:
         plot_attrs = [
             attr
             for attr in self._plot_attrs
-            if attr not in skip_attrs
+            if attr not in skip_attrs and not (
+                attr.startswith('fitted_')
+                and attr.replace('fitted_', '') in self._plot_attrs
+            )
         ]
+        fitted_attrs = {
+            attr.replace('fitted_', ''): attr
+            for attr in self._plot_attrs
+            if attr.replace('fitted_', '') not in skip_attrs
+            and attr.startswith('fitted_')
+            and attr.replace('fitted_', '') in self._plot_attrs
+        }
 
         if fig is None:
             assert subplot_spec is None
@@ -105,7 +120,7 @@ class StimPlottingMixin:
             plot_kwargs = {}
             for key, value in kwargs.items():
                 if isinstance(value, dict):
-                    if set(value) - set(plot_attrs + ['_default']):
+                    if not set(value) & set(plot_attrs + ['_default']):
                         plot_kwargs[key] = value
                     elif attr in value:
                         plot_kwargs[key] = value[attr]
@@ -121,6 +136,14 @@ class StimPlottingMixin:
                 data=attr,
                 **plot_kwargs
             )
+            fitted_attr = fitted_attrs.get(attr, None)
+            if fitted_attr is not None:
+                plot_kwargs['linestyle'] = '--'
+                self.plot_data(
+                    ax=ax,
+                    data=fitted_attr,
+                    **plot_kwargs
+                )
 
         return axes
 
@@ -146,7 +169,9 @@ class StimPlottingMixin:
 
         if data is None:
             data = self.stimulus
+            name = 'stimulus'
         elif isinstance(data, str):
+            name = data
             try:
                 data = getattr(self, data)
             except AttributeError:
@@ -164,7 +189,7 @@ class StimPlottingMixin:
 
         # always choosing first axis
         length = data.shape[1]
-        colors = self._get_colors(length, cmap, color)
+        colors = self._get_colors(name, length, cmap, color)
 
         if self.rate is None:
             x = np.arange(data.shape[0])

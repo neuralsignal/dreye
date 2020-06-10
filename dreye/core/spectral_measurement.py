@@ -64,6 +64,7 @@ class CalibrationSpectrum(Spectrum):
         return self.attrs['area_']
 
 
+# TODO allow curve fit instead of isotonic regression? - SKlearn type class
 class MeasuredSpectrum(IntensityDomainSpectrum):
     """
     Measured spectrum (e.g. LED)
@@ -440,7 +441,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             )
 
 
-# TODO allow curve fit instead of isotonic regression? - SKlearn type class
 class MeasuredSpectraContainer(DomainSignalContainer):
     """Container for measured spectra
 

@@ -118,8 +118,14 @@ class BaseStimulus(ABC, StimPlottingMixin):
         else:
             self._stimulus = self.estimator.fit_transform(self.signal)
 
-        if hasattr(self.estimator, 'fitted_X'):
-            self._fitted_signal = self.estimator.fitted_X
+        if (
+            hasattr(self.estimator, 'fitted_X')
+            and hasattr(self.estimator, 'current_X_')
+        ):
+            if self.estimator.current_X_.shape == self.signal.shape:
+                self._fitted_signal = self.estimator.fitted_X
+            else:
+                self._fitted_signal = self.signal
         else:
             self._fitted_signal = self.signal
 
@@ -136,6 +142,14 @@ class BaseStimulus(ABC, StimPlottingMixin):
         """
 
         self.metadata[index] = value
+
+    def __getattr__(self, name):
+        if 'estimator' in vars(self) and hasattr(self.estimator, name):
+            return getattr(self.estimator, name)
+        else:
+            raise AttributeError(
+                f"`{type(self).__name__}` instance has not attribute `{name}`."
+            )
 
     # --- properties of stimulus --- #
 
@@ -180,7 +194,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
                 )
             if hasattr(self.estimator, '_X_length'):
                 for attr in self.estimator._X_length:
-                    # special cases
+                    # special cases (handles photoreceptor model and spms)
                     if (
                         'intensities_' in attr
                         and hasattr(self.estimator, 'measured_spectra_')
@@ -390,9 +404,9 @@ class BaseStimulus(ABC, StimPlottingMixin):
         # assert sizes match
         assert len(labels) == signal.shape[self.channel_axis]
         # if signal high-dimensional then events columns need to be object type
-        events = {}
+        events_ = {}
         for channel in labels:
-            events[channel] = []
+            events_[channel] = []
 
         for idx, row in events.iterrows():
             # get indices for event
@@ -416,11 +430,11 @@ class BaseStimulus(ABC, StimPlottingMixin):
                 else:
                     value = value.mean(axis=self.channel_axis)
                 # assign entry
-                events[channel].append(value)
+                events_[channel].append(value)
 
-        events = pd.DataFrame(events, index=events.index)
+        events_ = pd.DataFrame(events_, index=events.index)
         # reassign events
-        events = pd.concat([events, events], axis=1)
+        events = pd.concat([events, events_], axis=1)
 
         return events
 

@@ -1,19 +1,14 @@
 """
 """
 
-
-import warnings
-
 import numpy as np
-from scipy.optimize import lsq_linear
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from dreye.utilities import (
     optional_to, asarray
 )
 from dreye.constants import ureg
-from dreye.core.signal import _Signal2DMixin, Signal, Signals
-from dreye.estimators.base import _SpectraModel, OptimizeResultContainer
+from dreye.estimators.base import _SpectraModel
 
 
 class IntensityFit(_SpectraModel):

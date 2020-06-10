@@ -392,6 +392,12 @@ class TransformExcitationFit(IndependentExcitationFit):
 
 class ReflectanceExcitationFit(IndependentExcitationFit):
 
+    # same length as X but not X or fitted X
+    _X_length = IndependentExcitationFit._X_length + [
+        'excite_X_',
+        'fitted_excite_X_'
+    ]
+
     def __init__(
         self,
         *,
