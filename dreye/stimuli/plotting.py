@@ -145,6 +145,7 @@ class StimPlottingMixin:
                 self.plot_data(
                     ax=ax,
                     data=fitted_attr,
+                    _skip=True,
                     **plot_kwargs
                 )
 
@@ -164,6 +165,7 @@ class StimPlottingMixin:
         events_text=True,
         events_plot_kwargs={},
         marker_events=False,
+        _skip=False,
         **plot_kws
     ):
         """
@@ -205,12 +207,12 @@ class StimPlottingMixin:
         for idx, (label, color) in enumerate(colors.items()):
             ax.plot(
                 x, data[:, idx],
-                label=label,
+                label=(label if _skip else None),
                 color=color,
                 **plot_kws
             )
 
-        if add_events is not None and self.rate is not None:
+        if add_events is not None and self.rate is not None and not _skip:
             self._events_bars(
                 ax, add_events, events_palette,
                 events_text, events_plot_kwargs,
