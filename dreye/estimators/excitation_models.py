@@ -26,8 +26,6 @@ class IndependentExcitationFit(_SpectraModel):
 
     # same length as X but not X or fitted X
     _X_length = [
-        'capture_X_',
-        'fitted_capture_X_',
         'fitted_intensities_'
     ]
 

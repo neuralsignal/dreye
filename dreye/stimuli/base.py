@@ -188,10 +188,9 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         if not self._added_to_events:
             events = _check_events(self._events)
-            if hasattr(self.estimator, 'fitted_X'):
-                events = self._add_to_events(
-                    events, self.ch_names, self.estimator.fitted_X, 'fitted_'
-                )
+            events = self._add_to_events(
+                events, self.ch_names, self.fitted_signal, 'fitted_'
+            )
             if hasattr(self.estimator, '_X_length'):
                 for attr in self.estimator._X_length:
                     # special cases (handles photoreceptor model and spms)
@@ -345,6 +344,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
         self = cls(**data['settings'])
         self._stimulus = data['stimulus']
         self._signal = data['signal']
+        self._fitted_signal = data['fitted_signal']
         self._metadata = data['metadata']
         self._events = pd.DataFrame(data['events'])
 
