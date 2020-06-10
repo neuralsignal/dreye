@@ -207,7 +207,7 @@ class StimPlottingMixin:
         for idx, (label, color) in enumerate(colors.items()):
             ax.plot(
                 x, data[:, idx],
-                label=(label if _skip else None),
+                label=(label if not _skip else None),
                 color=color,
                 **plot_kws
             )
