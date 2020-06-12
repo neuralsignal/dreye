@@ -74,15 +74,20 @@ class Photoreceptor(ABC):
         self, sensitivity, wavelengths=None, filterfunc=None,
         labels=None, **kwargs
     ):
+        if isinstance(sensitivity, Photoreceptor):
+            sensitivity = sensitivity.sensitivity
+            if filterfunc is None:
+                filterfunc = sensitivity.filterfunc
         if not isinstance(sensitivity, Sensitivity):
             sensitivity = Sensitivity(
                 sensitivity, domain=wavelengths, labels=labels,
                 **kwargs
             )
-        elif wavelengths is not None:
-            sensitivity = sensitivity(wavelengths)
-        if labels is not None:
-            sensitivity.labels = labels
+        else:
+            if wavelengths is not None:
+                sensitivity = sensitivity(wavelengths)
+            if labels is not None:
+                sensitivity.labels = labels
 
         # ensure domain axis = 0
         if sensitivity.domain_axis != 0:
@@ -93,6 +98,9 @@ class Photoreceptor(ABC):
 
         self._sensitivity = sensitivity
         self._filterfunc = filterfunc
+
+    def __str__(self):
+        return f"{type(self).__name__}{tuple(self.labels)}"
 
     def to_dict(self):
 
@@ -154,6 +162,7 @@ class Photoreceptor(ABC):
         reflectance=None,
         background=None,
         return_units=None,
+        wavelengths=None,
         **kwargs
     ):
         """
@@ -163,7 +172,8 @@ class Photoreceptor(ABC):
             self.capture(illuminant=illuminant,
                          reflectance=reflectance,
                          background=background,
-                         return_units=return_units),
+                         return_units=return_units,
+                         wavelengths=wavelengths),
             **kwargs
         )
 
@@ -173,6 +183,7 @@ class Photoreceptor(ABC):
         reflectance=None,
         background=None,
         return_units=None,
+        wavelengths=None
     ):
         """
         Calculate the photon capture.
@@ -187,7 +198,11 @@ class Photoreceptor(ABC):
             # Not assuming any units
             illuminant = Signals(
                 illuminant,
-                domain=self.wavelengths
+                domain=(
+                    self.wavelengths
+                    if wavelengths is None
+                    else wavelengths
+                )
             )
             # set domain axis
             illuminant.domain_axis = 0
@@ -230,7 +245,9 @@ class Photoreceptor(ABC):
         if background is None:
             return q
         else:
-            q_bg = self.capture(background, return_units=return_units)
+            q_bg = self.capture(
+                background, return_units=return_units, wavelengths=wavelengths
+            )
             # q_bg may have different units to q
             return q / q_bg
 

@@ -598,8 +598,8 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         Unit removed.
         """
-
-        return tuple(np.array(self._getattr__('intensity_bounds')).T)
+        value = [ele.intensity_bounds for ele in self]
+        return tuple(np.array(value).T)
 
     @property
     def output_bounds(self):
@@ -608,8 +608,8 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         Unit removed
         """
-
-        return tuple(np.array(self._getattr__('output_bounds')).T)
+        value = [ele.output_bounds for ele in self]
+        return tuple(np.array(value).T)
 
     @property
     def normalized_spectra(self):

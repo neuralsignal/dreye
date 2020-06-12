@@ -28,7 +28,10 @@ from dreye.core.measurement_utils import (
 )
 from dreye.core.spectrum_utils import create_gaussian_spectrum
 from dreye.core.spectral_sensitivity import Sensitivity
-from dreye.core.photoreceptor import LinearPhotoreceptor, LogPhotoreceptor
+from dreye.core.photoreceptor import (
+    LinearPhotoreceptor, LogPhotoreceptor,
+    get_photoreceptor_model
+)
 
 
 __all__ = [
@@ -60,5 +63,6 @@ __all__ = [
     'LinearPhotoreceptor',
     'LogPhotoreceptor',
     'create_gaussian_spectrum',
-    'get_led_spectra_container'
+    'get_led_spectra_container',
+    'get_photoreceptor_model'
 ]

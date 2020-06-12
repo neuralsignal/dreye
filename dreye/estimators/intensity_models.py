@@ -102,7 +102,7 @@ class RelativeIntensityFit(_SpectraModel):
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         bg_ints=None,  # array-like
         smoothing_window=None,  # float
-        rtype='fechner',  # {'fechner/log', 'weber', None}
+        rtype=None,  # {'fechner/log', 'weber', None}
     ):
         self.measured_spectra = measured_spectra
         self.smoothing_window = smoothing_window
@@ -246,7 +246,7 @@ class RelativeIntensityFit(_SpectraModel):
 #         # spectra as array
 #         self.normalized_spectra_ = normalized_spectra
 #         self.wavelengths_ = self.normalized_spectra_.domain.magnitude
-#         self.bounds_ = np.array(self.measured_spectra_.intensity_bounds).T
+#         self.bounds_ = self.measured_spectra_.intensity_bounds
 #
 #         # creates regressor for mapping values
 #         self.measured_spectra_.regressor

@@ -70,7 +70,7 @@ class IndependentExcitationFit(_SpectraModel):
 
         # measured_spectra attributes
         # intensity bounds as two-tuple
-        self.bounds_ = np.array(self.measured_spectra_.intensity_bounds).T
+        self.bounds_ = self.measured_spectra_.intensity_bounds
         # normalized spectra
         self.normalized_spectra_ = self.measured_spectra_.normalized_spectra
         # sanity checks
@@ -226,7 +226,7 @@ class IndependentExcitationFit(_SpectraModel):
 
     def _fit_sample(self, capture_x, excite_x, fit_weights, sep_bound=None):
         # adjust bounds if necessary
-        bounds = self.bounds_.copy()
+        bounds = list(self.bounds_)
         if sep_bound is not None:
             if np.all(capture_x >= self.hard_sep_value):
                 bounds[0] = sep_bound
@@ -324,7 +324,7 @@ class TransformExcitationFit(IndependentExcitationFit):
         self,
         *,
         linear_transform=None,  # array
-        inverse_transform=None,  # array
+        inv_transform=None,  # array
         photoreceptor_model=None,  # dict or Photoreceptor class
         photoreceptor_fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
@@ -349,26 +349,29 @@ class TransformExcitationFit(IndependentExcitationFit):
             lsq_kwargs=lsq_kwargs
         )
         self.linear_transform = linear_transform
-        self.inverse_transform = inverse_transform
+        self.inv_transform = inv_transform
 
     def fit(self, X, y=None):
         X = self._check_X(X)
         self.transform_X_ = X
         if self.linear_transform is None:
             self.W_ = np.eye(X.shape[1])
-            self.inverse_transform = self.W_
+            self.inv_transform = self.W_
         else:
             self.W_ = asarray(self.linear_transform)
             assert self.W_.shape[0] == X.shape[1], (
                 "Linear transform shape does not match X"
             )
 
-        if self.inverse_transform is None:
+        if self.inv_transform is None:
             self.Winv_ = np.linalg.inv(self.W_)
         else:
-            self.Winv_ = asarray(self.inverse_transform)
+            self.Winv_ = asarray(self.inv_transform)
             assert self.Winv_.shape[1] == X.shape[1], (
                 "Inverse transform shape does not match X"
+            )
+            assert self.Winv_.shape[0] == self.W_.shape[1], (
+                "Inverse matrix row size must match matrix columns."
             )
 
         super().fit(X @ self.W_)
