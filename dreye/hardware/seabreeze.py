@@ -24,23 +24,14 @@ def read_calibration_file(
     """read lamp calibration data
     """
     assert isinstance(filename, str)
-    if filename.endswith('.cal'):
-        area_text = 'Collection-area(cm^2)'
-        integration_time_text = 'IntegrationTime(sec):'
-    elif filename.endswith('.IRRADCAL'):
-        area_text = 'Fiber(micron)'
-        integration_time_text = 'Int.Time(usec)'
-    else:
-        raise DreyeError(f"Incorrect file extension for filename '{filename}'"
-                         "; file extension must be .cal or .IRRADCAL. "
-                         "If the file ends with .cal, the line indicating the "
-                         "area should start with 'Collection-area (cm^2)' "
-                         "and the line indicating the integration time "
-                         "should start with 'Integration Time (sec):'. "
-                         "If the file ends with .IRRADCAL, the line "
-                         "indicating the area should start with 'Fiber "
-                         "(micron)', and the line indicating the integration "
-                         "time should start with 'Int. Time(usec)'.")
+    area_texts = {
+        'Collection-area(cm^2)': ('area', 'cm**2'),
+        'Fiber(micron)': ('diameter', 'micrometer')
+    }
+    integration_time_texts = {
+        'Int.Time(usec)': 'microsecond',
+        'IntegrationTime(sec)': 'second'
+    }
 
     area = None
     integration_time = None
@@ -51,28 +42,33 @@ def read_calibration_file(
         for n in range(9):
             line = next(f)
             # removes all spaces
-            line = line.replace(' ', '')
-            if line.startswith(area_text):
-                area = float(line.replace(area_text, ''))
-            elif line.startswith(integration_time_text):
-                integration_time = float(
-                    line.replace(integration_time_text, '')
-                )
+            line = line.replace(' ', '').replace(':', '')
+            if area is None:
+                for area_text, area_type in area_texts.items():
+                    if area_text in line:
+                        area = float(line.replace(area_text, ''))
+                        break
+
+            if integration_time is None:
+                for it_text, it_units in integration_time_texts.items():
+                    if it_text in line:
+                        integration_time = float(line.replace(it_text, ''))
+                        break
 
     if (area is None) or (integration_time is None):
-        raise DreyeError(
-            'Could not find area or integration time in lamp file.')
+        raise DreyeError("Could not find area or "
+                         "integration time in lamp file.")
 
-    # convert to seconds and cm2
-    if filename.endswith('.IRRADCAL'):
-        integration_time = integration_time * ureg('us')
-        integration_time = integration_time.to('s')
-        area = area * ureg('um')  # actually diameter
+    if area_type[0] == 'diameter':
+        area = area * ureg(area_type[1])
         area = np.pi * (area/2) ** 2
         area = area.to('cm**2')
+    elif area_type[0] == 'area':
+        area = (area * ureg(area_type[1])).to('cm**2')
     else:
-        integration_time = integration_time * ureg('s')
-        area = area * ureg('cm**2')
+        raise DreyeError("Area type {area_type} not recognized.")
+
+    integration_time = (integration_time * ureg(it_units)).to('s')
 
     if create_spectrum:
         cal = CalibrationSpectrum(
