@@ -189,9 +189,9 @@ class _UnitArray(_AbstractArray):
         if value is None:
             self._contexts = ('flux',)
         elif is_string(value):
-            self._contexts = (value, 'flux',)
+            self._contexts = tuple(set(value, 'flux'))
         elif is_listlike(value):
-            self._contexts = tuple(list(value) + ['flux'])
+            self._contexts = tuple(set(value) | {'flux'})
         else:
             raise DreyeError(
                 "Context must be type tuple, str, or None, but "
@@ -569,7 +569,7 @@ class _UnitArray(_AbstractArray):
         return self.values.magnitude
 
     def __array__(self):
-        return self.asarray()
+        return self.values.magnitude
 
     def to_dict(self):
         """
