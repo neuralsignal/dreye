@@ -17,8 +17,10 @@ from dreye.core.plotting_mixin import _PlottingMixin
 class _SignalContainer(_AbstractContainer, _PlottingMixin,):
     """
     A class that contains multiple signal instances in a list.
+
     All attributes and methods of a Signal instance can be used directly.
-    Domain units and signal units must have the same dimensionality.
+
+    Domain units and Signal units must have the same dimensionality.
     """
     _unit_mappings = {}
     _init_keys = [
@@ -127,6 +129,9 @@ class SignalsContainer(_SignalContainer):
 
     @property
     def signals(self):
+        """
+        Returns concatenated `Signals` class using all signals in container.
+        """
         if self._signals is None:
             # concat signals
             for idx, signal in enumerate(self):
@@ -219,6 +224,9 @@ class DomainSignalContainer(_SignalContainer):
 
     @property
     def stacked_values(self):
+        """
+        Stacks all `DomainSignal` instance on top of each other.
+        """
         if self._stacked_values is None:
             values = np.empty((
                 len(self),

@@ -6,7 +6,6 @@ Defines units and set unit registry.
 """
 
 import pint
-import numpy as np
 
 
 ureg = pint.UnitRegistry()
@@ -35,19 +34,10 @@ ureg.define(
 c = pint.Context('flux')
 
 
-# def gradient(domain):
-#     """calculate gradient and preserve units
-#     """
-#     slices = tuple(
-#         None
-#         if i == 1
-#         else slice(None, None, None)
-#         for i in domain.shape
-#     )
-#     return np.gradient(np.squeeze(domain.magnitude))[slices] * domain.units
-
-
-def irr2flux(ureg, x, domain):
+def _irr2flux(ureg, x, domain):
+    """
+    convert from irradiance to photonflux.
+    """
     return x * domain / (
         ureg.planck_constant
         * ureg.speed_of_light
@@ -55,7 +45,10 @@ def irr2flux(ureg, x, domain):
     )
 
 
-def flux2irr(ureg, x, domain):
+def _flux2irr(ureg, x, domain):
+    """
+    cnvert from photonflux to irradiance
+    """
     return (
         x * (
             ureg.planck_constant
@@ -65,138 +58,31 @@ def flux2irr(ureg, x, domain):
 
 
 c.add_transformation(
-    '[length] * [mass] / [time] ** 3',
-    '[substance] / [length] ** 2 / [time]',
-    lambda ureg, x: (
-        x
-        / (
-            ureg.planck_constant
-            * ureg.speed_of_light
-            * ureg.N_A)
-    )
-)
-
-
-c.add_transformation(
     '[mass] / [time] ** 3',
     '[substance] / [length] ** 2 / [time]',
-    irr2flux,
-    # lambda ureg, x, domain: (
-    #     x * domain / (
-    #         ureg.planck_constant
-    #         * ureg.speed_of_light
-    #         * ureg.N_A)
-    # )
+    _irr2flux,
 )
-
-
-# c.add_transformation(
-#     '[substance] / [length] ** 2 / [time]',
-#     '[length] * [mass] / [time] ** 3',
-#     lambda ureg, x: (
-#         x
-#         * (
-#             ureg.planck_constant
-#             * ureg.speed_of_light
-#             * ureg.N_A)
-#     )
-# )
 
 
 c.add_transformation(
     '[substance] / [length] ** 2 / [time]',
     '[mass] / [time] ** 3',
-    flux2irr
-    # lambda ureg, x, domain: (
-    #     x * (
-    #         ureg.planck_constant
-    #         * ureg.speed_of_light
-    #         * ureg.N_A)
-    # ) / domain
+    _flux2irr
 )
-
-
-# c.add_transformation(
-#     '[substance] / [length] ** 2 / [time]',
-#     '[mass] / [length] / [time] ** 3',
-#     lambda ureg, x, domain: (
-#         x
-#         * (
-#             ureg.planck_constant
-#             * ureg.speed_of_light
-#             * ureg.N_A)
-#     ) / domain / gradient(domain)
-# )
-#
-# c.add_transformation(
-#     '[mass] / [length] / [time] ** 3',
-#     '[substance] / [length] ** 2 / [time]',
-#     lambda ureg, x, domain: (
-#         x
-#         / (
-#             ureg.planck_constant
-#             * ureg.speed_of_light
-#             * ureg.N_A)
-#     ) * domain * gradient(domain)
-# )
 
 
 c.add_transformation(
     '[substance] / [length] ** 3 / [time]',
     '[mass] / [time] ** 3 / [length]',
-    flux2irr
-    # lambda ureg, x, domain: (
-    #     x
-    #     * (
-    #         ureg.planck_constant
-    #         * ureg.speed_of_light
-    #         * ureg.N_A
-    #     )
-    # ) / domain
+    _flux2irr
 )
 
 
 c.add_transformation(
     '[mass] / [time] ** 3 / [length]',
     '[substance] / [length] ** 3 / [time]',
-    irr2flux
-    # lambda ureg, x, domain: (
-    #     x
-    #     / (
-    #         ureg.planck_constant
-    #         * ureg.speed_of_light
-    #         * ureg.N_A
-    #     )
-    # ) * domain
+    _irr2flux
 )
-
-
-# c.add_transformation(
-#     '[mass] / [time] ** 3',
-#     '[mass] / [length] / [time] ** 3',
-#     lambda ureg, x, domain: x / gradient(domain)
-# )
-#
-#
-# c.add_transformation(
-#     '[mass] / [length] / [time] ** 3',
-#     '[mass] / [time] ** 3',
-#     lambda ureg, x, domain: x * gradient(domain)
-# )
-#
-#
-# c.add_transformation(
-#     '[substance] / [length] ** 3 / [time]',
-#     '[substance] / [length] ** 2 / [time]',
-#     lambda ureg, x, domain: x * gradient(domain)
-# )
-#
-#
-# c.add_transformation(
-#     '[substance] / [length] ** 2 / [time]',
-#     '[substance] / [length] ** 3 / [time]',
-#     lambda ureg, x, domain: x / gradient(domain)
-# )
 
 c.add_transformation(
     '[substance]',

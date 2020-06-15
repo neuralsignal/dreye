@@ -11,12 +11,12 @@ from .context import dreye, constants, err, test_datapath, io
 class TestDomain:
 
     def test_init(self):
-        self.domain1 = dreye.Domain(-0.5, 1, 0.1, 's')
+        self.domain1 = dreye.Domain(-0.5, 1, 0.1, units='s')
         self.domain2 = dreye.Domain(np.arange(-0.5, 1, 0.1), units='s')
         self.domain3 = dreye.Domain([-0.5, 0, 0.5, 1.1], units='s')
-        self.domain4 = dreye.Domain(-1.5, 0, 0.1, 's')
-        self.domain5 = dreye.Domain(-0.5, 1, 0.1, 'V')
-        self.domain6 = dreye.Domain(-0.5, 1, 0.2, 's')
+        self.domain4 = dreye.Domain(-1.5, 0, 0.1, units='s')
+        self.domain5 = dreye.Domain(-0.5, 1, 0.1, units='V')
+        self.domain6 = dreye.Domain(-0.5, 1, 0.2, units='s')
         self.domain7 = dreye.Domain([0.1, 0.3, 0.4, 0.6, 0.8], units='s')
         self.domain_list = [
             self.domain1, self.domain2, self.domain3,
@@ -75,8 +75,6 @@ class TestDomain:
 
     def test_methods(self):
         self.test_init()
-        # with raises(err.DreyeError):
-        #     self.domain1.equalize_domains(self.domain7)
         # with raises(err.DreyeUnitError):
         #     self.domain1.equalize_domains(self.domain5)
 
@@ -92,12 +90,12 @@ class TestDomain:
 
     def test_io(self):
         self.test_init()
-        # filepath = os.path.join(test_datapath, 'domain_test.json')
-        # for _domain in self.domain_list:
-        #     _domain.save(filepath)
-        #     domain = dreye.Domain.load(filepath)
-        #     assert domain == _domain
-        #     # using write_json
-        #     io.write_json(filepath, domain)
-        #     domain = io.read_json(filepath)
-        #     assert domain == _domain
+        filepath = os.path.join(test_datapath, 'domain_test.json')
+        for _domain in self.domain_list:
+            _domain.save(filepath)
+            domain = dreye.Domain.load(filepath)
+            assert domain == _domain
+            # using write_json
+            io.write_json(filepath, domain)
+            domain = io.read_json(filepath)
+            assert domain == _domain

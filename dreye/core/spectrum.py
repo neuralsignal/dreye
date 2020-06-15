@@ -22,10 +22,13 @@ class _SpectrumMixin:
         values,
         domain=None,
         *args,
+        wavelengths=None,
         **kwargs
     ):
 
         kwargs['domain_units'] = 'nm'
+        if domain is None and wavelengths is not None:
+            domain = wavelengths
         # enforces nm units for domain and provides default flux context
         super().__init__(
             values, domain, *args,
@@ -47,6 +50,7 @@ class _IntensityMixin:
         values,
         domain=None,
         *args,
+        wavelengths=None,
         units=None,
         **kwargs
     ):
@@ -58,6 +62,7 @@ class _IntensityMixin:
         super().__init__(
             values, domain,
             *args, units=units,
+            wavelengths=wavelengths,
             **kwargs
         )
 

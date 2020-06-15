@@ -17,27 +17,31 @@ from dreye.core.abstract import _UnitArray
 
 class Domain(_UnitArray):
     """
-    Defines the base class for domains. Includes a range of values sorted from
-    min to max, with some units attatched.
+    Ascending or descending range of values with particular units.
 
     Parameters
     ----------
-    start : numeric, optional
-        Start of Domain.
+    start : numeric or array-like
+        Start of domain if numeric or all values of domain in ascending or
+        descending order if array-like.
     end : numeric, optional
-        End of Domain.
+        End of domain.
     interval : numeric or array-like, optional
-        The interval between values in Domain. If interval is not uniform,
+        The interval between values in domain. If interval is not uniform,
         will return a list of interval values of length n-1.
     units: str, optional
-        Units attatched to the values in Domain.
-    values : array-like or str, optional
-        The numpy array multiplied by the units (quantity instance).
+        Units associated with the domain.
+    contexts : str or tuple, optional
+        Contexts for unit conversion. See pint documentation.
+    name : str
+        Name for the domain object.
 
     Examples
     --------
-    >>> Domain(0, 1, 0.1, 's')
-    Domain(start=0, end=1, interval=0.1, units=second)
+    >>> Domain(0, 1, 0.1, units='s')
+    Domain(start=0.0, end=1.0, interval=0.1, units=second)
+    >>> Domain([0, 1, 2, 3], units='V')
+    Domain(start=0.0, end=3.0, interval=1.0, units=volts)
     """
 
     _convert_attributes = (
@@ -54,6 +58,7 @@ class Domain(_UnitArray):
         start=None,
         end=None,
         interval=None,
+        *,
         units=None,
         values=None,
         contexts=None,
@@ -90,10 +95,11 @@ class Domain(_UnitArray):
     def interval_(self):
         """
         Used Internally.
-
         Backup interval used in the case when values is of size 1.
 
-        See _test_and_assign_values.
+        See Also
+        --------
+        Domain._test_and_assign_values.
         """
         # always ensures that it is a float
         if hasattr(self, '_interval'):
@@ -171,7 +177,8 @@ class Domain(_UnitArray):
 
     @staticmethod
     def _create_values(start, end, interval, reverse):
-        """create values from start, end, and interval
+        """
+        Create values from start, end, and interval.
         """
         if is_listlike(interval):
             # TODO: dealing with tolerance
@@ -213,9 +220,6 @@ class Domain(_UnitArray):
         return values, interval
 
     def _equalize(self, other):
-        """
-        Should just return equalized other_magnitude or NotImplemented
-        """
         if is_numeric(other):
             return get_value(other), self
         elif isinstance(other, _UnitArray):
@@ -264,22 +268,25 @@ class Domain(_UnitArray):
     @property
     def has_interval(self):
         """
-        Does the domain have a defined interval
+        Returns if the domain has a defined interval.
+
+        This should always be True.
         """
         return np.all(np.isfinite(self.interval))
 
     @property
     def is_descending(self):
         """
-        Is the domain in descending order
+        Is the domain in descending order.
         """
         return np.all(self.interval < 0)
-        # return np.all(np.diff(self.magnitude) < 0)
 
     @property
     def is_sorted(self):
         """
-        Is the domain sorted
+        Return if domain is sorted.
+
+        This should always be True
         """
         return True
         # ascending = np.diff(self.magnitude) > 0
@@ -294,41 +301,63 @@ class Domain(_UnitArray):
             "Domain(start={0}, end={1}, interval={2}, units={3})"
         ).format(self.start, self.end, self.interval, self.units)
 
-    def enforce_uniformity(self, method=np.mean, on_gradient=False):
+    def enforce_uniformity(self):
         """
-        Returns the domain with a uniform interval, calculated from the average
-        of all original interval values.
+        Returns a new domain with uniform intervals if `self` does not have
+        uniform intervals.
+
+        This method takes the mean of the non-uniform intervals
+        to enforce uniformity.
+
+        Returns
+        -------
+        domain : `Domain`
+            A new domain with uniform intervals.
         """
 
         if self.is_uniform:
-            return self
-
-        if on_gradient:
-            value = method(self.gradient.magnitude)
-        else:
-            value = method(self.interval)
+            return self.copy()
 
         # change values and interval
         return self._class_new_instance(
             start=self.start,
             end=self.end,
-            interval=value,
+            interval=np.mean(self.interval),
             units=self.units,
             **self.init_kwargs
         )
 
     def equalize_domains(self, other):
         """
-        Equalizes the range and the interval between two domains. Domains must
-        be uniform for this to succeed. Takes the most common denominator for
-        the domain range (largest Start value and smallest End value), and
-        takes the largest interval from the original two domains.
+        Equalizes the range and the interval between two domains.
+
+        Parameters
+        ----------
+        other : `Domain` object or array-like
+            Domain object to equalize to self.
+
+        Returns
+        -------
+        domain : `Domain`
+            A new domain corresponding the "most common denominator" between
+            self and other.
+
+        Notes
+        -----
+        If domains do not have uniform intervals, uniformity will be enforced
+        using `Domain.enforce_uniformity`.
+
+        The "most common denominator" domain between self and other is
+        chosen as follows:
+            * largest `start` value
+            * smalled `end` value
+            * largest `interval` value
         """
 
         # handles only one-dimensional uniform arrays.
         if not self.is_uniform:
-            self = self.enforce_uniformity()
             warnings.warn("Enforcing uniformity in self.")
+            self = self.enforce_uniformity()
 
         self = (self[::-1] if self.is_descending else self)
         if self == other:
@@ -388,7 +417,20 @@ class Domain(_UnitArray):
 
     def append(self, domain, left=False):
         """
-        Append a domain to domain.
+        Append to domain.
+
+        Parameters
+        ----------
+        domain : `Domain` or array-like
+            Domain values to append to self.
+        left : bool, optional
+            Whether to append to the left side of the domain.
+            Defaults to False.
+
+        Returns
+        -------
+        domain : `Domain`
+            Returns appended domain.
         """
 
         # Works with reverse
@@ -417,7 +459,20 @@ class Domain(_UnitArray):
 
     def extend(self, length, left=False):
         """
-        Extend Domain by a certain number of index length.
+        Extend domain by a certain length.
+
+        Parameters
+        ----------
+        length : int
+            Number of indices to extend by.
+        left : bool, optional
+            Whether to append to the left side of the domain.
+            Defaults to False.
+
+        Returns
+        -------
+        domain : `Domain`
+            Returns extended domain.
         """
         # works with reversed/descending values
         assert is_integer(length), "Length must be integer type."
@@ -442,7 +497,11 @@ class Domain(_UnitArray):
     @property
     def gradient(self):
         """
-        Calculates gradient between points (difference).
+        Calculates gradient between points.
+
+        See Also
+        --------
+        numpy.gradient
         """
 
         return np.gradient(self.magnitude) * self.units
@@ -450,14 +509,14 @@ class Domain(_UnitArray):
     @property
     def span(self):
         """
-        Span of the domain
+        Span of the domain (max-min).
         """
         return np.max(self.magnitude) - np.min(self.magnitude)
 
     @property
     def boundaries(self):
         """
-        Tuple of start and end.
+        Tuple of minimum and maximum value.
         """
         return (np.min(self.magnitude), np.max(self.magnitude))
         # return (self.start, self.end)

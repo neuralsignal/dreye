@@ -58,9 +58,8 @@ class _NumpyMixin:
 
     def nansum(self, *args, **kwargs):
         """
-        Return the sum of array elements over a given axis treating Not a
-        Numbers (NaNs) as zero.
-
+        Return the sum of array elements over a given axis treating
+        NaNs as zero.
         """
 
         return self._numpy_reduce(
@@ -116,6 +115,7 @@ class _NumpyMixin:
     def nanmin(self, *args, **kwargs):
         """
         Return minimum of an array or minimum along an axis, ignoring any NaNs.
+
         When all-NaN slices are encountered a RuntimeWarning is raised and Nan
         is returned for that slice.
         """
@@ -136,7 +136,9 @@ class _NumpyMixin:
     def nanmax(self, *args, **kwargs):
         """
         Return the maximum of an array or maximum along an axis, ignoring any
-        NaNs. When all-NaN slices are encountered a RuntimeWarning is raised
+        NaNs.
+
+        When all-NaN slices are encountered a RuntimeWarning is raised
         and NaN is returned for that slice.
         """
 
@@ -146,8 +148,7 @@ class _NumpyMixin:
 
     def dot(self, other, transpose=False):
         """
-        Returns the dot product of two signal instances. The dot product is
-        computed along the domain.
+        Returns the dot product of array-like instances.
         """
 
         if transpose:

@@ -8,38 +8,15 @@ import pandas as pd
 import seaborn as sns
 
 from dreye.err import DreyeError
+from dreye.utilities import optional_to
 
 
-def get_labels_formatted(label):
-
-    label = str(
-        label
-    ).replace(
-        '[', ''
-    ).replace(
-        ']', ''
-    ).replace(
-        ' ** ', '^'
-    ).replace(
-        '*', '\\cdot'
-    ).replace('_', '')
-
-    if '/' in label:
-        label = "\\frac{" + label.replace('/', '}{', 1) + "}"
-        label = label.replace('/', '\\cdot')
-
-    return label
-
-
-def get_label(units):
+def _get_label(units):
 
     if units.dimensionless:
         label = 'a.u.'
     else:
         label = units.format_babel()
-        # label = get_labels_formatted(units.dimensionality)
-        # units = get_labels_formatted(units)
-        # label = f'${label}$ (${units}$)'
 
     return label
 
@@ -106,9 +83,9 @@ class _PlottingMixin:
         # TODO signal_min and max?
 
         if xlabel is None:
-            xlabel = get_label(self.domain_units)
+            xlabel = _get_label(self.domain_units)
         if ylabel is None:
-            ylabel = get_label(self.units)
+            ylabel = _get_label(self.units)
 
         g.set_xlabels(xlabel)
         g.set_ylabels(ylabel)
@@ -121,7 +98,29 @@ class _PlottingMixin:
         palette=None,
         **kwargs
     ):
-        """aggregate plot using long dataframe and seaborn
+        """
+        Plot data.
+
+        Parameters
+        ----------
+        xlabel : str, optional
+            Label for x-axis.
+        ylabel : str, optional
+            Label for y-axis
+        palette : str or dict, optional
+            Color palette to use. See `seaborn.color_palette`.
+        kwargs : dict, optional
+            Keyword arguments passed to `seaborn.relplot`.
+
+        Returns
+        -------
+        g : `seaborn.FacetGrid`
+            FacetGrid object from seaborn.
+
+        See Also
+        --------
+        seaborn.relplot
+        _PlottingMixin.plotsmooth
         """
         data = self.to_longframe()
         return self._plot(
@@ -140,7 +139,33 @@ class _PlottingMixin:
         offset=0,
         **kwargs
     ):
-        """plot spectrum with different smoothing parameters
+        """
+        Plot data for different smoothing levels.
+
+        Parameters
+        ----------
+        min_window : numeric, optional
+            The minimum smoothing window.
+        max_window : numeric, optional
+            The maximum smoothing window.
+        steps : int, optional
+            The number of smoothing windows to test between
+            `min_window` and `max_window`.
+        offset : numeric, optional
+            The offset along the y-axis for each smoothing window, in order
+            to better see differences between smoothing windows.
+        kwargs : dict, optional
+            Keyword arguments passed to `_PlottingMixin.plot`.
+
+        Returns
+        -------
+        g : `seaborn.FacetGrid`
+            FacetGrid object from seaborn.
+
+        See Also
+        --------
+        seaborn.relplot
+        _PlottingMixin.plot
         """
 
         # update default handler
@@ -158,9 +183,10 @@ class _PlottingMixin:
         elif max_window is None:
             max_window = self.smoothing_window
 
+        offset = optional_to(offset, self.units)
         windows = np.linspace(min_window, max_window, steps)
 
-        container = [self] + [self.smooth(window)+offset*(idx+1)
+        container = [self] + [self.smooth(window)+offset*(idx+1)*self.units
                               for idx, window in enumerate(windows)]
 
         data = pd.concat(

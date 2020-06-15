@@ -129,3 +129,27 @@ def is_callable(obj):
     Check if object if callable
     """
     return isinstance(obj, Callable)
+
+
+def irr2flux(irradiance, wavelengths):
+    """
+    convert from irradiance to photonflux.
+    """
+    # TODO optional to
+    return irradiance * wavelengths / (
+        ureg.planck_constant
+        * ureg.speed_of_light
+        * ureg.N_A
+    )
+
+
+def flux2irr(photonflux, wavelengths):
+    """
+    convert from photonflux to irradiance.
+    """
+    return (
+        photonflux * (
+            ureg.planck_constant
+            * ureg.speed_of_light
+            * ureg.N_A)
+    ) / wavelengths

@@ -20,15 +20,20 @@ def get_photoreceptor_model(
     photoreceptor_type='linear', **kwargs
 ):
     """
-    Create an arbitrary photoreceptor model
+    Create an arbitrary photoreceptor model.
 
     Parameters
     ----------
-    sensitivity : Sensitivity instance or array-like
-    wavelengths : array-like
-    filterfunc : callable
-    labels : array-like
-    photoreceptor_type : {'linear', 'log'}
+    sensitivity : Sensitivity instance or array-like, optional
+    wavelengths : array-like, optional
+    filterfunc : callable, optional
+    labels : array-like, optional
+    photoreceptor_type : str ({'linear', 'log'}), optional
+    kwargs : dict, optional
+
+    Returns
+    -------
+    object : `Photoreceptor`
     """
     if photoreceptor_type not in {'linear', 'log'}:
         raise DreyeError("Photoreceptor type must be 'linear' or 'log'.")
@@ -68,6 +73,7 @@ class Photoreceptor(ABC):
     wavelengths : array-like, optional
     filterfunc : callable, optional
     labels : array-like, optional
+    kwargs : dict, optional
     """
 
     def __init__(
@@ -103,7 +109,10 @@ class Photoreceptor(ABC):
         return f"{type(self).__name__}{tuple(self.labels)}"
 
     def to_dict(self):
-
+        """
+        Returns `self` as dictionary containing the
+        photoreceptor's sensitivity and the filter function.
+        """
         return {
             "sensitivity": self.sensitivity,
             "filterfunc": self.filterfunc
@@ -111,15 +120,24 @@ class Photoreceptor(ABC):
 
     @classmethod
     def from_dict(cls, dictionary):
-
+        """
+        Create Photoreceptor class given a dictionary containing
+        the `sentivity` and `filterfunc` (optionally).
+        """
         return cls(**dictionary)
 
     def __copy__(self):
+        """
+        Copy method for `Photoreceptor`.
+        """
         return type(self)(
             **self.to_dict().copy()
         )
 
     def copy(self):
+        """
+        Copy `Photoreceptor` instance.
+        """
         return copy.copy(self)
 
     @abstractmethod
@@ -134,26 +152,57 @@ class Photoreceptor(ABC):
 
     @property
     def sensitivity(self):
+        """
+        `Sensitivity` instance containing all the spectral sensitivities.
+        """
         return self._sensitivity
 
     @property
     def pr_number(self):
+        """
+        The number of photoreceptor types.
+        """
         return self.sensitivity.shape[1]
 
     @property
     def wavelengths(self):
+        """
+        `Domain` instance of wavelength values.
+        """
         return self.sensitivity.wavelengths
 
     @property
     def labels(self):
+        """
+        Labels of each photoreceptor type.
+
+        See Also
+        --------
+        Photoreceptor.names
+        """
         return self.sensitivity.labels
 
     @property
     def names(self):
+        """
+        Names of each photoreceptor type.
+
+        Alias for `Photoreceptor.labels`.
+        """
         return self.labels
 
     @property
     def filterfunc(self):
+        """
+        Filter function applied on light entering each photoreceptor.
+
+        The filter function should accept three positional arguments
+        corresponding to the wavelength `numpy.ndarray`, illuminant
+        `numpy.ndarray`, and the sensitvity `numpy.ndarray` respectively.
+
+        All three arrays are broadcasted already before being passed to
+        `filterfunc`.
+        """
         return self._filterfunc
 
     def excitation(
@@ -166,7 +215,34 @@ class Photoreceptor(ABC):
         **kwargs
     ):
         """
-        Calculate the photoreceptor excitation.
+        Calculate photoreceptor excitation.
+
+        Parameters
+        ----------
+        illuminant : `Signals` or array-like
+            Illuminant spectrum. If array-like, the zeroth axis must have
+            the same length as `Photoreceptor.sensitivity` (i.e. wavelength
+            domain match) or `wavelengths` must be given.
+        reflectance : `Signals` or array-like, optional
+            If given, illuminant is multiplied by the reflectance.
+        background : `Signal` or array-like, optional
+            If given, the relative photon capture is calculated. By
+            calculating the capture for the background.
+        return_units : bool, optional
+            If True, return a `pint.Quantity`. Otherwise, return a
+            `numpy.ndarray`.
+        wavelengths : array-like, optional
+            If given and illuminant is not a `Signals` instance, this
+            corresponds to its wavelength values.
+        kwargs : dict
+            Keyword arguments passed to the `Photoreceptor.excitefunc`
+            function.
+
+        Returns
+        -------
+        excitations : `numpy.ndarray` or `pint.Quantity`
+            Array of row length equal to the number of illuminant and
+            column length equal to the number of photoreceptor types.
         """
         return self.excitefunc(
             self.capture(illuminant=illuminant,
@@ -186,7 +262,31 @@ class Photoreceptor(ABC):
         wavelengths=None
     ):
         """
-        Calculate the photon capture.
+        Calculate photoreceptor capture.
+
+        Parameters
+        ----------
+        illuminant : `Signals` or array-like
+            Illuminant spectrum. If array-like, the zeroth axis must have
+            the same length as `Photoreceptor.sensitivity` (i.e. wavelength
+            domain match) or `wavelengths` must be given.
+        reflectance : `Signals` or array-like, optional
+            If given, illuminant is multiplied by the reflectance.
+        background : `Signal` or array-like, optional
+            If given, the relative photon capture is calculated. By
+            calculating the capture for the background.
+        return_units : bool, optional
+            If True, return a `pint.Quantity`. Otherwise, return a
+            `numpy.ndarray`.
+        wavelengths : array-like, optional
+            If given and illuminant is not a `Signals` instance, this
+            corresponds to its wavelength values.
+
+        Returns
+        -------
+        captures : `numpy.ndarray` or `pint.Quantity`
+            Array of row length equal to the number of illuminant and
+            column length equal to the number of photoreceptor types.
         """
         if return_units is None:
             return_units = has_units(illuminant)
@@ -251,42 +351,41 @@ class Photoreceptor(ABC):
             # q_bg may have different units to q
             return q / q_bg
 
+    # TODO def decomp_sensitivity(self):
+    #     self.sensitivity.magnitude
+
 
 class LinearPhotoreceptor(Photoreceptor):
-    """
-    """
 
     @staticmethod
     def excitefunc(arr):
-        """excitation function
         """
-
+        Returns `arr`.
+        """
         return arr
 
     @staticmethod
     def inv_excitefunc(arr):
-        """excitation function
         """
-
+        Returns `arr`.
+        """
         return arr
 
 
 class LogPhotoreceptor(Photoreceptor):
-    """
-    """
 
     @staticmethod
     def excitefunc(arr):
-        """excitation function
         """
-
+        Returns the log of `arr`.
+        """
         return np.log(arr)
 
     @staticmethod
     def inv_excitefunc(arr):
-        """excitation function
         """
-
+        Returns the exp of `arr`.
+        """
         return np.exp(arr)
 
 

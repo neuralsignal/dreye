@@ -26,7 +26,34 @@ def convert_measurement(
     **kwargs
 ):
     """
-    function to convert photon count signal into spectrum.
+    Convert photon count signal into `Spectrum` or `DomainSpectrum` subclass.
+
+    Parameters
+    ----------
+    signal : `Signal` instance
+        Signal instance with dimensionless values
+    calibration : `CalibrationSpectrum`, optional
+        Calibration spectrum. If None, assume a flat calibration spectrum
+        at 1 mircojoules.
+    integration_time : numeric or array-like, optional
+        Integration times for each measurement in `signal`. If None,
+        assumes an integration time of 1 second.
+    area : numeric, optional
+        Area for `calibration` instance. If None and `calibration` is
+        `CalibrationSpectrum` instance, area is 1 cm^2.
+    units : string or `pint.Unit`.
+        The units to convert the spectrum to. Defaults to 'uE', which is
+        microspectralphotonflux.
+    spectrum_cls : object
+        Spectrum class to use to create measurement. Default to
+        `IntensitySpectra`
+    kwargs : dict
+        Keyword arguments passed to the `spectrum_cls`.
+
+    Returns
+    -------
+    object : `spectrum_cls`
+        Returns `spectrum_cls` object given `signal`.
     """
 
     assert isinstance(signal, _SignalMixin)
@@ -85,25 +112,49 @@ def create_measured_spectrum(
     **kwargs
 ):
     """
+    Create `MeasuredSpectrum` instance from numpy.ndarray objects.
+
     Parameters
     ----------
     spectrum_array : array-like
-        array of photon counts across wavelengths for each output
-        (wavelength x output labels).
+        Array of photon counts across wavelengths for each output
+        (wavelength x output).
     output : array-like
-        array of output in ascending order.
-    wavelengths : array-like
-        array of wavelengths in nanometers in ascending order.
+        array of output in ascending or descending order.
+    wavelengths : array-like, optional
+        array of wavelengths in nanometers in ascending or descending order.
     calibration : CalibrationSpectrum or array-like
-        Calibration spectrum
-    integration_times : array-like
-        integration times in seconds.
-    axis : int
-        axis of wavelengths in spectrum_array
-    units : str
-        units to convert to
-    output_units : str
-        units of output.
+        Calibration spectrum instance used for conversion of `spectrum_array`.
+    integration_times : numeric or array-like, optional
+        Integration times in seconds for each measurement in `spectrum_array`.
+    area : numeric, optional
+        Area measured over.
+    units : str, optional
+        Units to convert spectrum to. Defaults to 'uE', which is
+        microspectralphotonflux.
+    output_units : str, optional
+        Units of output (e.g. 'V' for volts applied).
+    is_mole : bool, optional
+        If `spectrum_array` is in units of moles instead of photon counts.
+    zero_intensity_bound : numeric, optional
+        The output value, which corresponds to zero intensity.
+    max_intensity_bound : numeric, optional
+        The output value, which corresponds to the maximum intensity.
+    assume_contains_output_bounds: bool, optional
+        If True, assume `output` contains the zero and max intensity bound;
+        thus inferring `zero_intensity_bound` and `max_intensity_bound`, if
+        not given.
+    resolution : array-like, optional
+        Array of each value the output hardware can resolve.
+    name : str, optional
+        Name given to measured spectra.
+    kwargs : dict, optional
+        Keyword arguments passed to `MeasuredSpectrum` instance.
+
+    Returns
+    -------
+    object : `MeasuredSpectrum`
+        `MeasuredSpectrum` instance containing `spectrum_array`.
     """
     # create labels
     spectrum = DomainSpectrum(
@@ -146,7 +197,7 @@ def create_measured_spectra(
     output_arrays,
     wavelengths,
     calibration,
-    integration_time,
+    integration_times,
     area=None,
     units='uE',
     output_units='V',
@@ -154,11 +205,36 @@ def create_measured_spectra(
     assume_contains_output_bounds=True,
     resolution=None
 ):
-    """convenience function
+    """
+    Create `MeasuredSpectraContainer` out of a set of arrays.
+
+    Parameters
+    ----------
+    spectrum_arrays : array-like
+    output_arrays : array-like
+    wavelengths : array-like
+    calibration : `CalibrationSpectrum`
+    integration_times : array-like
+    area : numeric, optional
+    units : str or `pint.Unit`, optional
+    output_units : str or `pint.Unit`, optional
+    is_mole: bool, optional
+    assume_contains_output_bounds: bool, optional
+    resolution : array-like, optional
+
+    Returns
+    -------
+    object : `MeasuredSpectraContainer`
+
+    See Also
+    --------
+    create_measured_spectrum
     """
 
     measured_spectra = []
-    for spectrum_array, output in zip(spectrum_arrays, output_arrays):
+    for spectrum_array, output, integration_time in zip(
+        spectrum_arrays, output_arrays, integration_times
+    ):
         measured_spectrum = create_measured_spectrum(
             spectrum_array, output, wavelengths,
             calibration=calibration,
@@ -186,8 +262,25 @@ def get_led_spectra_container(
     names=None,
 ):
     """
-    Convenience function to created measured spectra container from
+    Convenience function to created `MeasuredSpectraContainer` from
     LED spectra and intensity bounds.
+
+    Parameters
+    ----------
+    led_spectra : array-like, optional
+    intensity_bounds : two-tuple of numeric or array-like, optional
+    wavelengths : array-like, optional
+    output_bounds : two-tuple of numeric or array-like, optional
+    resolution : array-like, optional
+    intensity_units : str or `pint.Unit`, optional
+    output_units : str or `pint.Unit`, optional
+    transform_func : callable, optional
+    steps : int, optional
+    names : list of str, optional
+
+    Returns
+    -------
+    object : `MeasuredSpectraContainer`
     """
     # create fake LEDs
     if led_spectra is None or is_numeric(led_spectra):

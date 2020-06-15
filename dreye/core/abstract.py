@@ -10,12 +10,9 @@ import numpy as np
 
 from dreye.err import DreyeError
 from dreye.utilities import (
-    has_units, asarray,
-    is_listlike, is_string,
-    is_dictlike, is_hashable,
-    array_equal, is_integer,
-    is_numeric, get_units,
-    get_value
+    has_units, is_listlike, is_string,
+    is_dictlike, is_hashable, array_equal,
+    is_numeric, get_units, get_value
 )
 from dreye.utilities.abstract import _AbstractArray
 from dreye.constants import ureg
@@ -45,6 +42,7 @@ class _UnitArray(_AbstractArray):
     @abstractmethod
     def _test_and_assign_values(self, values, kwargs):
         """
+        method implemented for each subclass
         """
         # values is always a numpy.ndarray/None/or other
         # assign new values
@@ -58,7 +56,9 @@ class _UnitArray(_AbstractArray):
     @abstractmethod
     def _equalize(self, other):
         """
-        Should just return equalized other_magnitude or NotImplemented
+        Equalize other to self for numerical operations.
+        Should just return equalized other_magnitude, self
+        or NotImplemented, self.
         """
         pass
 
@@ -149,41 +149,49 @@ class _UnitArray(_AbstractArray):
 
     @property
     def init_kwargs(self):
+        """
+        Keyword arguments used to re-initializing/copying instance (does not
+        include values and units).
+        """
         return {arg: getattr(self, arg) for arg in self._init_args}
 
     def copy(self):
         """
-        copy instance.
+        Returns copy of object.
         """
         return copy.copy(self)
 
     def __copy__(self):
         """
+        Copy method.
         """
         return type(self)(self)
 
     @property
     def units(self):
         """
-        The units attatched to the values.
+        The units associated with the object.
         """
         return self._units
 
     @units.setter
     def units(self, value):
         """
+        Setting the units associated with the object
         """
         self.to(value, copy=False)
 
     @property
     def contexts(self):
-        """tuple contexts for unit conversion.
+        """
+        Tuple of contexts for unit conversion.
         """
         return self._contexts
 
     @contexts.setter
     def contexts(self, value):
-        """reset context
+        """
+        Setting the contexts for unit conversion.
         """
         # always flux context
         if value is None:
@@ -201,34 +209,35 @@ class _UnitArray(_AbstractArray):
     @property
     def attrs(self):
         """
-        Dictionary to hold arbitrary objects
+        Dictionary to hold arbitrary objects.
         """
         return self._attrs
 
     @attrs.setter
     def attrs(self, value):
-        """reset attribute
         """
-
+        Setting the attributes dictionary.
+        """
         if value is None:
             self._attrs = {}
         elif is_dictlike(value):
             self._attrs = dict(value)
         else:
-            raise DreyeError(
-                "Attribute dictionary must be type dict or None, "
-                f"but is of type {type(value)}"
-            )
+            raise DreyeError("Attribute dictionary must be type dict "
+                             f"or None, but is of type {type(value)}.")
 
     @property
     def name(self):
         """
-        Returns the name of the signal instance.
+        Returns the name given to the object.
         """
         return self._name
 
     @name.setter
     def name(self, value):
+        """
+        Setting the name of the object
+        """
         if not is_hashable(value):
             raise DreyeError("New name value of type "
                              f"{type(value)} is not hashable.")
@@ -237,20 +246,20 @@ class _UnitArray(_AbstractArray):
     @property
     def magnitude(self):
         """
-        Array without units (numpy.ndarray object).
+        Returns `numpy.array` of values (no units).
         """
         return self._values
 
     @property
     def values(self):
         """
-        Array with units (pint.Quantity object).
+        Returns `pint.Quantity` array (contains units).
         """
         return self.magnitude * self.units
 
     def to(self, units, *args, copy=True, **kwargs):
         """
-        convert to new units
+        Returns copy of self with converted units.
         """
         if copy:
             self = self.copy()
@@ -409,7 +418,7 @@ class _UnitArray(_AbstractArray):
 
     def __iter__(self):
         """
-        Generate over values
+        Iterate over values
         """
         return iter(self.values)
 
@@ -423,6 +432,10 @@ class _UnitArray(_AbstractArray):
         return str(self.values)
 
     def __getitem__(self, key):
+        """
+        Returns copy of self if key is a tuple of slices or a slice instance.
+        Otherwise __getitem__ returns a `pint.Quantity`
+        """
         values = self.values[key]
         if hasattr(values, 'ndim'):
             if values.size == 0:
@@ -552,28 +565,52 @@ class _UnitArray(_AbstractArray):
 
     @property
     def ndim(self):
+        """
+        Dimensionality of `_UnitArray.magnitude`/`_UnitArray.values`.
+
+        See Also
+        --------
+        numpy.ndarray.ndim
+        """
         return self.magnitude.ndim
 
     @property
     def shape(self):
+        """
+        Shape of `_UnitArray.magnitude`/`_UnitArray.values`.
+
+        See Also
+        --------
+        numpy.ndarray.shape
+        """
         return self.magnitude.shape
 
     @property
     def size(self):
+        """
+        Size of `_UnitArray.magnitude`/`_UnitArray.values`.
+
+        See Also
+        --------
+        numpy.ndarray.size
+        """
         return self.magnitude.size
 
     def asarray(self):
         """
-        Return values as numpy array
+        Return values as `numpy.ndarray` object.
         """
         return self.values.magnitude
 
     def __array__(self):
+        """
+        Method for converting to `numpy.ndarray` object.
+        """
         return self.values.magnitude
 
     def to_dict(self):
         """
-        convert object to dictionary
+        Convert object to dictionary
         """
         dictionary = {
             'values': self.magnitude.tolist(),
@@ -585,19 +622,19 @@ class _UnitArray(_AbstractArray):
     @classmethod
     def from_dict(cls, data):
         """
-        Create a class from dictionary.
+        Create class instance from dictionary.
         """
         return cls(**data)
 
     @classmethod
     def load(cls, filename):
         """
-        Load object
+        Load JSON or JSON-compressed object.
         """
         return read_json(filename)
 
     def save(self, filename):
         """
-        Save object
+        Save JSON or JSON-compressed object object.
         """
         return write_json(filename, self)
