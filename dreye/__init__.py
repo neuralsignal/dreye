@@ -8,6 +8,10 @@ which is a package implementing color vision models and algorithms for human
 observers.
 """
 
+__author__ = """gucky92"""
+__email__ = 'gucky@gucky.eu'
+__version__ = '0.0.0'
+
 # import all core elements and constants
 from dreye.core.signal import Signals, DomainSignal, Signal
 from dreye.core.signal_container import (
