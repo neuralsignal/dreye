@@ -3,7 +3,7 @@ scipy
 matplotlib
 numpy
 seaborn
-pint==0.9
+pint>=0.10
 cloudpickle
 scikit-learn
 pandas
