@@ -167,7 +167,7 @@ class StimPlottingMixin:
                             # calculate mean squared residual
                             res = np.mean((orig - fitted) ** 2)
                             # plot text
-                            plt.text(
+                            ax.text(
                                 xpos, ypos, "{0:.3e}".format(res),
                                 horizontalalignment='center',
                                 verticalalignment='bottom'
