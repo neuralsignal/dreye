@@ -21,3 +21,9 @@ API Reference
    SignalsContainer
    DomainSignalContainer
    MeasuredSpectraContainer
+   algebra
+   constants
+   estimators
+   hardware
+   io
+   stimuli

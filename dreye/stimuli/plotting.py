@@ -61,7 +61,7 @@ class StimPlottingMixin:
         **kwargs
     ):
         """
-        plot different stimulus attributes.
+        Plot different stimulus attributes.
         """
 
         plot_attrs = [

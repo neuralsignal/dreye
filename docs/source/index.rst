@@ -4,9 +4,9 @@
 
 .. module:: dreye
 
-***********************************************************
-DrEye - chromatic stimulus estimator for any model organism
-***********************************************************
+*********************************************************
+DrEye - chromatic stimulus estimation for model organisms
+*********************************************************
 
 **Date**: |today| **Version**: |version|
 

@@ -37,6 +37,16 @@ from dreye.core.photoreceptor import (
     get_photoreceptor_model
 )
 
+# import modules
+from dreye import stimuli
+from dreye import utilities
+from dreye import io
+from dreye import hardware
+from dreye import algebra
+from dreye import constants
+from dreye.utilities import abstract
+from dreye import estimators
+
 
 __all__ = [
     # domain
@@ -68,5 +78,9 @@ __all__ = [
     'LogPhotoreceptor',
     'create_gaussian_spectrum',
     'get_led_spectra_container',
-    'get_photoreceptor_model'
+    'get_photoreceptor_model',
+    # modules
+    'stimuli', 'utilities',
+    'io', 'hardware', 'algebra',
+    'constants', 'abstract', 'estimators'
 ]

@@ -9,11 +9,12 @@ from scipy.optimize import lsq_linear, least_squares
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from dreye.utilities import (
-    optional_to, asarray, is_listlike
+    optional_to, asarray, is_listlike, is_callable
 )
 from dreye.constants import ureg
 from dreye.core.spectrum import Spectra
 from dreye.estimators.base import _SpectraModel, OptimizeResultContainer
+from dreye.err import DreyeError
 
 
 class IndependentExcitationFit(_SpectraModel):
@@ -374,10 +375,97 @@ class TransformExcitationFit(IndependentExcitationFit):
                 "Inverse matrix row size must match matrix columns."
             )
 
-        super().fit(X @ self.W_)
+        super().fit(X @ self.Winv_)
         # overwrite current X
         self.current_X_ = self.transform_X_
-        self.fitted_transform_X_ = self.fitted_excite_X_ @ self.Winv_
+        self.fitted_transform_X_ = self.fitted_excite_X_ @ self.W_
+        return self
+
+    def inverse_transform(self, X):
+        excite_X = super().inverse_transform(X)
+        return excite_X @ self.Winv_
+
+    @property
+    def fitted_X(self):
+        """X after fitting
+        """
+        return self.fitted_transform_X_
+
+
+class NonlinearTransformExcitationFit(IndependentExcitationFit):
+    """
+    Class to fit a nonlinear transformation of
+    (relative) photoreceptor excitations for each sample independently.
+
+    Photoreceptor model and measured_spectra must produce dimensionless
+    captures.
+    """
+
+    # same length as X but not X or fitted X
+    _X_length = IndependentExcitationFit._X_length + [
+        'excite_X_',
+        'fitted_excite_X_'
+    ]
+
+    def __init__(
+        self,
+        *,
+        transform_func=None,  # array
+        inv_func=None,  # array
+        photoreceptor_model=None,  # dict or Photoreceptor class
+        photoreceptor_fit_weights=None,
+        background=None,  # dict or Spectrum instance or array-like
+        measured_spectra=None,  # dict, or MeasuredSpectraContainer
+        smoothing_window=None,  # float
+        max_iter=None,
+        hard_separation=False,  # bool or list-like (same length as number of LEDs)
+        hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        fit_only_uniques=False,
+        lsq_kwargs=None
+    ):
+        super().__init__(
+            photoreceptor_model=photoreceptor_model,
+            measured_spectra=measured_spectra,
+            smoothing_window=smoothing_window,
+            background=background,
+            max_iter=max_iter,
+            hard_separation=hard_separation,
+            hard_sep_value=hard_sep_value,
+            photoreceptor_fit_weights=photoreceptor_fit_weights,
+            fit_only_uniques=fit_only_uniques,
+            lsq_kwargs=lsq_kwargs
+        )
+        self.transform_func = transform_func
+        self.inv_func = inv_func
+
+    def fit(self, X, y=None):
+        X = self._check_X(X)
+        self.transform_X_ = X
+        if self.transform_func is None:
+            def transform_func(X):
+                return X
+            self.transform_func_ = transform_func
+        else:
+            assert is_callable(self.transform_func), (
+                "`transform_func` must be callable."
+            )
+            self.transform_func_ = self.transform_func
+
+        if self.inv_func is None and self.transform_func is None:
+            self.inv_func_ = transform_func
+        elif self.inv_func is None:
+            raise DreyeError("Supply `inv_func`, finding "
+                             "inverse function not yet implemented.")
+        else:
+            assert is_callable(self.inv_func), (
+                "`inv_func` must be callable."
+            )
+            self.inv_func_ = self.inv_func
+
+        super().fit(self.inv_func_(X))
+        # overwrite current X
+        self.current_X_ = self.transform_X_
+        self.fitted_transform_X_ = self.func_(self.fitted_excite_X_)
         return self
 
     def inverse_transform(self, X):

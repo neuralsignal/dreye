@@ -389,6 +389,23 @@ class LogPhotoreceptor(Photoreceptor):
         return np.exp(arr)
 
 
+class HyperbolicPhotoreceptor(Photoreceptor):
+
+    @staticmethod
+    def excitefunc(arr):
+        """
+        Returns the  `arr`/(1+`arr`).
+        """
+        return arr / (1 + arr)
+
+    @staticmethod
+    def inv_excitefunc(arr):
+        """
+        Returns the `arr`/(1 - `arr`).
+        """
+        return arr / (1 - arr)
+
+
 # TODO
 # class SelfScreeningPhotoreceptor(LinearPhotoreceptor):
 #     """

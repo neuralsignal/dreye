@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from dreye.io import read_json, write_json
-from dreye.utilities import is_numeric, is_listlike, asarray
+from dreye.utilities import is_numeric, is_listlike, asarray, is_callable
 from dreye.err import DreyeError
 from dreye.stimuli.variables import DUR_KEY, DELAY_KEY
 from dreye.stimuli.plotting import StimPlottingMixin
@@ -439,7 +439,68 @@ class BaseStimulus(ABC, StimPlottingMixin):
         return events
 
 
+class DynamicStimulus(BaseStimulus):
+    """
+    Create a stimulus from a function dynamically.
+    """
+
+    def __init__(
+        self, create_func,
+        *,
+        estimator=None,
+        rate=None,
+        seed=None,
+        **kwargs
+    ):
+        assert is_callable(create_func), (
+            "Create function must be callable."
+        )
+        super().__init__(
+            create_func=create_func,
+            estimator=estimator,
+            rate=rate,
+            seed=seed,
+            **kwargs
+        )
+
+    def create(self):
+        """create signal and metadata
+        """
+        output = self.create_func(self)
+        if isinstance(output, tuple):
+            if len(output) == 1:
+                self._signal = output[0]
+                self._events = pd.DataFrame()
+                self._metadata = {}
+            elif len(output) == 2:
+                self._signal = output[0]
+                self._events = output[1]
+                self._metadata = {}
+            elif len(output) == 3:
+                self._signal = output[0]
+                self._events = output[1]
+                self._metadata = output[2]
+            else:
+                raise DreyeError("Output from `create_func` must contain "
+                                 "only three tuples maximum, but contains "
+                                 f"{len(output)}.")
+        else:
+            self._signal = output
+            self._events = pd.DataFrame()
+            self.metadata = {}
+
+
+# TODO random events reshuffling
+# class CombinedStimulus(BaseStimulus):
+#     """
+#     Combine and reshuffle multiple stimuli
+#     """
+
+
 class ChainedStimuli:
+    """
+    Chain multiple stimuli together.
+    """
 
     def __init__(self, stimuli, shuffle=False, seed=None):
 

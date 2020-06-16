@@ -29,7 +29,7 @@ class SetBaselineMixin:
         return baseline_values.astype(float)
 
 
-class SetStepMixin(SetBaselineMixin):
+class SetStepMixin:
 
     def _set_values(self, values, baseline_values, separate_channels):
         """function to set values attribute to pandas DataFrame.
@@ -80,7 +80,7 @@ class SetStepMixin(SetBaselineMixin):
         ), baseline_values
 
 
-class SetRandomStepMixin(SetBaselineMixin):
+class SetRandomStepMixin:
 
     def _set_values(self, values, baseline_values, values_probs):
         """return values in dictionary format and baseline_values as
