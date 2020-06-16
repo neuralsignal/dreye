@@ -207,10 +207,6 @@ class BaseStimulus(ABC, StimPlottingMixin):
                 events, self.ch_names, self.fitted_signal, 'fitted_',
                 'fitted_signal'
             )
-            events = self._add_to_events(
-                events, self.ch_names, self.stimulus, 'out_',
-                'stimulus'
-            )
             if hasattr(self.estimator, '_X_length'):
                 for attr in self.estimator._X_length:
                     # special cases (handles photoreceptor model and spms)
