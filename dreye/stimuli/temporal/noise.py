@@ -180,7 +180,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         *,
         estimator=None,
         rate=1,
-        n_channels=1,
+        n_channels=None,
         stim_dur=10,
         mean=0,
         var=1,
@@ -221,14 +221,20 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
             extra_kwargs=extra_kwargs,
         )
 
-        if channel_names is None:
-            self.channel_names = list(range(n_channels))
-        else:
-            self.channel_names = list(channel_names)
-            assert len(self.channel_names) == n_channels
-
         self.mean = asarray(self.mean)
         self.var = asarray(self.var)
+
+        if n_channels is None and channel_names is None:
+            self.n_channels = max([self.mean.size, self.var.size])
+        elif n_channels is None:
+            self.n_channels = len(self.channel_names)
+
+        if channel_names is None:
+            self.channel_names = list(range(self.n_channels))
+        else:
+            self.channel_names = list(channel_names)
+            assert len(self.channel_names) == self.n_channels
+
         if minimum is None:
             self.minimum = self.mean - 5 * self.var
         else:
@@ -415,3 +421,6 @@ class BrownNoiseStimulus(WhiteNoiseStimulus):
         signal = np.where(signal > min, signal, min)
 
         return signal
+
+
+# TODO Binary noise

@@ -18,6 +18,7 @@ class StimPlottingMixin:
     _color = 'black'
     _plot_attrs = ['signal', 'fitted_signal', 'stimulus']
     _colormaps = {}
+    _attrs_to_event_labels_mapping = {}
 
     def _get_colors(self, name, length, cmap, color):
         if cmap is None:
@@ -58,6 +59,7 @@ class StimPlottingMixin:
         fig_kws={},
         gridspec_kws=None,
         subplot_kws=None,
+        add_residuals=True,
         **kwargs
     ):
         """
@@ -134,7 +136,7 @@ class StimPlottingMixin:
 
             plot_kwargs['add_title'] = plot_kwargs.get('add_title', attr)
 
-            self.plot_data(
+            self._plot_data(
                 ax=ax,
                 data=attr,
                 **plot_kwargs
@@ -142,16 +144,38 @@ class StimPlottingMixin:
             fitted_attr = fitted_attrs.get(attr, None)
             if fitted_attr is not None:
                 plot_kwargs['linestyle'] = '--'
-                self.plot_data(
+                self._plot_data(
                     ax=ax,
                     data=fitted_attr,
                     _skip=True,
                     **plot_kwargs
                 )
 
+                if add_residuals:
+                    lookup = self._attrs_to_event_labels_mapping
+                    if attr in lookup and fitted_attr in lookup:
+                        _, ypos = ax.get_ylim()
+                        # iterate over each event
+                        for idx, row in self.events.iterrows():
+                            # get original and fitted values
+                            orig = np.array(list(row[lookup[attr]]))
+                            fitted = np.array(list(row[lookup[fitted_attr]]))
+                            # get delay and duration of event
+                            delay = row[DELAY_KEY]
+                            dur = row[DUR_KEY]
+                            xpos = delay + dur/2
+                            # calculate mean squared residual
+                            res = np.mean((orig - fitted) ** 2)
+                            # plot text
+                            plt.text(
+                                xpos, ypos, "{0:.3e}".format(res),
+                                horizontalalignment='center',
+                                verticalalignment='bottom'
+                            )
+
         return axes
 
-    def plot_data(
+    def _plot_data(
         self, data=None, ax=None,
         color=None, cmap=None,
         add_legend=False,

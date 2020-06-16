@@ -188,8 +188,28 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         if not self._added_to_events:
             events = _check_events(self._events)
+            # if channel names not in events add signal
+            # HERE no overlap at all in names
+            if not set(events.columns) & set(self.ch_names):
+                events = self._add_to_events(
+                    events, self.ch_names, self.signal, '',
+                    'signal'
+                )
+            # MUST include all channel names
+            elif (
+                not set(self.ch_names) - set(events.columns)
+                and hasattr(self, '_attrs_to_event_labels_mapping')
+            ):
+                # add signal to event labels mapping
+                self._attrs_to_event_labels_mapping['signal'] = self.ch_names
+            # add stimulus and fitted_signal to events
             events = self._add_to_events(
-                events, self.ch_names, self.fitted_signal, 'fitted_'
+                events, self.ch_names, self.fitted_signal, 'fitted_',
+                'fitted_signal'
+            )
+            events = self._add_to_events(
+                events, self.ch_names, self.stimulus, 'out_',
+                'stimulus'
             )
             if hasattr(self.estimator, '_X_length'):
                 for attr in self.estimator._X_length:
@@ -216,8 +236,12 @@ class BaseStimulus(ABC, StimPlottingMixin):
                         labels = None
                         prefix = attr
                     events = self._add_to_events(
-                        events, labels, getattr(self.estimator, attr), prefix
+                        events, labels, getattr(self.estimator, attr), prefix,
+                        attr
                     )
+
+            # ensure check again (stringify etc.)
+            events = _check_events(events)
             self._events = events
             self._added_to_events = True
 
@@ -376,7 +400,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         return read_json(filename)
 
-    def _add_to_events(self, events, labels, signal, prefix):
+    def _add_to_events(self, events, labels, signal, prefix, attr_name):
         """
         method used to add transformations of signals
         """
@@ -435,6 +459,9 @@ class BaseStimulus(ABC, StimPlottingMixin):
         events_ = pd.DataFrame(events_, index=events.index)
         # reassign events
         events = pd.concat([events, events_], axis=1)
+        # assign attr_name to labels
+        if hasattr(self, '_attrs_to_event_labels_mapping'):
+            self._attrs_to_event_labels_mapping[attr_name] = labels
 
         return events
 

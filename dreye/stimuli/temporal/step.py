@@ -220,6 +220,120 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
         return dur_iterable
 
 
+class NoiseStepStimulus(StepStimulus):
+    """
+    Step stimulus by choosing values from a truncated Gaussian
+    """
+
+    def __init__(
+        self,
+        *,
+        estimator=None,
+        n_samples=1,
+        n_channels=None,
+        mean=0,
+        var=1,
+        minimum=None,
+        maximum=None,
+        channel_names=None,
+        durations=1,
+        pause_durations=0,
+        repetitions=1,
+        iterations=1,
+        randomize=False,
+        rate=1,
+        start_delay=0,
+        end_dur=0,
+        seed=None,
+        values_seed=None,
+        aligned_durations=False,
+        func=None
+    ):
+
+        super().__init__(
+            estimator=estimator,
+            n_channels=n_channels,
+            n_samples=n_samples,
+            mean=mean,
+            var=var,
+            minimum=minimum,
+            maximum=maximum,
+            channel_names=channel_names,
+            durations=durations,
+            pause_durations=pause_durations,
+            repetitions=repetitions,
+            iterations=iterations,
+            randomize=randomize,
+            rate=rate,
+            start_delay=start_delay,
+            end_dur=end_dur,
+            seed=seed,
+            values_seed=values_seed,
+            aligned_durations=aligned_durations,
+            separate_channels=False,
+            func=func
+        )
+
+        # TODO copy from whitenoise (make convenience function?)
+
+        self.mean = asarray(self.mean)
+        self.var = asarray(self.var)
+
+        if n_channels is None and channel_names is None:
+            self.n_channels = max([self.mean.size, self.var.size])
+        elif n_channels is None:
+            self.n_channels = len(self.channel_names)
+
+        if channel_names is None:
+            self.channel_names = list(range(self.n_channels))
+        else:
+            self.channel_names = list(channel_names)
+            assert len(self.channel_names) == self.n_channels
+
+        if minimum is None:
+            self.minimum = self.mean - 5 * self.var
+        else:
+            self.minimum = asarray(self.minimum)
+        if maximum is None:
+            self.maximum = self.mean + 5 * self.var
+        else:
+            self.maximum = asarray(self.maximum)
+
+        if np.all(self.maximum == self.minimum):
+            self.maximum += 10**-5
+            self.minimum -= 10**-5
+
+        a, b = convert_truncnorm_clip(
+            self.minimum, self.maximum, self.mean, self.var)
+
+        distribution = stats.truncnorm(
+            a=a,
+            b=b,
+            loc=self.mean,
+            scale=self.var
+        )
+
+        values = pd.DataFrame(
+            distribution.rvs(
+                size=(n_samples, self.n_channels),
+                random_state=self.values_seed
+            ),
+            columns=self.channel_names
+        )
+
+        # sets values and baseline values attribute correctly
+        self.values, self.baseline_values = self._set_values(
+            values=values, baseline_values=self.mean,
+            separate_channels=False
+        )
+
+        # reset duration attributes correctly
+        self.dur_iterable = self._set_durs(
+            durations=durations, pause_durations=pause_durations,
+            aligned_durations=aligned_durations
+        )
+
+
 class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
     """Random switch stimulus using truncnorm
 
@@ -427,6 +541,3 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
                 )
 
         return signal
-
-
-# Binary noise
