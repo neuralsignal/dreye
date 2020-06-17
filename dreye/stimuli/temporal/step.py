@@ -150,8 +150,10 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
             _events['iter'] = n + 1
             events = events.append(_events, ignore_index=True, sort=False)
 
-        delays = np.cumsum(asarray(events[[DUR_KEY, PAUSE_KEY]]).sum(1))
-        delays -= delays[0]
+        delays = np.concatenate([
+            [0],
+            np.cumsum(asarray(events[[DUR_KEY, PAUSE_KEY]]).sum(1))[:-1]
+        ])
         delays += self.start_delay
 
         events[DELAY_KEY] = delays

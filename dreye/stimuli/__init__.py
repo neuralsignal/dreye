@@ -2,7 +2,10 @@
 Stimuli package
 """
 
-from dreye.stimuli.base import BaseStimulus, ChainedStimuli, DynamicStimulus
+from dreye.stimuli.base import (
+    BaseStimulus, ChainedStimuli, DynamicStimulus,
+    RandomizeChainedStimuli
+)
 from dreye.stimuli.temporal.step import (
     StepStimulus, RandomSwitchStimulus, NoiseStepStimulus
 )
@@ -14,5 +17,6 @@ __all__ = [
     'BaseStimulus', 'ChainedStimuli',
     'StepStimulus', 'RandomSwitchStimulus',
     'WhiteNoiseStimulus', 'BrownNoiseStimulus',
-    'StimSet', 'DynamicStimulus', 'NoiseStepStimulus'
+    'StimSet', 'DynamicStimulus', 'NoiseStepStimulus',
+    'RandomizeChainedStimuli'
 ]

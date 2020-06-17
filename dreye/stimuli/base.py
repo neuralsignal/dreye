@@ -650,12 +650,12 @@ class ChainedStimuli:
 # have alist of all attributes
 
 
-class RandomizeChainedStimuli:
+class RandomizeChainedStimuli(ChainedStimuli):
     """
     Randomize chained stimuli by reordering events dataframe.
     """
 
-    def __init__(self, stimuli, shuffle=False, seed=None):
+    def __init__(self, stimuli, shuffle=True, seed=None):
         # initialize chained stimuli
         super().__init__(stimuli, shuffle=False, seed=None)
 
@@ -718,7 +718,7 @@ class RandomizeChainedStimuli:
 
     @classmethod
     def from_dict(cls, data):
-        self = cls(data['stimuli'])
+        self = cls(data['stimuli'], shuffle=False)
         self._events = data['events']
         self._stimulus = data['stimulus']
         return self
