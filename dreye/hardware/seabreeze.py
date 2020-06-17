@@ -26,11 +26,15 @@ def read_calibration_file(
     assert isinstance(filename, str)
     area_texts = {
         'Collection-area(cm^2)': ('area', 'cm**2'),
-        'Fiber(micron)': ('diameter', 'micrometer')
+        'Fiber(micron)': ('diameter', 'micrometer'),
+        'Fiber(cm)': ('diameter', 'cm'),
+        'Collection-area(um^2)': ('area', 'micrometer**2')
     }
     integration_time_texts = {
         'Int.Time(usec)': 'microsecond',
-        'IntegrationTime(sec)': 'second'
+        'IntegrationTime(sec)': 'second',
+        'Int.Time(sec)': 'second',
+        'IntegrationTime(usec)': 'microsecond',
     }
 
     area = None
@@ -97,7 +101,7 @@ class OceanSpectrometer(AbstractSpectrometer):
     ):
         if not SEABREEZE:
             raise DreyeError(f"You need to install seabreeze.")
-        # TODO open first one if sb_device is None
+        # opens any device that is a seabreeze device
         try:
             if sb_device is None:
                 self.spec = sb.Spectrometer.from_first_available()

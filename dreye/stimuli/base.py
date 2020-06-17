@@ -10,7 +10,7 @@ import pandas as pd
 from dreye.io import read_json, write_json
 from dreye.utilities import is_numeric, is_listlike, asarray, is_callable
 from dreye.err import DreyeError
-from dreye.stimuli.variables import DUR_KEY, DELAY_KEY
+from dreye.stimuli.variables import DUR_KEY, DELAY_KEY, PAUSE_KEY
 from dreye.stimuli.plotting import StimPlottingMixin
 
 
@@ -31,11 +31,15 @@ def _check_events(df):
                 cols.append(DELAY_KEY)
             if DUR_KEY not in cols:
                 cols.append(DUR_KEY)
+            if PAUSE_KEY not in cols:
+                cols.append(PAUSE_KEY)
             df = pd.DataFrame(columns=cols)
 
     else:
         assert not ({DELAY_KEY, DUR_KEY} - set(df.columns)), \
             'event frame must contain column start and dur.'
+        if PAUSE_KEY not in df.columns:
+            df[PAUSE_KEY] = 0.0
 
         # stringify columns - and copy dataframe WHY?
         cols = {
@@ -510,13 +514,6 @@ class DynamicStimulus(BaseStimulus):
             self.metadata = {}
 
 
-# TODO random events reshuffling
-# class CombinedStimulus(BaseStimulus):
-#     """
-#     Combine and reshuffle multiple stimuli
-#     """
-
-
 class ChainedStimuli:
     """
     Chain multiple stimuli together.
@@ -566,6 +563,10 @@ class ChainedStimuli:
         return self.stimuli[key]
 
     @property
+    def rate(self):
+        return self.stimuli[0].rate
+
+    @property
     def time_axis(self):
         return self.stimuli[0].time_axis
 
@@ -578,11 +579,16 @@ class ChainedStimuli:
         """combine dataframe
         """
         events = pd.DataFrame()
+        dur = 0.0
         for idx, stim in enumerate(self.stimuli):
             assert 'stim_index' not in stim.events
-            event = stim.events
+            event = stim.events.copy()
+            # add duration
+            event[DELAY_KEY] += dur
+            # add index
             event['stim_index'] = idx
             events = events.append(event, ignore_index=True, sort=True)
+            dur += stim.duration
         return events
 
     @property
@@ -642,3 +648,77 @@ class ChainedStimuli:
         return read_json(filename)
 
 # have alist of all attributes
+
+
+class RandomizeChainedStimuli:
+    """
+    Randomize chained stimuli by reordering events dataframe.
+    """
+
+    def __init__(self, stimuli, shuffle=False, seed=None):
+        # initialize chained stimuli
+        super().__init__(stimuli, shuffle=False, seed=None)
+
+        # dataframe to shuffle
+        if shuffle:
+            events = super().events
+            stimulus = super().stimulus
+            # shuffle events
+            events = events.sample(
+                frac=1, replace=False, random_state=seed
+            ).reset_index()
+            # get index of first event (offset)
+            offset_idx = int(events[DELAY_KEY].min() * self.rate)
+            # copy stimulus
+            new_stimulus = stimulus.copy()
+            # loop over events
+            for idx, event in events.iterrows():
+                frames = int(
+                    (event[DUR_KEY] + event[PAUSE_KEY]) * self.rate
+                )
+                # new start and end
+                new_start_idx = offset_idx
+                new_end_idx = offset_idx + frames
+                # old start and end
+                old_start_idx = int(event[DELAY_KEY] * self.rate)
+                old_end_idx = old_start_idx + frames
+                # change stimulus location
+                new_stimulus[new_start_idx:new_end_idx] = stimulus[
+                    old_start_idx:old_end_idx
+                ]
+
+                events.loc[idx, DELAY_KEY] = new_start_idx / self.rate
+
+                offset_idx = new_end_idx
+
+            self._events = events
+            self._stimulus = new_stimulus
+        else:
+            self._events = super().events
+            self._stimulus = super().stimulus
+
+    @property
+    def events(self):
+        """events dataframe
+        """
+        return self._events
+
+    @property
+    def stimulus(self):
+        """concatenate along time axis
+        """
+        return self._stimulus
+
+    def to_dict(self):
+        return {
+            'stimuli': self.stimuli,
+            'events': self.events,
+            'stimulus': self.stimulus
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        self = cls(data['stimuli'])
+        self._events = data['events']
+        self._stimulus = data['stimulus']
+        return self

@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 
-from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY
+from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY, PAUSE_KEY
 from dreye.stimuli.mixin import (
     SetBaselineMixin, SetStepMixin, SetRandomStepMixin
 )
@@ -132,7 +132,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
         for index, row in self.values.iterrows():
             for dur, pause in self.dur_iterable:
                 row[DUR_KEY] = dur
-                row['pause'] = pause
+                row[PAUSE_KEY] = pause
                 df = pd.DataFrame([row] * self.repetitions)
                 df['repeat'] = asarray(df.index)
                 events = events.append(df, ignore_index=True, sort=False)
@@ -150,7 +150,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
             _events['iter'] = n + 1
             events = events.append(_events, ignore_index=True, sort=False)
 
-        delays = np.cumsum(asarray(events[[DUR_KEY, 'pause']]).sum(1))
+        delays = np.cumsum(asarray(events[[DUR_KEY, PAUSE_KEY]]).sum(1))
         delays -= delays[0]
         delays += self.start_delay
 
@@ -167,7 +167,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
         total_dur = (
             last_event[DELAY_KEY]
             + last_event[DUR_KEY]
-            + last_event['pause']
+            + last_event[PAUSE_KEY]
             + self.end_dur
         )
         total_frames = int(np.ceil(total_dur * self.rate))
@@ -468,6 +468,7 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
                 cum_dur += dur
 
         events[DELAY_KEY] += self.start_delay
+        events[PAUSE_KEY] = 0
         events['end'] = events[DELAY_KEY] + events[DUR_KEY]
         # sort events by delay and remove end column
         events.sort_values('end', inplace=True)

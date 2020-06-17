@@ -13,7 +13,7 @@ import numpy as np
 from scipy import stats
 import scipy.signal
 
-from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY
+from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY, PAUSE_KEY
 from dreye.utilities import convert_truncnorm_clip, asarray
 from dreye.algebra import Filter1D
 
@@ -317,6 +317,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         events = [{
             DELAY_KEY: len(start_signal) / self.rate,
             DUR_KEY: random_dur,
+            PAUSE_KEY: len(pause_signal) / self.rate,
             'iter': 0,
             'name': self.name
         }]
@@ -325,6 +326,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
             events.append({
                 DELAY_KEY: (len(signal) + len(pause_signal)) / self.rate,
                 DUR_KEY: random_dur,
+                PAUSE_KEY: len(pause_signal) / self.rate,
                 'iter': n+1,
                 'name': self.name
             })
