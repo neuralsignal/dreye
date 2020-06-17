@@ -53,7 +53,6 @@ class BaseStimulus(ABC, StimPlottingMixin):
     time_axis = 0
     channel_axis = 1
     _add_mean_to_events = True
-    _added_to_events = False
 
     def __init__(self, *, estimator=None, rate=None, seed=None, **kwargs):
         """base initialization
@@ -129,6 +128,59 @@ class BaseStimulus(ABC, StimPlottingMixin):
         else:
             self._fitted_signal = self.signal
 
+        events = _check_events(self._events)
+        # if channel names not in events add signal
+        # HERE no overlap at all in names
+        if not set(events.columns) & set(self.ch_names):
+            events = self._add_to_events(
+                events, self.ch_names, self.signal, '',
+                'signal'
+            )
+        # MUST include all channel names
+        elif (
+            not set(self.ch_names) - set(events.columns)
+            and hasattr(self, '_attrs_to_event_labels_mapping')
+        ):
+            # add signal to event labels mapping
+            self._attrs_to_event_labels_mapping['signal'] = self.ch_names
+        # add stimulus and fitted_signal to events
+        events = self._add_to_events(
+            events, self.ch_names, self.fitted_signal, 'fitted_',
+            'fitted_signal'
+        )
+        if hasattr(self.estimator, '_X_length'):
+            for attr in self.estimator._X_length:
+                # special cases (handles photoreceptor model and spms)
+                if (
+                    'intensities_' in attr
+                    and hasattr(self.estimator, 'measured_spectra_')
+                ):
+                    labels = self.estimator.measured_spectra_.names
+                    prefix = attr.replace('intensities_', '')
+                elif (
+                    'excite_X_' in attr
+                    and hasattr(self.estimator, 'photoreceptor_model_')
+                ):
+                    labels = self.estimator.photoreceptor_model_.names
+                    prefix = attr.replace('excite_X_', 'f_')
+                elif (
+                    'capture_X_' in attr
+                    and hasattr(self.estimator, 'photoreceptor_model_')
+                ):
+                    labels = self.estimator.photoreceptor_model_.names
+                    prefix = attr.replace('capture_X_', 'q_')
+                else:
+                    labels = None
+                    prefix = attr
+                events = self._add_to_events(
+                    events, labels, getattr(self.estimator, attr), prefix,
+                    attr
+                )
+
+        # ensure check again (stringify etc.)
+        events = _check_events(events)
+        self._events = events
+
     # --- short hand for metadata dictionary --- #
 
     def __getitem__(self, index):
@@ -185,61 +237,6 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         if self._signal is None:
             self.transform()
-
-        if not self._added_to_events:
-            events = _check_events(self._events)
-            # if channel names not in events add signal
-            # HERE no overlap at all in names
-            if not set(events.columns) & set(self.ch_names):
-                events = self._add_to_events(
-                    events, self.ch_names, self.signal, '',
-                    'signal'
-                )
-            # MUST include all channel names
-            elif (
-                not set(self.ch_names) - set(events.columns)
-                and hasattr(self, '_attrs_to_event_labels_mapping')
-            ):
-                # add signal to event labels mapping
-                self._attrs_to_event_labels_mapping['signal'] = self.ch_names
-            # add stimulus and fitted_signal to events
-            events = self._add_to_events(
-                events, self.ch_names, self.fitted_signal, 'fitted_',
-                'fitted_signal'
-            )
-            if hasattr(self.estimator, '_X_length'):
-                for attr in self.estimator._X_length:
-                    # special cases (handles photoreceptor model and spms)
-                    if (
-                        'intensities_' in attr
-                        and hasattr(self.estimator, 'measured_spectra_')
-                    ):
-                        labels = self.estimator.measured_spectra_.names
-                        prefix = attr.replace('intensities_', '')
-                    elif (
-                        'excite_X_' in attr
-                        and hasattr(self.estimator, 'photoreceptor_model_')
-                    ):
-                        labels = self.estimator.photoreceptor_model_.names
-                        prefix = attr.replace('excite_X_', 'f_')
-                    elif (
-                        'capture_X_' in attr
-                        and hasattr(self.estimator, 'photoreceptor_model_')
-                    ):
-                        labels = self.estimator.photoreceptor_model_.names
-                        prefix = attr.replace('capture_X_', 'q_')
-                    else:
-                        labels = None
-                        prefix = attr
-                    events = self._add_to_events(
-                        events, labels, getattr(self.estimator, attr), prefix,
-                        attr
-                    )
-
-            # ensure check again (stringify etc.)
-            events = _check_events(events)
-            self._events = events
-            self._added_to_events = True
 
         return self._events
 
