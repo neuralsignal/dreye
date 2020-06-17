@@ -4,6 +4,7 @@ LED Estimators for intensities and spectra
 
 from abc import abstractmethod
 
+import numpy as np
 from scipy.optimize import OptimizeResult
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
@@ -277,9 +278,14 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         if X is not None:
             # refit if X is given
             self.fit(X)
+        # clip intensities if necessary!
+        map_intensities = np.clip(
+            self.fitted_intensities_,
+            *self.measured_spectra_.intensity_bounds
+        )
         # map fitted_intensities
         return self.measured_spectra_.map(
-            self.fitted_intensities_, return_units=False)
+            map_intensities, return_units=False)
 
     @abstractmethod
     def inverse_transform(self, X):
