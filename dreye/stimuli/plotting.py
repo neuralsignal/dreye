@@ -182,7 +182,7 @@ class StimPlottingMixin:
                             # plot text
                             kwargs_score
                             ax.text(
-                                xpos, ymax, "rmse={0:.3e}".format(score),
+                                xpos, ymax, "rmse={0:.1e}".format(score),
                                 **kws_score
                             )
 
