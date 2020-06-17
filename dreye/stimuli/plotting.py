@@ -59,7 +59,8 @@ class StimPlottingMixin:
         fig_kws={},
         gridspec_kws=None,
         subplot_kws=None,
-        add_residuals=True,
+        add_score=True,
+        kwargs_score=None,
         **kwargs
     ):
         """
@@ -151,26 +152,38 @@ class StimPlottingMixin:
                     **plot_kwargs
                 )
 
-                if add_residuals:
+                if add_score:
                     lookup = self._attrs_to_event_labels_mapping
                     if attr in lookup and fitted_attr in lookup:
-                        _, ypos = ax.get_ylim()
+                        ymin, ymax = ax.get_ylim()
+                        kws_score = dict(
+                            horizontalalignment='center',
+                            verticalalignment='top',
+                            weight='bold'
+                        )
+                        if kwargs_score is not None:
+                            kws_score.update(kwargs_score)
                         # iterate over each event
                         for idx, row in self.events.iterrows():
                             # get original and fitted values
-                            orig = np.array(list(row[lookup[attr]]))
-                            fitted = np.array(list(row[lookup[fitted_attr]]))
+                            orig = np.array(
+                                list(row[lookup[attr]])
+                            ).ravel()
+                            fitted = np.array(
+                                list(row[lookup[fitted_attr]])
+                            ).ravel()
                             # get delay and duration of event
                             delay = row[DELAY_KEY]
                             dur = row[DUR_KEY]
                             xpos = delay + dur/2
-                            # calculate mean squared residual
-                            res = np.mean((orig - fitted) ** 2)
+                            # calculate root mean squared residual
+                            score = np.sqrt(np.mean((orig - fitted) ** 2))
+                            # calculate correlation coefficient
                             # plot text
+                            kwargs_score
                             ax.text(
-                                xpos, ypos, "{0:.3e}".format(res),
-                                horizontalalignment='center',
-                                verticalalignment='bottom'
+                                xpos, ymax, "rmse={0:.3e}".format(score),
+                                **kws_score
                             )
 
         return axes
