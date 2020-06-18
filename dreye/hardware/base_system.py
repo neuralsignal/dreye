@@ -98,7 +98,7 @@ class AbstractOutput(AbstractSender):
         assert isinstance(name, str)
         assert is_numeric(max_intensity_bound)
         assert is_numeric(zero_intensity_bound)
-        assert isinstance(units, str)
+        assert isinstance(units, str) or units is None
         self._name = name
         self._object_name = object_name
         self._max_intensity_bound = max_intensity_bound
@@ -179,6 +179,9 @@ class AbstractOutput(AbstractSender):
 
     def _zero(self):
         self.send_value(self._zero_intensity_bound)
+
+    def _max(self):
+        self.send_value(self._max_intensity_bound)
 
     def steps(self, n_steps):
         return np.linspace(
