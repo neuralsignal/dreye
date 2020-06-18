@@ -3,6 +3,7 @@
 
 from abc import abstractmethod, ABC
 import time
+import warnings
 
 import numpy as np
 
@@ -129,7 +130,7 @@ class AbstractSpectrometer(ABC):
 
     def perform_measurement(
         self, n, sleep=None, return_spectrum=True, return_it=False,
-        verbose=0, **kwargs
+        verbose=0, optimize_it=True, error='raise', **kwargs
     ):
         """perform measurement by finding
         best integration time and averaging across
@@ -137,7 +138,10 @@ class AbstractSpectrometer(ABC):
         or MeasuredSpectrum instance)
         """
 
-        it = self.find_best_it()
+        if optimize_it:
+            it = self.find_best_it(error=error)
+        else:
+            it = self.current_it
         ints = self.avg_ints(n, sleep)
 
         if return_spectrum:
@@ -156,7 +160,7 @@ class AbstractSpectrometer(ABC):
         else:
             return ints
 
-    def find_best_it(self, return_intensity=False):
+    def find_best_it(self, return_intensity=False, error='raise'):
         """find best integration time and return
         new integration time (and intensity measured)
         """
@@ -184,10 +188,18 @@ class AbstractSpectrometer(ABC):
                 self.set_it(it)
 
                 if self.maxi > self.ideal_upper_bound:
-                    raise DreyeError(
-                        "Integration time cannot be made smaller, but "
-                        "the spectrophotometer is saturating."
-                    )
+                    if error == 'ignore':
+                        pass
+                    elif error == 'warn':
+                        warnings.warn(
+                            "Integration time cannot be made smaller, but "
+                            "the spectrophotometer is saturating."
+                        )
+                    else:
+                        raise DreyeError(
+                            "Integration time cannot be made smaller, but "
+                            "the spectrophotometer is saturating."
+                        )
 
             else:
                 self.set_it(it)

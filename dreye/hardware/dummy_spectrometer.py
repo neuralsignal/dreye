@@ -16,6 +16,7 @@ class DummySpectrometer(AbstractSpectrometer):
 
     def __init__(
         self, wavelengths, dummy_leds, dummy_system,
+        background=None,
         noise_scale=0.01
     ):
 
@@ -27,6 +28,7 @@ class DummySpectrometer(AbstractSpectrometer):
         leds.domain_axis = 0
         self.leds = leds.magnitude
         self.system = dummy_system
+        self.background = background
         self.noise_scale = noise_scale
         self._wavelengths = asarray(wavelengths)
         self._calibration = CalibrationSpectrum(
@@ -86,15 +88,17 @@ class DummySpectrometer(AbstractSpectrometer):
             output = self.system[0]
             zero_intensity_bound = get_value(output.zero_intensity_bound)
             max_intensity_bound = get_value(output.max_intensity_bound)
-            value = max_intensity_bound
+            value = zero_intensity_bound
         led = self.leds[:, idx]
-        led = led + np.random.normal(0, self.noise_scale, size=led.shape)
         led = led / np.max(led)
         led = led * self.ideal_mid_point
 
         rel_value = np.abs(value - zero_intensity_bound)
         rel_value /= np.abs(zero_intensity_bound - max_intensity_bound)
         led = led * rel_value
+        led = led + np.random.normal(0, self.noise_scale, size=led.shape)
+        if self.background is not None:
+            led = led + self.background
         return asarray(led)
 
     def close(self):

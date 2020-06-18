@@ -70,6 +70,28 @@ class MeasurementRunner:
             )
         # reset spms
         self.system._measured_spectra = None
+        # set outputs to zero
+        for output in self.system:
+            output.open()
+            output._zero()
+            output.close()
+        # create background
+        if self.remove_zero:
+            if verbose:
+                sys.stdout.write(
+                    '\nPerforming background measurement for subtraction...'
+                )
+            background = self.spectrometer.perform_measurement(
+                self.n_avg, self.sleep, return_spectrum=True,
+                verbose=verbose, optimize_it=False
+            )
+            if verbose:
+                sys.stdout.write(
+                    '\nOverall intensity of the background: '
+                    f'{background.integral}\n'
+                )
+        else:
+            background = None
         # iterate over system devices
         for n, output in enumerate(self.system):
             if verbose:
@@ -109,14 +131,8 @@ class MeasurementRunner:
                 elif verbose:
                     sys.stdout.write('.')
             # remove background zero from the rest
-            if self.remove_zero:
-                spectrum_array -= spectrum_array[:, :1]
-            # flip if reversed
-            # not necessary anymore
-            # if output.zero_intensity_bound > output.max_intensity_bound:
-            #     spectrum_array = spectrum_array[:, ::-1]
-            #     values = values[::-1]
-            #     its = its[::-1]
+            # if self.remove_zero:
+            #     spectrum_array -= spectrum_array[:, :1]
             if verbose == 1:
                 sys.stdout.write('\n')
             if verbose:
@@ -140,7 +156,8 @@ class MeasurementRunner:
                 output_units=output.units,
                 zero_intensity_bound=output.zero_intensity_bound,
                 max_intensity_bound=output.max_intensity_bound,
-                name=output.name
+                name=output.name,
+                background=background
             )
             if self.wls is not None:
                 mspectrum = mspectrum(self.wls)

@@ -11,7 +11,9 @@ from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.core.domain import Domain
 from dreye.core.signal import _SignalMixin, _Signal2DMixin
-from dreye.core.spectrum import IntensitySpectra, DomainSpectrum
+from dreye.core.spectrum import (
+    IntensitySpectra, IntensitySpectrum, DomainSpectrum
+)
 from dreye.core.spectral_measurement import (
     CalibrationSpectrum, MeasuredSpectrum,
     MeasuredSpectraContainer
@@ -22,7 +24,8 @@ def convert_measurement(
     signal, calibration=None, integration_time=None,
     area=None,
     units='uE',
-    spectrum_cls=IntensitySpectra,
+    spectrum_cls=None,
+    background=None,
     **kwargs
 ):
     """
@@ -58,6 +61,14 @@ def convert_measurement(
 
     assert isinstance(signal, _SignalMixin)
 
+    if spectrum_cls is None:
+        if signal.ndim == 1:
+            spectrum_cls = IntensitySpectrum
+        elif signal.ndim == 2:
+            spectrum_cls = IntensitySpectra
+        else:
+            raise DreyeError("Signal instance of unknown dimensionality.")
+
     if calibration is None:
         calibration = CalibrationSpectrum(
             np.ones(signal.domain.size),
@@ -91,6 +102,8 @@ def convert_measurement(
     spectrum = (signal * calibration)
     spectrum = spectrum / (integration_time * area)
     spectrum = spectrum.piecewise_gradient
+    if background is not None:
+        spectrum = spectrum - background.to(spectrum.units)
 
     return spectrum_cls(spectrum, units=units, **kwargs)
 
@@ -109,6 +122,7 @@ def create_measured_spectrum(
     assume_contains_output_bounds=True,
     resolution=None,
     name=None,
+    background=None,
     **kwargs
 ):
     """
@@ -188,6 +202,7 @@ def create_measured_spectrum(
         max_intensity_bound=max_intensity_bound,
         resolution=resolution,
         name=name,
+        background=background,
         **kwargs
     )
 
