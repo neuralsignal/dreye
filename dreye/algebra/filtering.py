@@ -31,7 +31,7 @@ class Filter1D:
             and (method not in ['hanning', 'get_window'])
         ), f"window method {method} does not exist"
 
-        assert is_integer(M, int), (f"M is not of type int, but {type(M)}.")
+        assert is_integer(M), (f"M is not of type int, but {type(M)}.")
 
         self._method = method
         self._M = M
