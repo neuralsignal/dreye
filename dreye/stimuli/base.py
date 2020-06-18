@@ -166,7 +166,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
                     and hasattr(self.estimator, 'photoreceptor_model_')
                 ):
                     labels = self.estimator.photoreceptor_model_.names
-                    prefix = attr.replace('excite_X_', 'f_')
+                    prefix = attr.replace('excite_X_', '')
                 elif (
                     'capture_X_' in attr
                     and hasattr(self.estimator, 'photoreceptor_model_')
