@@ -85,6 +85,10 @@ class MeasurementRunner:
                 self.n_avg, self.sleep, return_spectrum=True,
                 verbose=verbose, optimize_it=False
             )
+
+            if self.wls is not None:
+                background = background(self.wls)
+
             if verbose:
                 sys.stdout.write(
                     '\nOverall intensity of the background: '
