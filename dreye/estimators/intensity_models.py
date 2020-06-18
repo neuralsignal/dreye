@@ -52,7 +52,10 @@ class IntensityFit(_SpectraModel):
             raise ValueError("Shape of input is different from number"
                              "of measured spectra in container.")
 
-        self.fitted_intensities_ = X
+        self.fitted_intensities_ = np.clip(
+            X,
+            *self.measured_spectra_.intensity_bounds
+        )
 
         return self
 
@@ -131,7 +134,6 @@ class RelativeIntensityFit(_SpectraModel):
         # check X
         X = self._check_X(X)
         self.current_X_ = X
-        self.fitted_relative_intensities_ = X
 
         # call in order to fit isotonic regression
         self.measured_spectra_.regressor
@@ -143,7 +145,13 @@ class RelativeIntensityFit(_SpectraModel):
             raise ValueError("Shape of input is different from number"
                              "of measured spectra in container.")
 
-        self.fitted_intensities_ = self._to_absolute_intensity(X)
+        self.fitted_intensities_ = np.clip(
+            self._to_absolute_intensity(X),
+            *self.measured_spectra_.intensity_bounds
+        )
+        self.fitted_relative_intensities_ = self._to_relative_intensity(
+            self.fitted_intensities_
+        )
 
         return self
 

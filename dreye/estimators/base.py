@@ -278,14 +278,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         if X is not None:
             # refit if X is given
             self.fit(X)
-        # clip intensities if necessary!
-        map_intensities = np.clip(
-            self.fitted_intensities_,
-            *self.measured_spectra_.intensity_bounds
-        )
         # map fitted_intensities
         return self.measured_spectra_.map(
-            map_intensities, return_units=False)
+            self.fitted_intensities_, return_units=False)
 
     @abstractmethod
     def inverse_transform(self, X):
