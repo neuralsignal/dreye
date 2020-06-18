@@ -154,7 +154,18 @@ class StimPlottingMixin:
 
                 if add_score:
                     lookup = self._attrs_to_event_labels_mapping
-                    if attr in lookup and fitted_attr in lookup:
+                    if (
+                        attr in lookup
+                        and fitted_attr in lookup
+                        and not (
+                            set(lookup[attr])
+                            - set(self.events.columns)
+                        )
+                        and not (
+                            set(lookup[fitted_attr])
+                            - set(self.events.columns)
+                        )
+                    ):
                         ymin, ymax = ax.get_ylim()
                         kws_score = dict(
                             horizontalalignment='center',
