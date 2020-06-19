@@ -609,7 +609,8 @@ class ChainedStimuli:
     @property
     def timestamps(self):
         return np.concatenate([
-            stim.timestamps + (0 if idx == 0 else self.durations[idx-1])
+            stim.timestamps
+            + (0 if idx == 0 else np.cumsum(self.durations)[idx-1])
             for idx, stim in enumerate(self.stimuli)
         ])
 

@@ -261,6 +261,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
 
         if self._intensity is None:
+            # calculate integral and make sure it's above zero
             integral = self.integral
             mag, units = integral.magnitude, integral.units
             mag[mag < 0] = 0.0
