@@ -4,6 +4,7 @@
 import sys
 import numpy as np
 
+from dreye.core.spectral_measurement import MeasuredSpectrum
 from dreye.core.measurement_utils import create_measured_spectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.base_system import AbstractSystem
@@ -76,26 +77,26 @@ class MeasurementRunner:
             output._zero()
             output.close()
         # create background
-        if self.remove_zero:
-            if verbose:
-                sys.stdout.write(
-                    '\nPerforming background measurement for subtraction...'
-                )
-            background = self.spectrometer.perform_measurement(
-                self.n_avg, self.sleep, return_spectrum=True,
-                verbose=verbose, optimize_it=False
-            )
-
-            if self.wls is not None:
-                background = background(self.wls)
-
-            if verbose:
-                sys.stdout.write(
-                    '\nOverall intensity of the background: '
-                    f'{background.integral}\n'
-                )
-        else:
-            background = None
+        # if self.remove_zero:
+        #     if verbose:
+        #         sys.stdout.write(
+        #             '\nPerforming background measurement for subtraction...'
+        #         )
+        #     background = self.spectrometer.perform_measurement(
+        #         self.n_avg, self.sleep, return_spectrum=True,
+        #         verbose=verbose, optimize_it=False
+        #     )
+        #
+        #     if self.wls is not None:
+        #         background = background(self.wls)
+        #
+        #     if verbose:
+        #         sys.stdout.write(
+        #             '\nOverall intensity of the background: '
+        #             f'{background.integral}\n'
+        #         )
+        # else:
+        #     background = None
         # iterate over system devices
         for n, output in enumerate(self.system):
             if verbose:
@@ -161,10 +162,12 @@ class MeasurementRunner:
                 zero_intensity_bound=output.zero_intensity_bound,
                 max_intensity_bound=output.max_intensity_bound,
                 name=output.name,
-                background=background
+                # background=background
             )
             if self.wls is not None:
                 mspectrum = mspectrum(self.wls)
+            if self.remove_zero:
+                mspectrum = MeasuredSpectrum(mspectrum - mspectrum[:, 0])
             if self.smoothing_window is not None:
                 mspectrum = mspectrum.smooth()
 

@@ -261,8 +261,12 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
 
         if self._intensity is None:
+            integral = self.integral
+            mag, units = integral.magnitude, integral.units
+            mag[mag < 0] = 0.0
             self._intensity = Signal(
-                self.integral,
+                mag,
+                units=units,
                 domain=self.output,
                 name=self.name,
                 attrs=self.attrs,
