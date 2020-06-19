@@ -5,6 +5,7 @@ Excitation models
 import warnings
 
 import numpy as np
+from scipy.optimize import OptimizeResult
 from scipy.optimize import lsq_linear, least_squares
 from sklearn.utils.validation import check_array, check_is_fitted
 
@@ -41,6 +42,7 @@ class IndependentExcitationFit(_SpectraModel):
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
         hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        q1_ints=None,
         fit_only_uniques=False,
         lsq_kwargs=None
     ):
@@ -54,6 +56,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.photoreceptor_fit_weights = photoreceptor_fit_weights
         self.fit_only_uniques = fit_only_uniques
         self.lsq_kwargs = lsq_kwargs
+        self.q1_ints = q1_ints
 
     def _set_required_objects(self, size=None):
         # create photoreceptor model
@@ -233,6 +236,22 @@ class IndependentExcitationFit(_SpectraModel):
                 bounds[0] = sep_bound
             elif np.all(capture_x <= self.hard_sep_value):
                 bounds[1] = sep_bound
+        if self.q1_ints is not None:
+            if np.all(capture_x == 1):
+                return OptimizeResult(
+                    x=self.q1_ints,
+                    cost=0.0,
+                    fun=np.zeros(capture_x.size),
+                    jac=np.zeros((capture_x.size, self.q1_ints.size)),
+                    grad=np.zeros(capture_x.size),
+                    optimality=0.0,
+                    active_mask=0,
+                    nfev=1,
+                    njev=None,
+                    status=4,
+                    message='Set result to q1_ints.',
+                    success=True
+                )
         # find initial w0 using linear least squares
         w0 = self._init_sample(capture_x, bounds)
         # fitted result
@@ -334,6 +353,7 @@ class TransformExcitationFit(IndependentExcitationFit):
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
         hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        q1_ints=None,
         fit_only_uniques=False,
         lsq_kwargs=None
     ):
@@ -347,7 +367,8 @@ class TransformExcitationFit(IndependentExcitationFit):
             hard_sep_value=hard_sep_value,
             photoreceptor_fit_weights=photoreceptor_fit_weights,
             fit_only_uniques=fit_only_uniques,
-            lsq_kwargs=lsq_kwargs
+            lsq_kwargs=lsq_kwargs,
+            q1_ints=q1_ints
         )
         self.linear_transform = linear_transform
         self.inv_transform = inv_transform
@@ -420,6 +441,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
         hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        q1_ints=None,
         fit_only_uniques=False,
         lsq_kwargs=None
     ):
@@ -433,7 +455,8 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
             hard_sep_value=hard_sep_value,
             photoreceptor_fit_weights=photoreceptor_fit_weights,
             fit_only_uniques=fit_only_uniques,
-            lsq_kwargs=lsq_kwargs
+            lsq_kwargs=lsq_kwargs,
+            q1_ints=q1_ints
         )
         self.transform_func = transform_func
         self.inv_func = inv_func
@@ -499,6 +522,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
         hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        q1_ints=None,
         fit_only_uniques=False,
         lsq_kwargs=None,
         add_background=True,
@@ -512,6 +536,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         self.max_iter = max_iter
         self.hard_separation = hard_separation
         self.hard_sep_value = hard_sep_value
+        self.q1_ints = q1_ints
         self.photoreceptor_fit_weights = photoreceptor_fit_weights
         self.fit_only_uniques = fit_only_uniques
         self.lsq_kwargs = lsq_kwargs
@@ -540,7 +565,6 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         # check sizing (domain_axis=0)
         assert X.shape[1] == self.reflectances_.shape[1]
 
-        # TODO inverse not possible?
         spectra_units = self.reflectances_.units
         spectra = self.reflectances_.magnitude @ X.T
         if self.filter_background and self.background_ is not None:

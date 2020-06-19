@@ -4,7 +4,6 @@ LED Estimators for intensities and spectra
 
 from abc import abstractmethod
 
-import numpy as np
 from scipy.optimize import OptimizeResult
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
