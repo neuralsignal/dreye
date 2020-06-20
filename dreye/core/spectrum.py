@@ -75,7 +75,7 @@ class _IntensityMixin:
 
     @staticmethod
     def _is_intensity_units(units):
-        return truth = (
+        return (
             (
                 units.dimensionality
                 == '[mass] / [length] / [time] ** 3'
