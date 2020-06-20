@@ -13,6 +13,8 @@ __email__ = 'gucky@gucky.eu'
 __version__ = '0.0.0'
 
 # import all core elements and constants
+from dreye.constants.units import ureg
+from dreye.algebra.filtering import Filter1D
 from dreye.core.signal import Signals, DomainSignal, Signal
 from dreye.core.signal_container import (
     SignalsContainer, DomainSignalContainer
@@ -36,19 +38,26 @@ from dreye.core.photoreceptor import (
     LinearPhotoreceptor, LogPhotoreceptor,
     get_photoreceptor_model
 )
+from dreye.estimators.excitation_models import (
+    IndependentExcitationFit, TransformExcitationFit,
+    ReflectanceExcitationFit
+)
+
+from dreye.estimators.intensity_models import (
+    IntensityFit, RelativeIntensityFit
+)
 
 # import modules
 from dreye import stimuli
 from dreye import utilities
 from dreye import io
 from dreye import hardware
-from dreye import algebra
-from dreye import constants
 from dreye.utilities import abstract
-from dreye import estimators
 
 
 __all__ = [
+    'ureg',
+    'Filter1D',
     # domain
     'Domain',
     # signal
@@ -79,8 +88,14 @@ __all__ = [
     'create_gaussian_spectrum',
     'get_led_spectra_container',
     'get_photoreceptor_model',
+    # estimators
+    'IndependentExcitationFit',
+    'TransformExcitationFit',
+    'ReflectanceExcitationFit',
+    'IntensityFit',
+    'RelativeIntensityFit',
     # modules
     'stimuli', 'utilities',
     'io', 'hardware', 'algebra',
-    'constants', 'abstract', 'estimators'
+    'constants', 'abstract'
 ]

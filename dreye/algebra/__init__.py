@@ -2,7 +2,7 @@
 """
 
 
-from .filtering import Filter1D
+from dreye.algebra.filtering import Filter1D
 
 
 __all__ = [

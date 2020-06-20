@@ -7,7 +7,9 @@ from .common import (
     is_listlike, is_dictlike,
     get_value, get_units,
     is_integer, is_numeric,
-    is_callable
+    is_callable,
+    irr2flux,
+    flux2irr,
 )
 from .array import (
     around, digits_to_decimals,
@@ -47,4 +49,6 @@ __all__ = [
     'is_callable',
     # stats
     'convert_truncnorm_clip',
+    'irr2flux',
+    'flux2irr'
 ]

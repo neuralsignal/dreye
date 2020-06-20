@@ -48,6 +48,8 @@ def get_units(obj):
         return obj.units
     elif isinstance(obj, ureg.Unit):
         return obj
+    elif is_string(obj):
+        return ureg(obj).units
     else:
         return ureg(None).units
 
@@ -131,25 +133,90 @@ def is_callable(obj):
     return isinstance(obj, Callable)
 
 
-def irr2flux(irradiance, wavelengths):
+def irr2flux(irradiance, wavelengths, return_units=None):
     """
-    convert from irradiance to photonflux.
+    Convert from irradiance to photonflux.
+
+    Parameters
+    ----------
+    irradiance : float or array-like
+        Array in spectral irradiance units (W/m^2/nm) or units that
+        can be converted to spectra irradiance.
+    wavelengths : float or array-like
+        Array that can be broadcast to irradiance array in nanometer units
+        or units that can be converted to nanometer.
+    return_units : bool, optional
+        Whether to return a `pint.Quantity` or `numpy.ndarray` object.
+        If None, the function will return a `pint.Quantity` if `irradiance`
+        have units.
+
+    Returns
+    -------
+    photonflux : numpy.ndarray or pint.Quantity
+        Values converted to photonflux (mol/m^2/s/nm).
     """
-    # TODO optional to
-    return irradiance * wavelengths / (
+    if return_units is None:
+        if has_units(irradiance):
+            return_units = True
+        else:
+            return_units = False
+    # convert units
+    irradiance = (
+        optional_to(irradiance, 'spectralirradiance')
+        * ureg('spectralirradiance')
+    )
+    wavelengths = optional_to(wavelengths, 'nm') * ureg('nm')
+    photonflux = irradiance * wavelengths / (
         ureg.planck_constant
         * ureg.speed_of_light
         * ureg.N_A
     )
+    if return_units:
+        return photonflux
+    else:
+        return get_value(photonflux)
 
 
-def flux2irr(photonflux, wavelengths):
+def flux2irr(photonflux, wavelengths, return_units=None):
     """
-    convert from photonflux to irradiance.
+    Convert from photonflux to irradiance.
+
+    Parameters
+    ----------
+    photonflux : float or array-like
+        Array in spectral photonflux (mol/m^2/s/nm) or units that
+        can be converted to photonflux.
+    wavelengths : float or array-like
+        Array that can be broadcast to irradiance array in nanometer units
+        or units that can be converted to nanometer.
+    return_units : bool, optional
+        Whether to return a `pint.Quantity` or `numpy.ndarray` object.
+        If None, the function will return a `pint.Quantity` if `photonflux`
+        have units.
+
+    Returns
+    -------
+    irradiance : numpy.ndarray or pint.Quantity
+        Values converted to photonflux (W/m^2/nm).
     """
-    return (
+    if return_units is None:
+        if has_units(photonflux):
+            return_units = True
+        else:
+            return_units = False
+    # convert units
+    photonflux = (
+        optional_to(photonflux, 'spectralphotonflux')
+        * ureg('spectralirradiance')
+    )
+    wavelengths = optional_to(wavelengths, 'nm') * ureg('nm')
+    irradiance = (
         photonflux * (
             ureg.planck_constant
             * ureg.speed_of_light
             * ureg.N_A)
     ) / wavelengths
+    if return_units:
+        return irradiance
+    else:
+        return get_value(irradiance)

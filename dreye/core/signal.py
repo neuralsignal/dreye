@@ -1700,7 +1700,7 @@ class _SignalDomainLabels(_Signal2DMixin):
         object : `DomainSignal`
             New domain signal type.
         """
-        return self._class_new_instance(
+        return DomainSignal(
             values=self.magnitude,
             units=self.units,
             **{

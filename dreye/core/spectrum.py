@@ -10,7 +10,7 @@ from dreye.core.signal import (
 )
 from dreye.constants import ureg
 from dreye.err import DreyeUnitError
-from dreye.utilities import has_units
+from dreye.utilities import has_units, get_units
 
 
 class _SpectrumMixin:
@@ -68,21 +68,22 @@ class _IntensityMixin:
 
         # check units are correct dimensionality
         # i.e. irradiance or photon flux type
-        truth = (
-            (
-                self.units.dimensionality
-                == '[mass] / [length] / [time] ** 3'
-            ) | (
-                self.units.dimensionality
-                == '[substance] / [length] ** 3 / [time]'
-            )
-        )
+        truth = self._is_intensity_units(self.units)
 
         if not truth:
             raise DreyeUnitError(self.units, 'irradiance convertible units')
 
-
-# TODO inits
+    @staticmethod
+    def _is_intensity_units(units):
+        truth = (
+            (
+                units.dimensionality
+                == '[mass] / [length] / [time] ** 3'
+            ) | (
+                units.dimensionality
+                == '[substance] / [length] ** 3 / [time]'
+            )
+        )
 
 
 class Spectra(_SpectrumMixin, Signals):
@@ -100,16 +101,46 @@ class Spectrum(_SpectrumMixin, Signal):
 
 
 class IntensitySpectra(_IntensityMixin, Spectra):
-    pass
+
+    def _class_new_instance(self, values, *args, units=None, **kwargs):
+        if has_units(values):
+            truth = self._is_intensity_units(values.units)
+        else:
+            truth = self._is_intensity_units(get_units(units))
+        if truth:
+            return type(self)(values, *args, units=units, **kwargs)
+        else:
+            return Spectra(values, *args, units=units, **kwargs)
 
 
 class IntensitySpectrum(_IntensityMixin, Spectrum):
-    pass
+
+    def _class_new_instance(self, values, *args, units=None, **kwargs):
+        if has_units(values):
+            truth = self._is_intensity_units(values.units)
+        else:
+            truth = self._is_intensity_units(get_units(units))
+        if truth:
+            return type(self)(values, *args, units=units, **kwargs)
+        else:
+            return Spectrum(values, *args, units=units, **kwargs)
 
 
 class DomainSpectrum(_SpectrumMixin, DomainSignal):
-    pass
+
+    @property
+    def _class_new_instance(self):
+        return DomainSpectrum
 
 
 class IntensityDomainSpectrum(_IntensityMixin, DomainSpectrum):
-    pass
+
+    def _class_new_instance(self, values, *args, units=None, **kwargs):
+        if has_units(values):
+            truth = self._is_intensity_units(values.units)
+        else:
+            truth = self._is_intensity_units(get_units(units))
+        if truth:
+            return type(self)(values, *args, units=units, **kwargs)
+        else:
+            return DomainSpectrum(values, *args, units=units, **kwargs)

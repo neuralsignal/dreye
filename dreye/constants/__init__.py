@@ -1,11 +1,11 @@
 """
 """
 
-from .common import (
+from dreye.constants.common import (
     DEFAULT_INT_DTYPE, DEFAULT_FLOAT_DTYPE, RELATIVE_ACCURACY,
     ABSOLUTE_ACCURACY
 )
-from .units import ureg
+from dreye.constants.units import ureg
 
 __all__ = [
     # common
