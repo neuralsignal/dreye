@@ -20,6 +20,7 @@ from dreye.utilities.abstract import inherit_docstrings
 
 
 # TODO simple class that only requires A and bounds
+# TODO create A from wls, sense, ill, back - capture simple
 
 @inherit_docstrings
 class IndependentExcitationFit(_SpectraModel):
@@ -29,46 +30,87 @@ class IndependentExcitationFit(_SpectraModel):
 
     Parameters
     ----------
-    photoreceptor_model
-    photoreceptor_fit_weights
-    background
-    measured_spectra : dreye.MeasuredSpectraContainer
+    photoreceptor_model : dreye.Photoreceptor, optional
+        A photoreceptor model that implements the `capture`, `excitation`,
+        `excitefunc` and `inv_excitefunc` methods. If None,
+        a fake photoreceptor model will be created with three different
+        photoreceptor types.
+    photoreceptor_fit_weights : array-like, optional
+        Weighting of the importance of each photoreceptor type in the model.
+        If None, weighting will be equal between all photoreceptor types.
+        Must be same length as the number of photoreceptor types
+    background : dreye.Signal, optional
+        The spectral distribution of the background illuminant.
+    measured_spectra : dreye.MeasuredSpectraContainer, optional
         Container with all available LEDs and their measured spectra. If
         None, a fake LED measurement will be created with intensities
         ranging from 0 to 100 microphotonflux.
     smoothing_window : numeric, optional
         The smoothing window size to use to smooth over the measurements
         in the container.
-    max_iter
-    hard_separation
-    hard_sep_value
-    q1_ints
-    fit_only_uniques
-    ignore_bounds
-    lsq_kwargs
+    max_iter : int, optional
+        The number of maximum iterations. This is passed directly to
+        `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
+    hard_separation : bool or list-like, optional
+        An array of LED intensities.
+        If given and all capture values are below or above `hard_sep_value`,
+        then do not allow the LED intensities to go above or below
+        these intensities. If True, first estimate the optimal LED
+        intensities that correspond to the relative capture
+        of `hard_sep_value`.
+    hard_sep_value : numeric or numpy.ndarray, optional
+        The capture value for `hard_separation`. Defaults to 1, which
+        corresponds to the relative capture when the illuminant equals
+        the background.
+    q1_ints : numpy.ndarray, optional
+        The intensity values for each LED, when the relative capture of each
+        photoreceptor equals one. This will prevent fitting of the
+        LED intensities if the background LED intensities
+        are preset and the relative capture is 1.
+    fit_only_uniques : bool, optional
+        If True, use `numpy.unique` to select only the unique samples
+        for fitting before transforming X back to the full array.
+    ignore_bounds : bool, optional
+        If True, ignore the bounds of the LED intensities. Howerver, a zero
+        LED intensity bound will always exist.
+    lsq_kwargs : dict, optional
+        Keyword arguments passed directly to `scipy.optimize.least_squares`.
 
     Attributes
     ----------
-    photoreceptor_model_
-    measured_spectra_ : dreye.MeasuredSpectraContainer
+    photoreceptor_model_ : dreye.Photoreceptor
+        The photoreceptor model used for fitting. This will be the same if
+        as `photoreceptor_model` if it is a `dreye.Photoreceptor` instance.
+    measured_spectra_ : dreye.MeasuredSpectraContainer (n_leds)
         Measured spectrum container used for fitting. This will be the same
-        if as `measured_spectra` if a `MeasuredSpectraContainer` instance
+        if as `measured_spectra` if a `dreye.MeasuredSpectraContainer` instance
         was passed.
-    bounds_
-    background_
-    normalized_spectra_
-    capture_X_
-    excite_X_
-    A_
-    sep_bound_
-    sep_result_
+    bounds_ : numpy.ndarray (n_leds)
+        The LED intensity bounds used for fitting.
+    background_ : dreye.Spectrum
+        The background used for calculating the relative photon capture.
+    normalized_spectra_ : dreye.Spectra
+        The normalizes LED spectra. Each spectrum integrates to 1.
+    A_ : numpy.ndarray (n_prs, n_leds)
+        The relative photon capture of each normalized LED spectrum.
+    sep_bound_ : numpy.ndarray (n_leds)
+        The LED intensities used to as new bounds, if `hard_separation`
+        was set.
+    sep_result_ : scipy.optimize.OptimizeResult
+        The result if `hard_separation` was set to `True` for fitting.
+    capture_X_ : numpy.ndarray (n_samples, n_prs)
+        The current relative photon capture values used for fitting.
+    excite_X_ : numpy.ndarray (n_samples, n_prs)
+        The current photoreceptor excitation values used for fitting.
+    current_X_ : numpy.ndarray (n_samples, n_prs)
+        Current photoreceptor excitation values used for fitting.
+        This is the same as `excite_X_`
     fitted_intensities_ : numpy.ndarray
         Intensities fit in units of `measured_spectra_.intensities.units`
-    fitted_capture_X_
-    fitted_excite_X_
-    current_X_ : numpy.ndarray
-        Current input values used to transform and calculate scores.
-
+    fitted_capture_X_ : numpy.ndarray (n_samples, n_prs)
+        The recalculated relative photon capture values after fitting.
+    fitted_excite_X_ : numpy.ndarray (n_samples, n_prs)
+        The recalculated photoreceptor excitations after fitting.
     """
 
     # same length as X but not X or fitted X
@@ -373,6 +415,102 @@ class TransformExcitationFit(IndependentExcitationFit):
     """
     Class to fit a linear transformation of
     (relative) photoreceptor excitations for each sample independently.
+
+    Parameters
+    ----------
+    linear_transform : numpy.ndarray, optional
+        A linear transformation of the photoreceptor excitation space
+        (n_prs, m_space).
+    inv_transform : numpy.ndarray, optional
+        The inverse of `linear_transform`. If not given, the inverse
+        will be estimated using `np.linalg.inv`.
+    photoreceptor_model : dreye.Photoreceptor, optional
+        A photoreceptor model that implements the `capture`, `excitation`,
+        `excitefunc` and `inv_excitefunc` methods. If None,
+        a fake photoreceptor model will be created with three different
+        photoreceptor types.
+    photoreceptor_fit_weights : array-like, optional
+        Weighting of the importance of each photoreceptor type in the model.
+        If None, weighting will be equal between all photoreceptor types.
+        Must be same length as the number of photoreceptor types
+    background : dreye.Signal, optional
+        The spectral distribution of the background illuminant.
+    measured_spectra : dreye.MeasuredSpectraContainer, optional
+        Container with all available LEDs and their measured spectra. If
+        None, a fake LED measurement will be created with intensities
+        ranging from 0 to 100 microphotonflux.
+    smoothing_window : numeric, optional
+        The smoothing window size to use to smooth over the measurements
+        in the container.
+    max_iter : int, optional
+        The number of maximum iterations. This is passed directly to
+        `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
+    hard_separation : bool or list-like, optional
+        An array of LED intensities.
+        If given and all capture values are below or above `hard_sep_value`,
+        then do not allow the LED intensities to go above or below
+        these intensities. If True, first estimate the optimal LED
+        intensities that correspond to the relative capture
+        of `hard_sep_value`.
+    hard_sep_value : numeric or numpy.ndarray, optional
+        The capture value for `hard_separation`. Defaults to 1, which
+        corresponds to the relative capture when the illuminant equals
+        the background.
+    q1_ints : numpy.ndarray, optional
+        The intensity values for each LED, when the relative capture of each
+        photoreceptor equals one. This will prevent fitting of the
+        LED intensities if the background LED intensities
+        are preset and the relative capture is 1.
+    fit_only_uniques : bool, optional
+        If True, use `numpy.unique` to select only the unique samples
+        for fitting before transforming X back to the full array.
+    ignore_bounds : bool, optional
+        If True, ignore the bounds of the LED intensities. Howerver, a zero
+        LED intensity bound will always exist.
+    lsq_kwargs : dict, optional
+        Keyword arguments passed directly to `scipy.optimize.least_squares`.
+
+    Attributes
+    ----------
+    photoreceptor_model_ : dreye.Photoreceptor
+        The photoreceptor model used for fitting. This will be the same if
+        as `photoreceptor_model` if it is a `dreye.Photoreceptor` instance.
+    measured_spectra_ : dreye.MeasuredSpectraContainer (n_leds)
+        Measured spectrum container used for fitting. This will be the same
+        if as `measured_spectra` if a `dreye.MeasuredSpectraContainer` instance
+        was passed.
+    bounds_ : numpy.ndarray (n_leds)
+        The LED intensity bounds used for fitting.
+    background_ : dreye.Spectrum
+        The background used for calculating the relative photon capture.
+    normalized_spectra_ : dreye.Spectra
+        The normalizes LED spectra. Each spectrum integrates to 1.
+    A_ : numpy.ndarray (n_prs, n_leds)
+        The relative photon capture of each normalized LED spectrum.
+    sep_bound_ : numpy.ndarray (n_leds)
+        The LED intensities used to as new bounds, if `hard_separation`
+        was set.
+    sep_result_ : scipy.optimize.OptimizeResult
+        The result if `hard_separation` was set to `True` for fitting.
+    capture_X_ : numpy.ndarray (n_samples, n_prs)
+        The current relative photon capture values used for fitting.
+    excite_X_ : numpy.ndarray (n_samples, n_prs)
+        The current photoreceptor excitation values used for fitting.
+    transform_X_ : numpy.ndarray (n_samples, m_space)
+        The current linear transformation of the photoreceptor excitations
+        used for fitting.
+    current_X_ : numpy.ndarray (n_samples, m_space)
+        Current linear transformatino of photoreceptor excitation values
+        used for fitting. This is the same as `transform_X_`.
+    fitted_intensities_ : numpy.ndarray
+        Intensities fit in units of `measured_spectra_.intensities.units`
+    fitted_capture_X_ : numpy.ndarray (n_samples, n_prs)
+        The recalculated relative photon capture values after fitting.
+    fitted_excite_X_ : numpy.ndarray (n_samples, n_prs)
+        The recalculated photoreceptor excitations after fitting.
+    fitted_transform_X_ : numpy.ndarray (n_samples, n_prs)
+        The recalculated linear transform of the photoreceptor excitations
+        after fitting.
     """
 
     # same length as X but not X or fitted X
@@ -546,8 +684,111 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
 @inherit_docstrings
 class ReflectanceExcitationFit(IndependentExcitationFit):
     """
-    Class to various reflectances given a photoreceptor model
+    Class to fit various reflectances given a photoreceptor model
     and LED system.
+
+    Parameters
+    ---------
+    reflectances : dreye.Signals, optional
+        A set of reflectances (usually max-normalized) used for fitting.
+        X will be a multiples of the reflectances, before applying
+        `add_background` and/or `filter_background`.
+    add_background : bool, optional
+        Add background to multiples of reflectances:
+        :math:`X \odot reflectances + background`.
+    filter_background : bool, optional
+        Use reflectances as filters of the background.
+        If `add_background` is False, then the following is used:
+        :math:`X \odot reflectances \odot background`. If
+        `add_background` is True, then the following is used:
+        :math:`(1 + X \odot reflectances) \odot background`
+    photoreceptor_model : dreye.Photoreceptor, optional
+        A photoreceptor model that implements the `capture`, `excitation`,
+        `excitefunc` and `inv_excitefunc` methods. If None,
+        a fake photoreceptor model will be created with three different
+        photoreceptor types.
+    photoreceptor_fit_weights : array-like, optional
+        Weighting of the importance of each photoreceptor type in the model.
+        If None, weighting will be equal between all photoreceptor types.
+        Must be same length as the number of photoreceptor types
+    background : dreye.Signal, optional
+        The spectral distribution of the background illuminant.
+    measured_spectra : dreye.MeasuredSpectraContainer, optional
+        Container with all available LEDs and their measured spectra. If
+        None, a fake LED measurement will be created with intensities
+        ranging from 0 to 100 microphotonflux.
+    smoothing_window : numeric, optional
+        The smoothing window size to use to smooth over the measurements
+        in the container.
+    max_iter : int, optional
+        The number of maximum iterations. This is passed directly to
+        `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
+    hard_separation : bool or list-like, optional
+        An array of LED intensities.
+        If given and all capture values are below or above `hard_sep_value`,
+        then do not allow the LED intensities to go above or below
+        these intensities. If True, first estimate the optimal LED
+        intensities that correspond to the relative capture
+        of `hard_sep_value`.
+    hard_sep_value : numeric or numpy.ndarray, optional
+        The capture value for `hard_separation`. Defaults to 1, which
+        corresponds to the relative capture when the illuminant equals
+        the background.
+    q1_ints : numpy.ndarray, optional
+        The intensity values for each LED, when the relative capture of each
+        photoreceptor equals one. This will prevent fitting of the
+        LED intensities if the background LED intensities
+        are preset and the relative capture is 1.
+    fit_only_uniques : bool, optional
+        If True, use `numpy.unique` to select only the unique samples
+        for fitting before transforming X back to the full array.
+    ignore_bounds : bool, optional
+        If True, ignore the bounds of the LED intensities. Howerver, a zero
+        LED intensity bound will always exist.
+    lsq_kwargs : dict, optional
+        Keyword arguments passed directly to `scipy.optimize.least_squares`.
+
+    Attributes
+    ----------
+    photoreceptor_model_ : dreye.Photoreceptor
+        The photoreceptor model used for fitting. This will be the same if
+        as `photoreceptor_model` if it is a `dreye.Photoreceptor` instance.
+    measured_spectra_ : dreye.MeasuredSpectraContainer (n_leds)
+        Measured spectrum container used for fitting. This will be the same
+        if as `measured_spectra` if a `dreye.MeasuredSpectraContainer` instance
+        was passed.
+    bounds_ : numpy.ndarray (n_leds)
+        The LED intensity bounds used for fitting.
+    background_ : dreye.Spectrum
+        The background used for calculating the relative photon capture.
+    normalized_spectra_ : dreye.Spectra
+        The normalizes LED spectra. Each spectrum integrates to 1.
+    A_ : numpy.ndarray (n_prs, n_leds)
+        The relative photon capture of each normalized LED spectrum.
+    sep_bound_ : numpy.ndarray (n_leds)
+        The LED intensities used to as new bounds, if `hard_separation`
+        was set.
+    sep_result_ : scipy.optimize.OptimizeResult
+        The result if `hard_separation` was set to `True` for fitting.
+    wavelengths_ : numpy.ndarray
+        The wavelength range considered for fitting in nanometers.
+    spectra_used_for_fitting_ : dreye.Spectra
+        The final spectra after background pre-processing used for fitting.
+    reflectances_ : dreye.Spectra
+        Reflectance spectra used for fitting.
+    capture_X_ : numpy.ndarray (n_samples, n_prs)
+        The current relative photon capture values used for fitting.
+    excite_X_ : numpy.ndarray (n_samples, n_prs)
+        The current photoreceptor excitation values used for fitting.
+    current_X_ : numpy.ndarray (n_samples, n_prs)
+        Current photoreceptor excitation values used for fitting.
+        This is the same as `excite_X_`
+    fitted_intensities_ : numpy.ndarray
+        Intensities fit in units of `measured_spectra_.intensities.units`
+    fitted_capture_X_ : numpy.ndarray (n_samples, n_prs)
+        The recalculated relative photon capture values after fitting.
+    fitted_excite_X_ : numpy.ndarray (n_samples, n_prs)
+        The recalculated photoreceptor excitations after fitting.
     """
 
     # same length as X but not X or fitted X

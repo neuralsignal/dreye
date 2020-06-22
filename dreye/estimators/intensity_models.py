@@ -31,7 +31,7 @@ class IntensityFit(_SpectraModel):
     ----------
     measured_spectra_ : dreye.MeasuredSpectraContainer
         Measured spectrum container used for fitting. This will be the same
-        if as `measured_spectra` if a `MeasuredSpectraContainer` instance
+        if as `measured_spectra` if a `dreye.MeasuredSpectraContainer` instance
         was passed.
     fitted_intensities_ : numpy.ndarray
         Intensities fit in units of `measured_spectra_.intensities.units`
@@ -126,7 +126,7 @@ class RelativeIntensityFit(_SpectraModel):
     ----------
     measured_spectra_ : dreye.MeasuredSpectraContainer
         Measured spectrum container used for fitting. This will be the same
-        if as `measured_spectra` if a `MeasuredSpectraContainer` instance
+        if as `measured_spectra` if a `dreye.MeasuredSpectraContainer` instance
         was passed.
     fitted_intensities_ : numpy.ndarray
         Intensities fit in units of `measured_spectra_.intensities`.
