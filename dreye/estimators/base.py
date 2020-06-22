@@ -38,7 +38,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
     @staticmethod
     def _check_measured_spectra(
         measured_spectra, smoothing_window,
-        size=None, photoreceptor_model=None
+        size=None, photoreceptor_model=None,
+        change_dimensionality=True
     ):
         """
         check and create measured spectra container
@@ -74,6 +75,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
                 measured_spectra.units.dimensionality
                 != ureg('uE').units.dimensionality
             )
+            and change_dimensionality
         ):
             return measured_spectra.to('uE')
 
@@ -187,6 +189,25 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         return reflectances
 
     def fit_transform(self, X):
+        """
+        Fit X values and transform to output values
+        of `MeasuredSpectraContainer`.
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_features)
+            X values passed to the `fit` method.
+
+        Returns
+        -------
+        output : array-like (n_samples, n_leds)
+            The transformed X values into LED output values.
+
+        See Also
+        --------
+        fit
+        transform
+        """
         self.fit(X)
         return self.transform()
 
@@ -218,10 +239,24 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         return self.current_X_
 
     def to_dict(self):
+        """
+        Get estimator initial dictionary.
+
+        See Also
+        --------
+        from_dict
+        """
         return self.get_params()
 
     @classmethod
     def from_dict(cls, data):
+        """
+        Create estimator from intial dictionary
+
+        See Also
+        --------
+        to_dict
+        """
         return cls(**data)
 
     def residuals(self, X=None):
@@ -235,7 +270,17 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     def sample_scores(self, X=None):
         """
-        Sample scores
+        Sample scores.
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_features)
+            X values passed to the `fit` method.
+
+        Returns
+        -------
+        r2 : numpy.ndarray (n_samples)
+            Returns the r2-value for each sample individually.
         """
         # apply transformation and compare to checked_X
         X_pred = self.inverse_transform(self.transform(X))
@@ -248,7 +293,17 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     def feature_scores(self, X=None):
         """
-        Scores for each photoreceptor
+        Feature scores.
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_features)
+            X values passed to the `fit` method.
+
+        Returns
+        -------
+        r2 : numpy.ndarray (n_features)
+            Returns the r2-value for each feature individually.
         """
         # apply transformation and compare to checked_X
         X_pred = self.inverse_transform(self.transform(X))
@@ -262,12 +317,42 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
     def score(self, X=None, y=None):
         """
         Score method
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_features)
+            X values passed to the `fit` method.
+
+        Returns
+        -------
+        r2 : float
+            Mean r2-value across features
+
+        See Also
+        --------
+        feature_scores
         """
         return self.feature_scores(X).mean()
 
     def transform(self, X=None):
         """
-        Transform Method.
+        Transform X values to output values of `MeasuredSpectraContainer`.
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_features)
+            X values passed to the `fit` method.
+
+        Returns
+        -------
+        output : array-like (n_samples, n_leds)
+            The transformed X values into LED output values.
+
+        See Also
+        --------
+        dreye.MeasuredSpectraContainer
+        dreye.MeasuredSpectrum
+        fit_transform
         """
         # check is fitted
         check_is_fitted(
@@ -283,4 +368,45 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     @abstractmethod
     def inverse_transform(self, X):
+        """
+        Transform output values to values that can be used for scoring.
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_leds)
+            Output values in units of `output_units`.
+
+        Returns
+        -------
+        X : array-like (n_samples, n_features)
+            Input values in units of `input_units`.
+
+        See Also
+        --------
+        dreye.MeasuredSpectraContainer
+        dreye.MeasuredSpectrum
+        fit_transform
+        """
+        pass
+
+    @abstractmethod
+    def fit(self, X):
+        """
+        Fit X values.
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_features)
+            X values in `input_units`.
+
+        Returns
+        -------
+        self
+
+        See Also
+        --------
+        dreye.MeasuredSpectraContainer
+        dreye.MeasuredSpectrum
+        fit_transform
+        """
         pass

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-from dreye.utilities import has_units, is_numeric, asarray
+from dreye.utilities import has_units, is_numeric, asarray, optional_to
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.core.domain import Domain
@@ -29,11 +29,12 @@ def convert_measurement(
     **kwargs
 ):
     """
-    Convert photon count signal into `Spectrum` or `DomainSpectrum` subclass.
+    Convert photon count signal into
+    `dreye.Spectrum` or `dreye.DomainSpectrum` subclass.
 
     Parameters
     ----------
-    signal : `Signal` instance
+    signal : Signal-type instance
         Signal instance with dimensionless values
     calibration : `CalibrationSpectrum`, optional
         Calibration spectrum. If None, assume a flat calibration spectrum
@@ -50,6 +51,9 @@ def convert_measurement(
     spectrum_cls : object
         Spectrum class to use to create measurement. Default to
         `IntensitySpectra`
+    background : Signal-type instance
+        This signal-type instance is subtracted from the signal class,
+        once the signal class has been converte to irradiance units.
     kwargs : dict
         Keyword arguments passed to the `spectrum_cls`.
 
@@ -126,7 +130,7 @@ def create_measured_spectrum(
     **kwargs
 ):
     """
-    Create `MeasuredSpectrum` instance from numpy.ndarray objects.
+    Create `dreye.MeasuredSpectrum` instance from numpy.ndarray objects.
 
     Parameters
     ----------
@@ -162,6 +166,9 @@ def create_measured_spectrum(
         Array of each value the output hardware can resolve.
     name : str, optional
         Name given to measured spectra.
+    background : Signal-type instance
+        This signal-type instance is subtracted from the signal class,
+        once the signal class has been converte to irradiance units.
     kwargs : dict, optional
         Keyword arguments passed to `MeasuredSpectrum` instance.
 
@@ -207,63 +214,6 @@ def create_measured_spectrum(
     )
 
 
-def create_measured_spectra(
-    spectrum_arrays,
-    output_arrays,
-    wavelengths,
-    calibration,
-    integration_times,
-    area=None,
-    units='uE',
-    output_units='V',
-    is_mole=False,
-    assume_contains_output_bounds=True,
-    resolution=None
-):
-    """
-    Create `MeasuredSpectraContainer` out of a set of arrays.
-
-    Parameters
-    ----------
-    spectrum_arrays : array-like
-    output_arrays : array-like
-    wavelengths : array-like
-    calibration : `CalibrationSpectrum`
-    integration_times : array-like
-    area : numeric, optional
-    units : str or `pint.Unit`, optional
-    output_units : str or `pint.Unit`, optional
-    is_mole: bool, optional
-    assume_contains_output_bounds: bool, optional
-    resolution : array-like, optional
-
-    Returns
-    -------
-    object : `MeasuredSpectraContainer`
-
-    See Also
-    --------
-    create_measured_spectrum
-    """
-
-    measured_spectra = []
-    for spectrum_array, output, integration_time in zip(
-        spectrum_arrays, output_arrays, integration_times
-    ):
-        measured_spectrum = create_measured_spectrum(
-            spectrum_array, output, wavelengths,
-            calibration=calibration,
-            integration_time=integration_time, area=area,
-            units=units, output_units=output_units,
-            is_mole=is_mole,
-            resolution=resolution,
-            assume_contains_output_bounds=assume_contains_output_bounds
-        )
-        measured_spectra.append(measured_spectrum)
-
-    return MeasuredSpectraContainer(measured_spectra)
-
-
 def get_led_spectra_container(
     led_spectra=None,  # wavelengths x LED (ignores units)
     intensity_bounds=(0, 100),  # two-tuple of min and max intensity
@@ -277,26 +227,63 @@ def get_led_spectra_container(
     names=None,
 ):
     """
-    Convenience function to created `MeasuredSpectraContainer` from
+    Convenience function to created `dreye.MeasuredSpectraContainer` from
     LED spectra and intensity bounds.
 
     Parameters
     ----------
-    led_spectra : array-like, optional
+    led_spectra : array-like or numeric, optional
+        A two-dimensional array of LED spectral distributions. The rows
+        must correspond to individual wavelengths and the columns must
+        correspond to different LEDs. If led_spectra are one-dimensional,
+        it is assumed that they correspond to the peaks of LEDs that
+        have a gaussian-like spectral distribution.
     intensity_bounds : two-tuple of numeric or array-like, optional
+        The intensity bounds of each or all LEDs. If two-tuple of array-like,
+        each array must be the same length as the number of columns in
+        `led_spectra`.
     wavelengths : array-like, optional
+        The wavelength values. The size of this array should match the size of
+        the rows in `led_spectra`.
     output_bounds : two-tuple of numeric or array-like, optional
+        The output value bounds of each or all LEDs. If two-tuple of
+        array-like, each array must be the same length as the number of
+        columns in `led_spectra`. The output values correspond to values
+        that can be sent to a hardware piece to set a particular intensity.
+        If you only care about the intensity, keep this as None.
     resolution : array-like, optional
+        The resolution of the hardware piece. An array of each step that the
+        hardware piece can resolve.
     intensity_units : str or `pint.Unit`, optional
+        The units of intensity. Defaults to `microphotonflux`.
     output_units : str or `pint.Unit`, optional
+        The units of output values. Defaults to None or the units of
+        intensity.
     transform_func : callable, optional
+        If this function is supplied, the intensity values are transformed
+        with this function to give the desired output values.
     steps : int, optional
+        The number of intensity steps. Defaults to 10.
     names : list of str, optional
+        The names to give to each LED. If None, the names will be assigned
+        automatically according to the peak in the `led_spectra`.
+        This list must be the same lenght as the columns in `led_spectra`.
 
     Returns
     -------
-    object : `MeasuredSpectraContainer`
+    object : `dreye.MeasuredSpectraContainer`
+        A container that can map intensity values to output values, and
+        which can be used for various estimators and building stimuli.
+
+    Notes
+    -----
+    This function was made for convenience, but a better way to create
+    a `dreye.MeasuredSpectraContainer` instance is to first create
+    `dreye.MeasuredSpectrum` instance for each LED and then to pass a list
+    of these instances to initialize a `dreye.MeasuredSpectraContainer`
+    instance. 
     """
+    hard_std = 20.  # STD of gaussians if led_spectra not given
     # create fake LEDs
     if led_spectra is None or is_numeric(led_spectra):
         if wavelengths is None:
@@ -305,7 +292,12 @@ def get_led_spectra_container(
             centers = np.arange(350, 700, 50)[None, :]  # 7 LEDs
         else:
             centers = np.linspace(350, 650, int(led_spectra))[None, :]
-        led_spectra = norm.pdf(wavelengths[:, None], centers, 20)
+        led_spectra = norm.pdf(wavelengths[:, None], centers, hard_std)
+    elif asarray(led_spectra).ndim == 1:
+        centers = optional_to(led_spectra, 'nm')
+        if wavelengths is None:
+            wavelengths = np.arange(300, 700.1, 0.5)
+        led_spectra = norm.pdf(wavelengths[:, None], centers, hard_std)
     # wavelengths
     if isinstance(led_spectra, _Signal2DMixin) and wavelengths is not None:
         led_spectra = led_spectra(wavelengths)

@@ -29,14 +29,15 @@ from dreye.core.spectral_measurement import (
     CalibrationSpectrum, MeasuredSpectrum, MeasuredSpectraContainer
 )
 from dreye.core.measurement_utils import (
-    convert_measurement, create_measured_spectrum, create_measured_spectra,
+    convert_measurement, create_measured_spectrum,
     get_led_spectra_container
 )
 from dreye.core.spectrum_utils import create_gaussian_spectrum
 from dreye.core.spectral_sensitivity import Sensitivity
 from dreye.core.photoreceptor import (
     LinearPhotoreceptor, LogPhotoreceptor,
-    get_photoreceptor_model
+    get_photoreceptor_model, HyperbolicPhotoreceptor,
+    Photoreceptor
 )
 from dreye.estimators.excitation_models import (
     IndependentExcitationFit, TransformExcitationFit,
@@ -46,16 +47,25 @@ from dreye.estimators.excitation_models import (
 from dreye.estimators.intensity_models import (
     IntensityFit, RelativeIntensityFit
 )
+from dreye.io.serialization import (
+    read_json, write_json, read_pickle, write_pickle
+)
+
 
 # import modules
 from dreye import stimuli
 from dreye import utilities
-from dreye import io
 from dreye import hardware
 from dreye.utilities import abstract
 
 
 __all__ = [
+    # io
+    'read_json',
+    'write_json',
+    'read_pickle',
+    'write_pickle',
+    # misc
     'ureg',
     'Filter1D',
     # domain
@@ -79,12 +89,13 @@ __all__ = [
     # measurement
     'convert_measurement',
     'create_measured_spectrum',
-    'create_measured_spectra',
     # sensitivity
     'Sensitivity',
     # photoreceptor
+    'Photoreceptor',
     'LinearPhotoreceptor',
     'LogPhotoreceptor',
+    'HyperbolicPhotoreceptor',
     'create_gaussian_spectrum',
     'get_led_spectra_container',
     'get_photoreceptor_model',

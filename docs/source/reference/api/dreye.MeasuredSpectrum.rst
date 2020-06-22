@@ -77,7 +77,6 @@ dreye.MeasuredSpectrum
       MeasuredSpectrum.domain_min
       MeasuredSpectrum.domain_units
       MeasuredSpectrum.gradient
-      MeasuredSpectrum.init_kwargs
       MeasuredSpectrum.integral
       MeasuredSpectrum.intensity
       MeasuredSpectrum.intensity_bounds

@@ -10,11 +10,13 @@ from dreye.utilities import (
     optional_to, is_numeric, arange, get_value,
     is_integer, has_units
 )
+from dreye.utilities.abstract import inherit_docstrings
 from dreye.err import DreyeError
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import _UnitArray
 
 
+@inherit_docstrings
 class Domain(_UnitArray):
     """
     Ascending or descending range of values with particular units.
@@ -35,6 +37,12 @@ class Domain(_UnitArray):
         Contexts for unit conversion. See pint documentation.
     name : str
         Name for the domain object.
+
+    Notes
+    -----
+    The `Domain` object is used for various signal-type classes to specify
+    the domain range of a signal. For example, for a spectral distribution
+    of light the domain range will be various wavelengths in nanometers.
 
     Examples
     --------
@@ -94,12 +102,10 @@ class Domain(_UnitArray):
     @property
     def interval_(self):
         """
-        Used Internally.
-        Backup interval used in the case when values is of size 1.
+        IGNORE. This property is used internally.
 
-        See Also
-        --------
-        Domain._test_and_assign_values.
+        This backup interval is used in the case when values is of size 1,
+        the property is used in the internal method `_test_and_assign_values`.
         """
         # always ensures that it is a float
         if hasattr(self, '_interval'):
@@ -109,11 +115,14 @@ class Domain(_UnitArray):
     @property
     def ndim(self):
         """
-        Dimensionality of domain is always 1.
+        Dimensionality of a domain instance is always 1.
         """
         return 1
 
     def _test_and_assign_values(self, values, kwargs):
+        """
+        This assigns all the necessary attributes to the domain instance.
+        """
         if values is None:
             # this is the case when values was not passed during __init__
             start = kwargs.get('start', None)
@@ -220,6 +229,9 @@ class Domain(_UnitArray):
         return values, interval
 
     def _equalize(self, other):
+        """
+        Equalize other in order to do mathematical operations.
+        """
         if is_numeric(other):
             return get_value(other), self
         elif isinstance(other, _UnitArray):
@@ -239,28 +251,30 @@ class Domain(_UnitArray):
     @property
     def start(self):
         """
-        Returns start of Domain.
+        Returns start of Domain without units.
         """
         return self._start
 
     @property
     def end(self):
         """
-        Returns the end of Domain.
+        Returns the end of Domain without units.
         """
         return self._end
 
     @property
     def interval(self):
         """
-        Returns the Domain interval.
+        Returns the Domain interval without units.
         """
         return self._interval
 
     @property
     def is_uniform(self):
         """
-        Check if distribution is uniform.
+        Domain has a uniform interval.
+
+        An interval is uniform, if it is numeric instead of array-like.
         """
         # if np.nan then True
         return is_numeric(self.interval)
@@ -268,9 +282,9 @@ class Domain(_UnitArray):
     @property
     def has_interval(self):
         """
-        Returns if the domain has a defined interval.
+        Domain has a defined interval.
 
-        This should always be True.
+        This property should always be True.
         """
         return np.all(np.isfinite(self.interval))
 
@@ -284,19 +298,17 @@ class Domain(_UnitArray):
     @property
     def is_sorted(self):
         """
-        Return if domain is sorted.
+        Domain is sorted.
 
-        This should always be True
+        This property should always be True.
         """
-        return True
-        # ascending = np.diff(self.magnitude) > 0
-        # return np.all(ascending) or not np.any(ascending)
+        ascending = np.diff(self.magnitude) > 0
+        return np.all(ascending) or not np.any(ascending)
 
     def __str__(self):
         """
         Returns a str representation of the domain.
         """
-
         return (
             "Domain(start={0}, end={1}, interval={2}, units={3})"
         ).format(self.start, self.end, self.interval, self.units)
@@ -312,7 +324,8 @@ class Domain(_UnitArray):
         Returns
         -------
         domain : `Domain`
-            A new domain with uniform intervals.
+            A new domain with uniform intervals, or a copy of self if self
+            is already uniform.
         """
 
         if self.is_uniform:
@@ -324,7 +337,7 @@ class Domain(_UnitArray):
             end=self.end,
             interval=np.mean(self.interval),
             units=self.units,
-            **self.init_kwargs
+            **self._init_kwargs
         )
 
     def equalize_domains(self, other):
@@ -407,7 +420,7 @@ class Domain(_UnitArray):
             end=end,
             interval=interval,
             units=self.units,
-            **self.init_kwargs
+            **self._init_kwargs
         )
 
         if not domain.is_uniform:
@@ -454,7 +467,7 @@ class Domain(_UnitArray):
         return self._class_new_instance(
             values=values,
             units=self.units,
-            **self.init_kwargs
+            **self._init_kwargs
         )
 
     def extend(self, length, left=False):

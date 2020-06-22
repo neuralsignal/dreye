@@ -3,11 +3,11 @@ Common utilities
 """
 
 import numbers
-from collections.abc import Hashable, Mapping, Callable
+from collections.abc import Mapping, Callable
 
 import numpy as np
 
-from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE, DEFAULT_INT_DTYPE
+from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE
 
 
 def has_units(value):
@@ -65,10 +65,10 @@ def get_value(obj):
 
 def is_hashable(obj):
     """
-    returns True if allowed hashable (e.g. string, integer, tuple).
+    returns True if allowed hashable (e.g. string, numeric, tuple).
     """
     return (
-        is_integer(obj)
+        is_numeric(obj)
         or is_string(obj)
         or isinstance(obj, tuple)
         or obj is None

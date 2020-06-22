@@ -69,7 +69,6 @@ dreye.CalibrationSpectrum
       CalibrationSpectrum.domain_min
       CalibrationSpectrum.domain_units
       CalibrationSpectrum.gradient
-      CalibrationSpectrum.init_kwargs
       CalibrationSpectrum.integral
       CalibrationSpectrum.interpolator
       CalibrationSpectrum.interpolator_kwargs

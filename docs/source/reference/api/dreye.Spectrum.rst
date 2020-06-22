@@ -68,7 +68,6 @@ dreye.Spectrum
       Spectrum.domain_min
       Spectrum.domain_units
       Spectrum.gradient
-      Spectrum.init_kwargs
       Spectrum.integral
       Spectrum.interpolator
       Spectrum.interpolator_kwargs

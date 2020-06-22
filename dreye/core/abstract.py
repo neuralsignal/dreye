@@ -16,11 +16,14 @@ from dreye.utilities import (
 )
 from dreye.utilities.abstract import _AbstractArray
 from dreye.constants import ureg
-from dreye.io import read_json, write_json
+from dreye.io import read_json, write_json, read_pickle, write_pickle
 
 
 class _UnitArray(_AbstractArray):
     """
+    This abstract class is used by all signal-type classes
+    and the `dreye.Domain` class.
+
     Attributes are assigned privately and attribute properties written
     for each attribute to prevent user-side redefinition.
     """
@@ -37,12 +40,19 @@ class _UnitArray(_AbstractArray):
 
     @property
     def _init_aligned_attrs(self):
+        """
+        This property defines attributes that are aligned with particular
+        axis of the `values` array.
+        """
         return {}
 
     @abstractmethod
     def _test_and_assign_values(self, values, kwargs):
         """
-        method implemented for each subclass
+        Method implemented for each subclass.
+
+        This method is used during initialzation to assign the `values`
+        array and assign and check various other attributes.
         """
         # values is always a numpy.ndarray/None/or other
         # assign new values
@@ -57,8 +67,10 @@ class _UnitArray(_AbstractArray):
     def _equalize(self, other):
         """
         Equalize other to self for numerical operations.
-        Should just return equalized other_magnitude, self
-        or NotImplemented, self.
+
+        This method is used by various mathematical operators, and should
+        always return `other_magnitude` and `self`, or `NotImplemented` and
+        `self`.
         """
         pass
 
@@ -67,6 +79,10 @@ class _UnitArray(_AbstractArray):
     def _class_new_instance(self):
         """
         Class used to initialize a new instance (usually self).
+
+        This can either be a property that returns the desired class
+        for initialization after operations are performed, or it can
+        be a method that accepts all arguments required for initialization
         """
         pass
 
@@ -75,6 +91,18 @@ class _UnitArray(_AbstractArray):
         contexts=None, attrs=None, name=None,
         **kwargs
     ):
+        """
+        The init always accepts a positional argument `values` and various
+        designated keyword arguments: `units`, `contexts`, `attrs`, `name`.
+
+        Parameters
+        ----------
+        values : array-like
+        units : string or `pint.Unit`, optional
+        contexts : string or tuple, optional
+        attrs : dict, optional
+        name : string or tuple, optional
+        """
         convert_units = False
         # map the value
         units = self._unit_mappings.get(units, units)
@@ -142,13 +170,21 @@ class _UnitArray(_AbstractArray):
             self.units = convert_to
 
     def _get_convert_attribute(self, attr):
+        """
+        Method to get an attribute whose units need to be converted
+        the same way as the `values` array.
+        """
         return getattr(self, attr)
 
     def _set_convert_attribute(self, attr, value):
+        """
+        Method to set an attribute whose units need to be converted
+        the same way as the `values` array.
+        """
         setattr(self, '_'+attr, value)
 
     @property
-    def init_kwargs(self):
+    def _init_kwargs(self):
         """
         Keyword arguments used to re-initializing/copying instance (does not
         include values and units).
@@ -210,6 +246,9 @@ class _UnitArray(_AbstractArray):
     def attrs(self):
         """
         Dictionary to hold arbitrary objects.
+
+        The keys of the dictionary can be user-defined keys or keys specific to
+        particular classes, such as for the `dreye.MeasuredSpectrum` class.
         """
         return self._attrs
 
@@ -230,6 +269,8 @@ class _UnitArray(_AbstractArray):
     def name(self):
         """
         Returns the name given to the object.
+
+        The name is usually a string, tuple, or None.
         """
         return self._name
 
@@ -246,20 +287,48 @@ class _UnitArray(_AbstractArray):
     @property
     def magnitude(self):
         """
-        Returns `numpy.array` of values (no units).
+        Returns `numpy.ndarray` of values without units.
         """
         return self._values
 
     @property
     def values(self):
         """
-        Returns `pint.Quantity` array (contains units).
+        Returns `pint.Quantity` array (i.e. units are attached).
         """
         return self.magnitude * self.units
 
     def to(self, units, *args, copy=True, **kwargs):
         """
         Returns copy of self with converted units.
+
+        Parameters
+        ----------
+        units : str
+            Units to convert to
+        args : tuple, optional
+            Contexts to pass to `pint.Quantity.to` method.
+        copy : bool, optional
+            If self will be copied. Defaults to True.
+        kwargs : dict, optional
+            Keyword arguments passed to `pint.Quantity.to` method.
+
+        Returns
+        -------
+        obj : instance of self
+            Returns self or a copy of self with units converted
+
+        Raises
+        ------
+        pint.errors.DimensionalityError
+            If self cannot be converted to the given units.
+
+        Notes
+        -----
+        This function essentially uses `pint`'s unit conversion system.
+        Besides converting the `values` array, this method will also convert
+        any attributes that have the same dependent units as the `values`
+        array.
         """
         if copy:
             self = self.copy()
@@ -280,7 +349,11 @@ class _UnitArray(_AbstractArray):
 
     def _convert_values(self, values, units, *args, unitless=False, **kwargs):
         """
-        convert values given the contexts
+        Convert values given the contexts.
+
+        This method is indirectly used by the `to` method
+        and the directly by the `_convert_all_attrs` and
+        `_convert_other_attrs`.
         """
 
         kws = self._unit_conversion_kws
@@ -295,6 +368,11 @@ class _UnitArray(_AbstractArray):
 
     @property
     def _unit_conversion_kws(self):
+        """
+        A set of keywords that are passed to the unit conversion automatically.
+
+        This property is used by the `to` method.
+        """
         return {
             key: getattr(self, name)
             for key, name in self._unit_conversion_params.items()
@@ -302,7 +380,11 @@ class _UnitArray(_AbstractArray):
 
     def _convert_other_attrs(self, units, *args, **kwargs):
         """
-        convert units of stored attributes
+        Convert units of stored attributes that have the same
+        units as the `values` array.
+
+        This method is indirectly used by the `to` method and
+        directly used by `_convert_all_attrs`.
         """
         # any other attributes to be converted will be converted
         # these have to be accessible as self.attr and set by self._attr
@@ -324,7 +406,10 @@ class _UnitArray(_AbstractArray):
 
     def _convert_all_attrs(self, units, *args, **kwargs):
         """
-        convert units of all relevant attributes
+        Convert units of all relevant attributes
+        (i.e. `values` and `_convert_attributes`).
+
+        This method is used by the `to` method.
         """
         self._convert_other_attrs(units, *args, **kwargs)
         return self._convert_values(
@@ -333,9 +418,13 @@ class _UnitArray(_AbstractArray):
 
     def _instance_handler(self, other, op, reverse=False):
         """
-        standard instance handler.
-        This is used by operators and
-        should return a new instance of self
+        Standard instance handler for various mathematical operations.
+
+        This method is used by various mathematical operators and
+        requires that the `_equalize` method is implemented.
+
+        The mathematical operations are performed on the `pint.Quantity`
+        arrays of self and other for unit tracking.
         """
         # special handling of string and None
         if is_string(other) or other is None:
@@ -360,60 +449,156 @@ class _UnitArray(_AbstractArray):
         else:
             new = getattr(operator, op)(self.values, other_values)
         # create new instance
-        return self._class_new_instance(values=new, **self.init_kwargs)
+        return self._class_new_instance(values=new, **self._init_kwargs)
 
     def __mul__(self, other):
+        """
+        Multiply self and other.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'mul')
 
     def __rmul__(self, other):
+        """
+        Multiply self and other.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'mul', True)
 
     def __truediv__(self, other):
+        """
+        Divide self by other.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'truediv')
 
     def __rtruediv__(self, other):
+        """
+        Divide other by self.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'truediv', True)
 
     def __floordiv__(self, other):
+        """
+        Divide self by other.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'floordiv')
 
     def __rfloordiv__(self, other):
+        """
+        Divide other by self.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'floordiv', True)
 
     def __add__(self, other):
+        """
+        Divide self and other.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'add')
 
     def __radd__(self, other):
+        """
+        Divide self and other.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'add', True)
 
     def __sub__(self, other):
+        """
+        Subtract other from self.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'sub')
 
     def __rsub__(self, other):
+        """
+        Subtract self from other.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'sub', True)
 
     def __pow__(self, other):
+        """
+        Raise self to a power.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'pow')
 
     def __rpow__(self, other):
+        """
+        Raise other to a power.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'pow', True)
 
     def __contains__(self, other):
+        """
+        Applies `numpy.ndarray` __contains__ method with self and other.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._instance_handler(other, 'contains')
 
     def __pos__(self):
+        """
+        Positive self.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._class_new_instance(
-            values=operator.pos(self.values), **self.init_kwargs
+            values=operator.pos(self.values), **self._init_kwargs
         )
 
     def __neg__(self):
+        """
+        Negative self.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._class_new_instance(
-            values=operator.neg(self.values), **self.init_kwargs
+            values=operator.neg(self.values), **self._init_kwargs
         )
 
     def __abs__(self):
+        """
+        Absulate self.
+
+        This method keeps track of units and attempts to return
+        an instance of the `self` class.
+        """
         return self._class_new_instance(
-            values=operator.abs(self.values), **self.init_kwargs
+            values=operator.abs(self.values), **self._init_kwargs
         )
 
     def __iter__(self):
@@ -423,18 +608,27 @@ class _UnitArray(_AbstractArray):
         return iter(self.values)
 
     def __len__(self):
+        """
+        Length of `values`; Same as len(`self.magnitude`).
+        """
         return len(self.magnitude)
 
     def __bool__(self):
+        """
+        Returns True
+        """
         return True
 
     def __repr__(self):
+        """
+        Represenation of self
+        """
         return str(self.values)
 
     def __getitem__(self, key):
         """
         Returns copy of self if key is a tuple of slices or a slice instance.
-        Otherwise __getitem__ returns a `pint.Quantity`
+        Otherwise `__getitem__` returns a `pint.Quantity`.
         """
         values = self.values[key]
         if hasattr(values, 'ndim'):
@@ -465,12 +659,12 @@ class _UnitArray(_AbstractArray):
                         # only allow slices and ellipsis
                         return values
                 # get new inits
-                init_kwargs = self.init_kwargs
+                _init_kwargs = self._init_kwargs
                 # indices are assumed to be positive
                 for idx, attrs in self._init_aligned_attrs.items():
                     for attr in attrs:
                         if idx is None:
-                            init_kwargs[attr] = None
+                            _init_kwargs[attr] = None
                         elif isinstance(idx, tuple):
                             # this assumes numpy.ndarray instances
                             if any(map(lambda x: x < 0), idx):
@@ -484,7 +678,7 @@ class _UnitArray(_AbstractArray):
                                 else slice(None, None, None)
                                 for iidx in idx
                             )
-                            init_kwargs[attr] = attr_value[ikey]
+                            _init_kwargs[attr] = attr_value[ikey]
                         else:
                             if idx < 0:
                                 raise ValueError(
@@ -495,17 +689,20 @@ class _UnitArray(_AbstractArray):
                             # not broadcastable as in tuple case
                             if idx < len(key):
                                 ikey = key[idx]
-                                init_kwargs[attr] = attr_value[ikey]
+                                _init_kwargs[attr] = attr_value[ikey]
                             else:
-                                init_kwargs[attr] = attr_value
+                                _init_kwargs[attr] = attr_value
                 return self._class_new_instance(
-                    values=values, **init_kwargs
+                    values=values, **_init_kwargs
                 )
         return values
 
     def __eq__(self, other):
         """
-        Equality between self and other
+        Equality between self and other.
+
+        Self and other are equal if all attributes match and the `values`
+        arrays are equal. Units have to match as well.
         """
 
         if isinstance(other, type(self)):
@@ -566,7 +763,7 @@ class _UnitArray(_AbstractArray):
     @property
     def ndim(self):
         """
-        Dimensionality of `_UnitArray.magnitude`/`_UnitArray.values`.
+        Dimensionality of `values` array.
 
         See Also
         --------
@@ -577,7 +774,7 @@ class _UnitArray(_AbstractArray):
     @property
     def shape(self):
         """
-        Shape of `_UnitArray.magnitude`/`_UnitArray.values`.
+        Shape of `values` array.
 
         See Also
         --------
@@ -588,7 +785,7 @@ class _UnitArray(_AbstractArray):
     @property
     def size(self):
         """
-        Size of `_UnitArray.magnitude`/`_UnitArray.values`.
+        Size of `values` array.
 
         See Also
         --------
@@ -610,12 +807,13 @@ class _UnitArray(_AbstractArray):
 
     def to_dict(self):
         """
-        Convert object to dictionary
+        Convert object to dictionary, containing values, units,
+        and other attributes necessary for initialization.
         """
         dictionary = {
             'values': self.magnitude.tolist(),
             'units': self.units,
-            **self.init_kwargs
+            **self._init_kwargs
         }
         return dictionary
 
@@ -630,11 +828,32 @@ class _UnitArray(_AbstractArray):
     def load(cls, filename):
         """
         Load JSON or JSON-compressed object.
+
+        Parameters
+        ----------
+        filename : str
+            Filename with stored object.
+
+        Returns
+        -------
+        object : instance of `cls`
+            Instance of `cls`.
         """
-        return read_json(filename)
+        if '.pkl' in filename:
+            return read_pickle(filename)
+        else:
+            return read_json(filename)
 
     def save(self, filename):
         """
         Save JSON or JSON-compressed object object.
+
+        Parameters
+        ----------
+        filename : str
+            Filename to store object.
         """
-        return write_json(filename, self)
+        if '.pkl' in filename:
+            return write_pickle(filename, self)
+        else:
+            return write_json(filename, self)

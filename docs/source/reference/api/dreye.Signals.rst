@@ -71,7 +71,6 @@ dreye.Signals
       Signals.domain_min
       Signals.domain_units
       Signals.gradient
-      Signals.init_kwargs
       Signals.integral
       Signals.interpolator
       Signals.interpolator_kwargs

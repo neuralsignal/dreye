@@ -8,6 +8,7 @@ from scipy.stats import norm
 import numpy as np
 
 from dreye.core.signal import _SignalMixin, _Signal2DMixin, Signals
+from dreye.utilities.abstract import inherit_docstrings
 from dreye.core.spectral_sensitivity import Sensitivity
 from dreye.err import DreyeError
 from dreye.utilities import (
@@ -25,22 +26,59 @@ def get_photoreceptor_model(
     Parameters
     ----------
     sensitivity : Sensitivity instance or array-like, optional
+        An array that contains the sensitivity of different photoreceptor
+        types across wavelengths (wavelengths x types).
     wavelengths : array-like, optional
+        The wavelength values in nanometers. This must be the same size as
+        the number of rows in the sensitivity array.
     filterfunc : callable, optional
+        A function that accepts three positional arguments:
+        wavelengths, illuminant, and sensitivity. All three arguments are
+        `numpy.ndarray` objects that are broadcastable to each other.
+        The function should return the illuminant after the wavelength-specific
+        filter has been applied.
     labels : array-like, optional
-    photoreceptor_type : str ({'linear', 'log'}), optional
+        The labels for each photoreceptor. The length of labels must
+        correspond to the length of the columns in `sensitivity`.
+    photoreceptor_type : str ({'linear', 'log', 'hyperbolic'}), optional
+        The photoreceptor model.
     kwargs : dict, optional
+        A dictionary that is directly passed to the photoreceptor class
+        instantiation.
 
     Returns
     -------
-    object : `Photoreceptor`
+    object : `Photoreceptor` class
+        A photoreceptor instance which has the `capture` and `excitation`
+        method implemented.
+
+    See Also
+    --------
+    dreye.Photoreceptor
+    dreye.LinearPhotoreceptor
+    dreye.LogPhotoreceptor
+    dreye.HyperbolicPhotoreceptor
+
+    Notes
+    -----
+    This is a convenience function to create arbitrary photoreceptor models.
+    It is also possible to create a photoreceptor model directly using the
+    `dreye.LogPhotoreceptor`, `dreye.LinearPhotoreceptor` and
+    `dreye.HyperbolicPhotoreceptor` classes.
+
+    It is usually not necessary to supply a `filterfunc` argument, unless the
+    photoreceptor model contains a filter that varies with the intensity and
+    wavelength of the illuminant (for example, the photoreceptor model
+    by Stavenga et al, 2003).
     """
-    if photoreceptor_type not in {'linear', 'log'}:
+    if photoreceptor_type not in {'linear', 'log', 'hyperbolic'}:
         raise DreyeError("Photoreceptor type must be 'linear' or 'log'.")
     if photoreceptor_type == 'linear':
         pr_class = LinearPhotoreceptor
     elif photoreceptor_type == 'log':
         pr_class = LogPhotoreceptor
+    elif photoreceptor_type == 'hyperbolic':
+        pr_class = HyperbolicPhotoreceptor
 
     if sensitivity is None or is_integer(sensitivity):
         if wavelengths is None:
@@ -63,17 +101,53 @@ def get_photoreceptor_model(
     )
 
 
+# todo convenience capture function
+
+
 class Photoreceptor(ABC):
     """
-    Photoreceptor model.
+    Abstract Photoreceptor model for subclassing.
 
     Parameters
     ----------
-    sensitivity : Sensitivity instance or array-like
+    sensitivity : Sensitivity instance or array-like, optional
+        An array that contains the sensitivity of different photoreceptor
+        types across wavelengths (wavelengths x types).
     wavelengths : array-like, optional
+        The wavelength values in nanometers. This must be the same size as
+        the number of rows in the sensitivity array.
     filterfunc : callable, optional
+        A function that accepts three positional arguments:
+        wavelengths, illuminant, and sensitivity. All three arguments are
+        `numpy.ndarray` objects that are broadcastable to each other.
+        The function should return the illuminant after the wavelength-specific
+        filter has been applied.
     labels : array-like, optional
+        The labels for each photoreceptor. The length of labels must
+        correspond to the length of the columns in `sensitivity`.
     kwargs : dict, optional
+        A dictionary that is directly passed to the instantiation of
+        the `dreye.Sensitivity` class.
+
+    See Also
+    --------
+    dreye.get_photoreceptor_model
+    dreye.LinearPhotoreceptor
+    dreye.LogPhotoreceptor
+    dreye.HyperbolicPhotoreceptor
+
+    Notes
+    -----
+    When subclassing this abstract class you need to implement two functions,
+    that are `excitefunc` and `inv_excitefunc`. The `excitefunc` method
+    accepts a an array-like object that converts photon capture values to
+    photoreceptor excitations. The `inv_excitefunc` method accepts
+    photoreceptor excitations and converts them back to photon capture values.
+
+    It is usually not necessary to supply a `filterfunc` argument, unless the
+    photoreceptor model contains a filter that varies with the intensity and
+    wavelength of the illuminant (for example, the photoreceptor model
+    by Stavenga et al, 2003).
     """
 
     def __init__(
@@ -106,6 +180,9 @@ class Photoreceptor(ABC):
         self._filterfunc = filterfunc
 
     def __str__(self):
+        """
+        String representation of photoreceptor model.
+        """
         return f"{type(self).__name__}{tuple(self.labels)}"
 
     def to_dict(self):
@@ -122,7 +199,7 @@ class Photoreceptor(ABC):
     def from_dict(cls, dictionary):
         """
         Create Photoreceptor class given a dictionary containing
-        the `sentivity` and `filterfunc` (optionally).
+        the `sentivity` and `filterfunc` (optional) keys.
         """
         return cls(**dictionary)
 
@@ -153,21 +230,23 @@ class Photoreceptor(ABC):
     @property
     def sensitivity(self):
         """
-        `Sensitivity` instance containing all the spectral sensitivities.
+        The `dreye.Sensitivity` instance containing
+        all the spectral sensitivities.
         """
         return self._sensitivity
 
     @property
     def pr_number(self):
         """
-        The number of photoreceptor types.
+        The number of photoreceptor types. This correspond to the number
+        of spectral sensitivities of the `sensitivity` attribute.
         """
         return self.sensitivity.shape[1]
 
     @property
     def wavelengths(self):
         """
-        `Domain` instance of wavelength values.
+        A `dreye.Domain` instance of the wavelength values.
         """
         return self.sensitivity.wavelengths
 
@@ -197,11 +276,9 @@ class Photoreceptor(ABC):
         Filter function applied on light entering each photoreceptor.
 
         The filter function should accept three positional arguments
-        corresponding to the wavelength `numpy.ndarray`, illuminant
-        `numpy.ndarray`, and the sensitvity `numpy.ndarray` respectively.
-
-        All three arrays are broadcasted already before being passed to
-        `filterfunc`.
+        corresponding to the wavelength, illuminant, and the sensitvity.
+        All three are `numpy.ndarray` objects that have been broadcast
+        properly to allow for mathematical operations.
         """
         return self._filterfunc
 
@@ -355,7 +432,48 @@ class Photoreceptor(ABC):
     #     self.sensitivity.magnitude
 
 
+@inherit_docstrings
 class LinearPhotoreceptor(Photoreceptor):
+    """
+    A linear photoreceptor model
+
+    Parameters
+    ----------
+    sensitivity : Sensitivity instance or array-like, optional
+        An array that contains the sensitivity of different photoreceptor
+        types across wavelengths (wavelengths x types).
+    wavelengths : array-like, optional
+        The wavelength values in nanometers. This must be the same size as
+        the number of rows in the sensitivity array.
+    filterfunc : callable, optional
+        A function that accepts three positional arguments:
+        wavelengths, illuminant, and sensitivity. All three arguments are
+        `numpy.ndarray` objects that are broadcastable to each other.
+        The function should return the illuminant after the wavelength-specific
+        filter has been applied.
+    labels : array-like, optional
+        The labels for each photoreceptor. The length of labels must
+        correspond to the length of the columns in `sensitivity`.
+    kwargs : dict, optional
+        A dictionary that is directly passed to the instantiation of
+        the `dreye.Sensitivity` class.
+
+    See Also
+    --------
+    dreye.get_photoreceptor_model
+    dreye.LogPhotoreceptor
+    dreye.HyperbolicPhotoreceptor
+
+    Notes
+    -----
+    In the linear model, photon capture values correspond to photoreceptor
+    excitations.
+
+    It is usually not necessary to supply a `filterfunc` argument, unless the
+    photoreceptor model contains a filter that varies with the intensity and
+    wavelength of the illuminant (for example, the photoreceptor model
+    by Stavenga et al, 2003).
+    """
 
     @staticmethod
     def excitefunc(arr):
@@ -372,7 +490,48 @@ class LinearPhotoreceptor(Photoreceptor):
         return arr
 
 
+@inherit_docstrings
 class LogPhotoreceptor(Photoreceptor):
+    """
+    A logarithmic photoreceptor model
+
+    Parameters
+    ----------
+    sensitivity : Sensitivity instance or array-like, optional
+        An array that contains the sensitivity of different photoreceptor
+        types across wavelengths (wavelengths x types).
+    wavelengths : array-like, optional
+        The wavelength values in nanometers. This must be the same size as
+        the number of rows in the sensitivity array.
+    filterfunc : callable, optional
+        A function that accepts three positional arguments:
+        wavelengths, illuminant, and sensitivity. All three arguments are
+        `numpy.ndarray` objects that are broadcastable to each other.
+        The function should return the illuminant after the wavelength-specific
+        filter has been applied.
+    labels : array-like, optional
+        The labels for each photoreceptor. The length of labels must
+        correspond to the length of the columns in `sensitivity`.
+    kwargs : dict, optional
+        A dictionary that is directly passed to the instantiation of
+        the `dreye.Sensitivity` class.
+
+    See Also
+    --------
+    dreye.get_photoreceptor_model
+    dreye.LinearPhotoreceptor
+    dreye.HyperbolicPhotoreceptor
+
+    Notes
+    -----
+    In the logarithmic photoreceptor model the photoreceptor excitations
+    correspond to the log of the photon captures.
+
+    It is usually not necessary to supply a `filterfunc` argument, unless the
+    photoreceptor model contains a filter that varies with the intensity and
+    wavelength of the illuminant (for example, the photoreceptor model
+    by Stavenga et al, 2003).
+    """
 
     @staticmethod
     def excitefunc(arr):
@@ -389,7 +548,49 @@ class LogPhotoreceptor(Photoreceptor):
         return np.exp(arr)
 
 
+@inherit_docstrings
 class HyperbolicPhotoreceptor(Photoreceptor):
+    """
+    A hyperbolic photoreceptor model.
+
+    Parameters
+    ----------
+    sensitivity : Sensitivity instance or array-like, optional
+        An array that contains the sensitivity of different photoreceptor
+        types across wavelengths (wavelengths x types).
+    wavelengths : array-like, optional
+        The wavelength values in nanometers. This must be the same size as
+        the number of rows in the sensitivity array.
+    filterfunc : callable, optional
+        A function that accepts three positional arguments:
+        wavelengths, illuminant, and sensitivity. All three arguments are
+        `numpy.ndarray` objects that are broadcastable to each other.
+        The function should return the illuminant after the wavelength-specific
+        filter has been applied.
+    labels : array-like, optional
+        The labels for each photoreceptor. The length of labels must
+        correspond to the length of the columns in `sensitivity`.
+    kwargs : dict, optional
+        A dictionary that is directly passed to the instantiation of
+        the `dreye.Sensitivity` class.
+
+    See Also
+    --------
+    dreye.get_photoreceptor_model
+    dreye.LinearPhotoreceptor
+    dreye.LogPhotoreceptor
+
+    Notes
+    -----
+    In the hyperbolic photoreceptor model, the photoreceptor excitations
+    correspond to the hyperbolic transform of the photon captures:
+    :math:`q/(1+q)`.
+
+    It is usually not necessary to supply a `filterfunc` argument, unless the
+    photoreceptor model contains a filter that varies with the intensity and
+    wavelength of the illuminant (for example, the photoreceptor model
+    by Stavenga et al, 2003).
+    """
 
     @staticmethod
     def excitefunc(arr):

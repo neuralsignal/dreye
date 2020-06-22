@@ -4,6 +4,7 @@
 import copy
 from abc import ABC, abstractmethod
 from collections.abc import Collection
+from inspect import getmembers, isfunction
 
 from dreye.err import DreyeError
 
@@ -189,3 +190,13 @@ class _AbstractContainer(ABC):
         value = self._container.pop(index)
         self._init_attrs()
         return value
+
+
+def inherit_docstrings(cls):
+    for name, func in getmembers(cls, isfunction):
+        if func.__doc__:
+            continue
+        for parent in cls.__mro__[1:]:
+            if hasattr(parent, name):
+                func.__doc__ = getattr(parent, name).__doc__
+    return cls

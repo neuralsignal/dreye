@@ -32,6 +32,10 @@ class _NumpyMixin:
     def mean(self, *args, **kwargs):
         """
         Compute the arithmetic mean along the specified axis.
+
+        Returns
+        -------
+        mean : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -41,6 +45,10 @@ class _NumpyMixin:
     def nanmean(self, *args, **kwargs):
         """
         Compute the arithmetic mean along the specified axis, ignoring NaNs.
+
+        Returns
+        -------
+        mean : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -50,6 +58,10 @@ class _NumpyMixin:
     def sum(self, *args, **kwargs):
         """
         Sum of array elements over a given axis.
+
+        Returns
+        -------
+        sum : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -60,6 +72,10 @@ class _NumpyMixin:
         """
         Return the sum of array elements over a given axis treating
         NaNs as zero.
+
+        Returns
+        -------
+        sum : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -69,6 +85,10 @@ class _NumpyMixin:
     def std(self, *args, **kwargs):
         """
         Compute the standard deviation along the specified axis.
+
+        Returns
+        -------
+        std : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -79,6 +99,10 @@ class _NumpyMixin:
         """
         Compute the standard deviation along the specified axis, while ignoring
         NaNs.
+
+        Returns
+        -------
+        std : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -88,6 +112,10 @@ class _NumpyMixin:
     def var(self, *args, **kwargs):
         """
         Compute the variance along the specified axis.
+
+        Returns
+        -------
+        var : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -97,6 +125,10 @@ class _NumpyMixin:
     def nanvar(self, *args, **kwargs):
         """
         Compute the variance along the specified axis, while ignoring NaNs.
+
+        Returns
+        -------
+        var : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -106,6 +138,10 @@ class _NumpyMixin:
     def min(self, *args, **kwargs):
         """
         Return the minimum along a given axis.
+
+        Returns
+        -------
+        min : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -118,6 +154,10 @@ class _NumpyMixin:
 
         When all-NaN slices are encountered a RuntimeWarning is raised and Nan
         is returned for that slice.
+
+        Returns
+        -------
+        min : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -127,6 +167,10 @@ class _NumpyMixin:
     def max(self, *args, **kwargs):
         """
         Element-wise maximum of array elements.
+
+        Returns
+        -------
+        max : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -140,6 +184,10 @@ class _NumpyMixin:
 
         When all-NaN slices are encountered a RuntimeWarning is raised
         and NaN is returned for that slice.
+
+        Returns
+        -------
+        max : `pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -149,6 +197,10 @@ class _NumpyMixin:
     def dot(self, other, transpose=False):
         """
         Returns the dot product of array-like instances.
+
+        Returns
+        -------
+        array : `pint.Quantity`
         """
 
         if transpose:
@@ -168,6 +220,10 @@ class _NumpyMixin:
     def cov(self, *args, **kwargs):
         """
         Calculate covariance matrix of signal.
+
+        Returns
+        -------
+        array : `pint.Quantity`
         """
 
         values = np.cov(self.magnitude, *args, **kwargs)
@@ -177,6 +233,10 @@ class _NumpyMixin:
         """
         Calculate pearson's correlation matrix containing correlation
         coefficients (variance/variance squared).
+
+        Returns
+        -------
+        array : `pint.Quantity`
         """
 
         values = np.corrcoef(self.magnitude, *args, **kwargs)

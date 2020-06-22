@@ -120,7 +120,7 @@ class _PlottingMixin:
         See Also
         --------
         seaborn.relplot
-        _PlottingMixin.plotsmooth
+        self.plotsmooth
         """
         data = self.to_longframe()
         return self._plot(
@@ -155,7 +155,7 @@ class _PlottingMixin:
             The offset along the y-axis for each smoothing window, in order
             to better see differences between smoothing windows.
         kwargs : dict, optional
-            Keyword arguments passed to `_PlottingMixin.plot`.
+            Keyword arguments passed to the `plot` method.
 
         Returns
         -------
@@ -165,14 +165,14 @@ class _PlottingMixin:
         See Also
         --------
         seaborn.relplot
-        _PlottingMixin.plot
+        plot
         """
 
         # update default handler
         default_kws = dict(
             hue='applied_window_',
-            col='labels',
-            col_wrap=3,
+            col=('labels' if hasattr(self, 'labels') else None),
+            col_wrap=(3 if hasattr(self, 'labels') else None),
         )
         default_kws.update(kwargs)
 

@@ -5,15 +5,15 @@ Signal container classes
 import pandas as pd
 import numpy as np
 
-from dreye.utilities.abstract import _AbstractContainer
+from dreye.utilities.abstract import _AbstractContainer, inherit_docstrings
 from dreye.utilities import is_numeric
 from dreye.core.signal import (
-    Signals, _SignalDomainLabels, _SignalIndexLabels,
-    DomainSignal, Signal
+    Signals, DomainSignal, Signal
 )
 from dreye.core.plotting_mixin import _PlottingMixin
 
 
+@inherit_docstrings
 class _SignalContainer(_AbstractContainer, _PlottingMixin,):
     """
     A class that contains multiple signal instances in a list.
@@ -28,12 +28,24 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
     ]
 
     def to_longframe(self, *args, **kwargs):
+        """
+        Convert the signal-type container into a long dataframe.
+
+        This method uses the `to_longframe` method of the
+        signal-type objects that are contained within and then
+        concatenates all
+        """
         return pd.concat(
             self.__getattr__('to_longframe')(*args, **kwargs),
             ignore_index=True, sort=True
         )
 
     def plotsmooth(self):
+        """
+        Warnings
+        --------
+        This method is not implemented for signal container-type objects.
+        """
         raise NotImplementedError('smooth plotting with container.')
 
     def plot(self, **kwargs):
@@ -65,6 +77,10 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
 
     @property
     def equalized_domain(self):
+        """
+        The domain equalized across all signal-type instances
+        in the container.
+        """
         if self._equalized_domain is None:
             domain = self[0].domain
             for signal in self[1:]:
@@ -74,38 +90,86 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
 
     @property
     def units(self):
+        """
+        The units of the `values` arrays in the container.
+        """
         return self[0].units
 
     @units.setter
     def units(self, value):
+        """
+        Setting the units of the `values` arrays in the container.
+        """
         for idx, ele in enumerate(self):
             ele = ele.to(value)
             self[idx] = ele
 
     @property
     def domain_units(self):
+        """
+        The units of the `dreye.Domain` instance.
+
+        As required, the domain units are the same across all signal-type
+        objects in the container.
+        """
         return self[0].domain.units
 
     @domain_units.setter
     def domain_units(self, value):
+        """
+        Setting the domain units.
+        """
         for idx, ele in enumerate(self):
             ele.domain = ele.domain.to(value)
 
     @property
     def names(self):
+        """
+        List of the names of each signal-type object.
+        """
         return [ele.name for ele in self]
 
     def popname(self, name):
+        """
+        Remove a signal-type object from the container given its
+        name.
+
+        Returns
+        -------
+        obj : signal-type
+            Returns the signal-type object that was removed
+        """
         index = self.names.index(name)
         return self.pop(index)
 
     @property
     def ndim(self):
+        """
+        The dimensionality of the container.
+
+        The dimensionality is set to 2.
+        """
         return 2
 
 
+@inherit_docstrings
 class SignalsContainer(_SignalContainer):
-    _allowed_instances = (_SignalIndexLabels, _SignalDomainLabels, Signal)
+    """
+    A container that can hold multiple two-dimensional signal-type
+    instances
+
+    Parameters
+    ----------
+    container : list-like
+        A list of signal-type instances
+    units : str or `ureg.Unit`, optional
+        The units to convert the values to. If None,
+        it will choose the units of the first signal in the list.
+    domain_units : str or `ureg.Unit`, optional
+        The units to convert the domain to. If None,
+        it will choose the units of domain of the first signal in the list.
+    """
+    _allowed_instances = (Signals, DomainSignal, Signal)
     _enforce_instance = Signals
     _init_keys = ['_signals']
 
@@ -131,6 +195,10 @@ class SignalsContainer(_SignalContainer):
     def signals(self):
         """
         Returns concatenated `Signals` class using all signals in container.
+
+        See Also
+        --------
+        dreye.Signals.concat
         """
         if self._signals is None:
             # concat signals
@@ -146,31 +214,71 @@ class SignalsContainer(_SignalContainer):
 
     @property
     def magnitude(self):
+        """
+        The magnitude of the `signals` attribute.
+        """
         return self.signals.magnitude
 
     @property
     def domain(self):
+        """
+        The domain of the `signals` attribute.
+        """
         return self.signals.domain
 
     @property
     def labels(self):
+        """
+        The labels of the `signals` attribute.
+        """
         return self.signals.labels
 
     @property
     def labels_axis(self):
+        """
+        The labels axis of the `signals` attribute.
+        """
         return self.signals.labels_axis
 
     @property
     def domain_axis(self):
+        """
+        The domain axis of the `signals` attribute.
+        """
         return self.signals.domain_axis
 
     @property
     def shape(self):
+        """
+        The shape of the `signals` attribute
+        """
         return self.signals.shape
 
 
+@inherit_docstrings
 class DomainSignalContainer(_SignalContainer):
-    _allowed_instances = _SignalDomainLabels
+    """
+    A container that can hold multiple `dreye.DomainSignal` instances
+
+    Parameters
+    ----------
+    container : list-like
+        A list of `dreye.DomainSignal` instances.
+    units : str or `ureg.Unit`, optional
+        The units to convert the values to. If None,
+        it will choose the units of the first signal in the list.
+    domain_units : str or `ureg.Unit`, optional
+        The units to convert the domain to. If None,
+        it will choose the units of domain of the first signal in the list.
+    labels_units : str or `ureg.Unit`, optional
+        The units to convert the labels to. If None,
+        it will choose the units of labels of the first signal in the list.
+
+    See Also
+    --------
+    MeasuredSpectraContainer
+    """
+    _allowed_instances = DomainSignal
     _enforce_instance = DomainSignal
     _init_keys = [
         '_stacked_values',
@@ -206,15 +314,28 @@ class DomainSignalContainer(_SignalContainer):
 
     @property
     def labels_units(self):
+        """
+        The units of the `dreye.Domain` instance corresponding to the labels.
+
+        As required, the domain units are the same across all signal-type
+        objects in the container.
+        """
         return self[0].labels.units
 
     @labels_units.setter
     def labels_units(self, value):
+        """
+        Setting the labels units.
+        """
         for idx, ele in enumerate(self):
             ele.labels = ele.labels.to(value)
 
     @property
     def equalized_labels(self):
+        """
+        The labels equalized across all signal-type instances
+        in the container.
+        """
         if self._equalized_labels is None:
             labels = self[0].labels
             for signal in self[1:]:
@@ -225,7 +346,8 @@ class DomainSignalContainer(_SignalContainer):
     @property
     def stacked_values(self):
         """
-        Stacks all `DomainSignal` instance on top of each other.
+        Stacks all `DomainSignal` instance on top of each other to
+        create a three-dimensional `pint.Quantity` instances
         """
         if self._stacked_values is None:
             values = np.empty((

@@ -72,7 +72,6 @@ dreye.DomainSpectrum
       DomainSpectrum.domain_min
       DomainSpectrum.domain_units
       DomainSpectrum.gradient
-      DomainSpectrum.init_kwargs
       DomainSpectrum.integral
       DomainSpectrum.interpolator
       DomainSpectrum.interpolator_kwargs

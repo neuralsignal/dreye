@@ -397,6 +397,7 @@ if pattern is None:
         "statsmodels": ("https://www.statsmodels.org/devel/", None),
         "pyarrow": ("https://arrow.apache.org/docs/", None),
         "seaborn": ("https://seaborn.pydata.org", None),
+        "pint": ("https://pint.readthedocs.io/en/stable/", None)
     }
 
 # extlinks alias

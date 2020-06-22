@@ -16,14 +16,59 @@ from dreye.constants import ureg
 from dreye.core.spectrum import Spectra
 from dreye.estimators.base import _SpectraModel, OptimizeResultContainer
 from dreye.err import DreyeError
+from dreye.utilities.abstract import inherit_docstrings
 
 
+# TODO simple class that only requires A and bounds
+
+@inherit_docstrings
 class IndependentExcitationFit(_SpectraModel):
     """
     Class to fit (relative) photoreceptor excitations for each sample
     independently.
 
-    Photoreceptor model and measured_spectra Must produce dimensionless
+    Parameters
+    ----------
+    photoreceptor_model
+    photoreceptor_fit_weights
+    background
+    measured_spectra : dreye.MeasuredSpectraContainer
+        Container with all available LEDs and their measured spectra. If
+        None, a fake LED measurement will be created with intensities
+        ranging from 0 to 100 microphotonflux.
+    smoothing_window : numeric, optional
+        The smoothing window size to use to smooth over the measurements
+        in the container.
+    max_iter
+    hard_separation
+    hard_sep_value
+    q1_ints
+    fit_only_uniques
+    ignore_bounds
+    lsq_kwargs
+
+    Attributes
+    ----------
+    photoreceptor_model_
+    measured_spectra_ : dreye.MeasuredSpectraContainer
+        Measured spectrum container used for fitting. This will be the same
+        if as `measured_spectra` if a `MeasuredSpectraContainer` instance
+        was passed.
+    bounds_
+    background_
+    normalized_spectra_
+    capture_X_
+    excite_X_
+    A_
+    sep_bound_
+    sep_result_
+    fitted_intensities_ : numpy.ndarray
+        Intensities fit in units of `measured_spectra_.intensities.units`
+    fitted_capture_X_
+    fitted_excite_X_
+    current_X_ : numpy.ndarray
+        Current input values used to transform and calculate scores.
+
     """
 
     # same length as X but not X or fitted X
@@ -44,6 +89,7 @@ class IndependentExcitationFit(_SpectraModel):
         hard_sep_value=1.0,  # float in capture units (1 relative capture)
         q1_ints=None,
         fit_only_uniques=False,
+        ignore_bounds=False,
         lsq_kwargs=None
     ):
         self.photoreceptor_model = photoreceptor_model
@@ -56,6 +102,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.photoreceptor_fit_weights = photoreceptor_fit_weights
         self.fit_only_uniques = fit_only_uniques
         self.lsq_kwargs = lsq_kwargs
+        self.ignore_bounds = ignore_bounds
         self.q1_ints = q1_ints
 
     def _set_required_objects(self, size=None):
@@ -74,7 +121,13 @@ class IndependentExcitationFit(_SpectraModel):
 
         # measured_spectra attributes
         # intensity bounds as two-tuple
-        self.bounds_ = self.measured_spectra_.intensity_bounds
+        if self.ignore_bounds:
+            self.bounds_ = (
+                np.zeros(len(self.measured_spectra_)),
+                np.inf * np.ones(len(self.measured_spectra_))
+            )
+        else:
+            self.bounds_ = self.measured_spectra_.intensity_bounds
         # normalized spectra
         self.normalized_spectra_ = self.measured_spectra_.normalized_spectra
         # sanity checks
@@ -195,9 +248,6 @@ class IndependentExcitationFit(_SpectraModel):
         return self
 
     def fit(self, X, y=None):
-        """
-        Fit method.
-        """
         # set required objects
         self._set_required_objects(asarray(X).shape[1])
         # fit X
@@ -205,9 +255,6 @@ class IndependentExcitationFit(_SpectraModel):
         return self
 
     def inverse_transform(self, X):
-        """
-        Transform output values to excitation values
-        """
         check_is_fitted(
             self, [
                 'measured_spectra_',
@@ -314,24 +361,18 @@ class IndependentExcitationFit(_SpectraModel):
 
     @property
     def input_units(self):
-        """units of X
-        """
         return ureg(None).units
 
     @property
     def fitted_X(self):
-        """X after fitting
-        """
         return self.fitted_excite_X_
 
 
+@inherit_docstrings
 class TransformExcitationFit(IndependentExcitationFit):
     """
     Class to fit a linear transformation of
     (relative) photoreceptor excitations for each sample independently.
-
-    Photoreceptor model and measured_spectra must produce dimensionless
-    captures.
     """
 
     # same length as X but not X or fitted X
@@ -355,6 +396,7 @@ class TransformExcitationFit(IndependentExcitationFit):
         hard_sep_value=1.0,  # float in capture units (1 relative capture)
         q1_ints=None,
         fit_only_uniques=False,
+        ignore_bounds=False,
         lsq_kwargs=None
     ):
         super().__init__(
@@ -368,6 +410,7 @@ class TransformExcitationFit(IndependentExcitationFit):
             photoreceptor_fit_weights=photoreceptor_fit_weights,
             fit_only_uniques=fit_only_uniques,
             lsq_kwargs=lsq_kwargs,
+            ignore_bounds=ignore_bounds,
             q1_ints=q1_ints
         )
         self.linear_transform = linear_transform
@@ -408,8 +451,6 @@ class TransformExcitationFit(IndependentExcitationFit):
 
     @property
     def fitted_X(self):
-        """X after fitting
-        """
         return self.fitted_transform_X_
 
 
@@ -443,6 +484,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         hard_sep_value=1.0,  # float in capture units (1 relative capture)
         q1_ints=None,
         fit_only_uniques=False,
+        ignore_bounds=False,
         lsq_kwargs=None
     ):
         super().__init__(
@@ -456,6 +498,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
             photoreceptor_fit_weights=photoreceptor_fit_weights,
             fit_only_uniques=fit_only_uniques,
             lsq_kwargs=lsq_kwargs,
+            ignore_bounds=ignore_bounds,
             q1_ints=q1_ints
         )
         self.transform_func = transform_func
@@ -497,12 +540,15 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
 
     @property
     def fitted_X(self):
-        """X after fitting
-        """
         return self.fitted_transform_X_
 
 
+@inherit_docstrings
 class ReflectanceExcitationFit(IndependentExcitationFit):
+    """
+    Class to various reflectances given a photoreceptor model
+    and LED system.
+    """
 
     # same length as X but not X or fitted X
     _X_length = IndependentExcitationFit._X_length + [
@@ -525,6 +571,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         q1_ints=None,
         fit_only_uniques=False,
         lsq_kwargs=None,
+        ignore_bounds=False,
         add_background=True,
         filter_background=True
     ):
@@ -534,6 +581,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         self.smoothing_window = smoothing_window
         self.background = background
         self.max_iter = max_iter
+        self.ignore_bounds = ignore_bounds
         self.hard_separation = hard_separation
         self.hard_sep_value = hard_sep_value
         self.q1_ints = q1_ints
@@ -544,9 +592,6 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         self.filter_background = filter_background
 
     def fit(self, X, y=None):
-        """
-        Fit method.
-        """
         self._set_required_objects()
         self.reflectances_ = self._check_reflectances(
             self.reflectances,

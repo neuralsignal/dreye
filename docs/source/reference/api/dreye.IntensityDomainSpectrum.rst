@@ -72,7 +72,6 @@ dreye.IntensityDomainSpectrum
       IntensityDomainSpectrum.domain_min
       IntensityDomainSpectrum.domain_units
       IntensityDomainSpectrum.gradient
-      IntensityDomainSpectrum.init_kwargs
       IntensityDomainSpectrum.integral
       IntensityDomainSpectrum.interpolator
       IntensityDomainSpectrum.interpolator_kwargs

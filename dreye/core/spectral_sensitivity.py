@@ -8,16 +8,74 @@ import numpy as np
 from dreye.core.spectrum import Spectra
 from dreye.constants import RELATIVE_ACCURACY
 from dreye.err import DreyeError
+from dreye.utilities.abstract import inherit_docstrings
 
 
 # TODO if numeric type then use Govardoskii fit method
 
 
+@inherit_docstrings
 class Sensitivity(Spectra):
     """
-    Same as AbstractSpectrum, but assigns domain min and max,
-    if it is not given. This ensures the values around the peak
-    sensitivity are always considered.
+    Defines a set of spectral sensitivities.
+
+    Besides the normal `Spectra` class, it ensures that `domain_min`
+    and `domain_max` are set automatically to include the wavelength domain
+    that is significantly above zero, if these arguments are not set
+    explicitly.
+
+    Parameters
+    ----------
+    values : array-like, str, signal-type
+        Two-dimensional array that contains the value of your signal.
+    domain : `dreye.Domain` or array-like, optional
+        The wavelength domain of the signal.
+        This needs to be the same length as `values`.
+    labels : array-like, optional
+        A set of hashable objects that describe each individual signal.
+        If None, ascending integer values are used as labels.
+    units : str or `pint.Unit`, optional
+        Units of the `values` array.
+    domain_units : str or `pint.Unit`, optional
+        Units of the `domain` array. Assumed to be nanometers.
+    domain_axis : int, optional
+        The axis that corresponds to the `domain` argument. Defaults to 0.
+    domain_min : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    domain_max : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    signal_min : numeric or array-like, optional
+        Will clip your signal to a minimum. Everything below this minimum will
+        be set to the minumum.
+    signal_max : numeric or array-like, optional
+        Will clip your signal to a maximum. Everything above this maximum will
+        be set to the maximum.
+    attrs : dict, optoinal
+        User-defined dictionary of objects that are associated with the
+        signal, but that are not used for any particular computations.
+    name : str, optional
+        Name of the signal instance.
+    interpolator : interpolate class, optional
+        Callable function that allows you to interpolate between points. The
+        callable should accept two positional arguments as `numpy.ndarray`
+        objects and accept the keyword argument `axis`.
+        Defaults to `scipy.interpolate.interp1d`.
+    interpolator_kwargs : dict-like, optional
+        Dictionary to specify other keyword arguments that are passed to
+        the `interpolator`.
+    smoothing_method : str, optional
+        Smoothing method used when using the `smooth` method.
+        Defaults to `savgol`.
+    smoothing_window : numeric, optional
+        Standard window size in units of the domain to smooth the signal.
+    smoothing_args : dict, optional
+        Keyword arguments passed to the `filter` method when smoothing.
+    contexts : str or tuple, optoinal
+        Contexts for unit conversion. See `pint` package.
+
+    See Also
+    --------
+    Spectra
     """
 
     def __init__(self, values, domain=None, labels=None, **kwargs):

@@ -17,7 +17,7 @@ def get_spectrum(
     **kwargs
 ):
     """
-    convenience function to create a Spectrum instance
+    Convenience function to create a `Spectrum` instance
     """
 
     if intensities is None:
@@ -41,7 +41,8 @@ def get_max_normalized_gaussian_spectra(
     **kwargs
 ):
     """
-    Convenience function to create a Spectra instance
+    Convenience function to create a max-normalized Gaussian
+    `Spectra` instance.
     """
     kwargs['units'] = kwargs.get('units', None)
     if intensities is None or is_integer(intensities):
@@ -85,34 +86,38 @@ def create_gaussian_spectrum(
     **kwargs
 ):
     """
-    Get IntensitySpectra instance from Gaussian probability distribution.
+    Get `Spectra` instance from Gaussian probability distribution.
 
     wavelengths : array-like
         Wavelength array in nm.
-    centers : float, array-like
+    centers : float or array-like
         The centers for each single wavelength Gaussian in nm.
-    std : float, array-like
+    std : float or array-like, optional
         The standard deviation for each single wavelength Gaussian in nm.
-    intensity : float
+    intensity : float, optional
         The intensity of the single wavelength Gaussians.
-    units : str
-        The unit and scale specified if in photon flux, e.g.
-        'microspectralphotonflux' or simply 'spectralirradiance'.
-    cdf : bool
-        Allows changes to the distribution function. If True, the cdf will ; if
-        cdf=None, the pdf will be plotted; if cdf=False, 1-cdf will be plotted
-    background : array-like
-        A numpy array which specifies the background distribution. Added to the
-        wl array, and therefore must be the same length.
-    filter : bool
-        If True, filters the wavelength array by the background spectrum
-        instead of adding background as a pure spectral distribution.
-    add_background : array-like
-        A numpy array of same length as the wl array which is added to the
-        background distribution.
-    zero_cutoff : bool
+    units : str, optional
+        The units for `Spectra` instance.
+    cdf : bool, optional
+        Allows changes to the shape of the spectral distribution.
+        If `cdf` is None, the spectral distribution will correspond to the pdf.
+        If `cdf` is True, the spectral distribution will correspond to the cdf.
+        If `cdf` is False, the spectral distribution will correspond to the
+        1-cdf.
+    background : array-like, optional
+        A background spectral distribution that can be added
+        and/or used for filtering.
+    filter : bool, optional
+        If True, filters the spectral distribution by the background.
+    add_background : bool, optional
+        If True, adds the background and spectral distribution together.
+    max_normalized : bool, optional
+        Whether to max-normalize the spectral distribution.
+    zero_cutoff : bool, optional
         If True, spectral distribution clipped at 0 and negative values
-        discarded.
+        are discarded.
+    kwargs : dict, optional
+        Keyword arguments passed to the `Spectra` class.
     """
     if isinstance(background, _SignalMixin):
         background = background(wavelengths).to(units)

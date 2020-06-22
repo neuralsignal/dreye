@@ -72,7 +72,6 @@ dreye.DomainSignal
       DomainSignal.domain_min
       DomainSignal.domain_units
       DomainSignal.gradient
-      DomainSignal.init_kwargs
       DomainSignal.integral
       DomainSignal.interpolator
       DomainSignal.interpolator_kwargs

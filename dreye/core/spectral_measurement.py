@@ -10,6 +10,7 @@ from dreye.utilities import (
     optional_to, is_listlike, has_units,
     get_units, get_value, digits_to_decimals
 )
+from dreye.utilities.abstract import inherit_docstrings
 from dreye.constants import ureg
 from dreye.core.signal import Signals, Signal
 from dreye.core.spectrum import (
@@ -19,13 +20,66 @@ from dreye.core.signal_container import DomainSignalContainer
 from dreye.err import DreyeError
 
 
+@inherit_docstrings
 class CalibrationSpectrum(Spectrum):
     """
-    Subclass of signal to define calibration spectrum.
+    Defines a calibration measurement.
 
-    Units must be convertible to microjoule.
+    Parameters
+    ----------
+    values : array-like, str, signal-type
+        One-dimensional array that contains the values of the
+        calibration measurement across wavelengths.
+    domain/wavelengths : `dreye.Domain` or array-like, optional
+        The wavelength domain of the signal.
+        This needs to be the same length as `values`.
+    units : str or `pint.Unit`, optional
+        Units of the `values` array. Defaults to microjoule.
+    area : numeric or `pint.Quantity`, optional
+        The area of the spectrophotometer used for collecting photons. If
+        the units cannot be obtained, then it is assumed to be in units of
+        :math:`cm^2`.
+    domain_units : str or `pint.Unit`, optional
+        Units of the `domain` array.
+    domain_min : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    domain_max : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    signal_min : numeric or array-like, optional
+        Will clip your signal to a minimum. Everything below this minimum will
+        be set to the minumum.
+    signal_max : numeric or array-like, optional
+        Will clip your signal to a maximum. Everything above this maximum will
+        be set to the maximum.
+    attrs : dict, optoinal
+        User-defined dictionary of objects that are associated with the
+        signal, but that are not used for any particular computations.
+    name : str, optional
+        Name of the signal instance.
+    interpolator : interpolate class, optional
+        Callable function that allows you to interpolate between points. The
+        callable should accept two positional arguments as `numpy.ndarray`
+        objects and accept the keyword argument `axis`.
+        Defaults to `scipy.interpolate.interp1d`.
+    interpolator_kwargs : dict-like, optional
+        Dictionary to specify other keyword arguments that are passed to
+        the `interpolator`.
+    smoothing_method : str, optional
+        Smoothing method used when using the `smooth` method.
+        Defaults to `savgol`.
+    smoothing_window : numeric, optional
+        Standard window size in units of the domain to smooth the signal.
+    smoothing_args : dict, optional
+        Keyword arguments passed to the `filter` method when smoothing.
+    contexts : str or tuple, optoinal
+        Contexts for unit conversion. See `pint` package.
+
+    See Also
+    --------
+    Signal
+    Spectrum
+    IntensitySpectrum
     """
-    # TODO docstring and init
 
     def __init__(
         self,
@@ -65,12 +119,83 @@ class CalibrationSpectrum(Spectrum):
 
 
 # TODO allow curve fit instead of isotonic regression? - SKlearn type class
+@inherit_docstrings
 class MeasuredSpectrum(IntensityDomainSpectrum):
     """
-    Measured spectrum (e.g. LED)
+    Two-dimensional intensity signal of LED measurements
+    with wavelength domain and output labels.
+
+    Parameters
+    ----------
+    values : array-like, str, signal-type
+        Two-dimensional array that contains the value of your signal.
+    domain/wavelengths : `dreye.Domain` or array-like, optional
+        The wavelength domain of the signal.
+        This needs to be the same length as `values`.
+    labels : `dreye.Domain` or array-like, optional
+        The domain of the signal along the other axis.
+        This needs to be the same length of
+        the `values` array along the axis of the labels. The labels
+        domain is assumed to be the output of the LED system.
+        This can be volts or seconds in the case of pulse-width
+        modulation.
+    zero_intensity_bound : numeric, optional
+        The output in labels units that correspond to zero intensity
+        of the LED.
+    max_intensity_bound : numeric, optional
+        The output in labels units that correspond to maximum
+        intensity that can be achieved.
+    resolution : array-like, optional
+        Array of individual steps that can be resolved by the hardware.
+    units : str or `pint.Unit`, optional
+        Units of the `values` array. Units must be convertible to
+        photonflux or irradiance.
+    domain_units : str or `pint.Unit`, optional
+        Units of the `domain` array. Units are assumed to be nanometers.
+    labels_units : str or `pint.Unit`, optional
+        Units of the `labels` array.
+    domain_axis : int, optional
+        The axis that corresponds to the `domain` argument. Defaults to 0.
+    domain_min : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    domain_max : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    signal_min : numeric or array-like, optional
+        Will clip your signal to a minimum. Everything below this minimum will
+        be set to the minumum.
+    signal_max : numeric or array-like, optional
+        Will clip your signal to a maximum. Everything above this maximum will
+        be set to the maximum.
+    attrs : dict, optoinal
+        User-defined dictionary of objects that are associated with the
+        signal, but that are not used for any particular computations.
+    name : str, optional
+        Name of the signal instance.
+    interpolator : interpolate class, optional
+        Callable function that allows you to interpolate between points. The
+        callable should accept two positional arguments as `numpy.ndarray`
+        objects and accept the keyword argument `axis`.
+        Defaults to `scipy.interpolate.interp1d`.
+    interpolator_kwargs : dict-like, optional
+        Dictionary to specify other keyword arguments that are passed to
+        the `interpolator`.
+    smoothing_method : str, optional
+        Smoothing method used when using the `smooth` method.
+        Defaults to `savgol`.
+    smoothing_window : numeric, optional
+        Standard window size in units of the domain to smooth the signal.
+    smoothing_args : dict, optional
+        Keyword arguments passed to the `filter` method when smoothing.
+    contexts : str or tuple, optoinal
+        Contexts for unit conversion. See `pint` package.
+
+    See Also
+    --------
+    DomainSignal
+    DomainSpectrum
+    IntensitySpectrum
     """
 
-    # TODO docstring and init
     # always in uE?
 
     def __init__(
@@ -124,7 +249,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
         Ascending or descending intensity values.
 
-        Calculated automatically.
+        This is inferred automatically.
         """
         if (
             np.isnan(self.zero_intensity_bound.magnitude)
@@ -174,7 +299,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
         Bounds of output, e.g. 0 and 5 volts.
 
-        Does not include units
+        Does not include units.
         """
 
         output_bounds = list(self.output.boundaries)
@@ -200,7 +325,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         return self.labels._class_new_instance(
             self._resolution_mapping(self.labels.magnitude),
             units=self.labels.units,
-            **self.labels.init_kwargs
+            **self.labels._init_kwargs
         )
 
     @property
@@ -234,13 +359,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         if self._normalized_spectrum is None:
             values = self.mean(axis=self.labels_axis)
             units, values = get_units(values), get_value(values)
-            # dealing with noise close to zero
-            # assume negative intensity value are due to noise!
-            # TODO
-            # min_value = np.min(values)
-            # if min_value < 0:
-            #     decimals = int(digits_to_decimals(min_value, 0))
-            #     values = np.round(values, decimals)
             # create spectrum
             spectrum = Spectrum(
                 values=values,
@@ -257,7 +375,10 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
     @property
     def intensity(self):
         """
-        Integral intensity
+        The intensity of each measurement.
+
+        This takes the integral across the wavelength domain and
+        returns a `Signal` instance with the output domain.
         """
 
         if self._intensity is None:
@@ -276,15 +397,19 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         return self._intensity
 
     def to_measured_spectra(self, units='uE'):
+        """
+        Convert to MeasuredSpectraContainer
+        """
         return MeasuredSpectraContainer([self], units=units)
 
     def _resolution_mapping(self, values):
-        """map output values to given resolution
+        """
+        Map output values to given resolution.
 
         Parameters
         ----------
         values : np.ndarray or float
-            Array that should already be in units of self.labels.units.
+            Array that should already be in units of `labels.units`.
         """
 
         if self.resolution is None:
@@ -316,6 +441,11 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             samples in intensity-convertible units or no units.
         return_units : bool
             Whether to return mapped values with units.
+
+        Returns
+        -------
+        output : `numpy.ndarray` or `pint.Quantity`
+            Mapped output values.
         """
 
         values = optional_to(values, self.intensity.units, *self.contexts)
@@ -337,6 +467,18 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
     def inverse_map(self, values, return_units=True):
         """
         Go from output values to intensity values
+
+        Parameters
+        ----------
+        values : array-like
+            samples in output-convertible units or no units.
+        return_units : bool
+            Whether to return mapped values with units.
+
+        Returns
+        -------
+        output : `numpy.ndarray` or `pint.Quantity`
+            Mapped intensity values.
         """
         # this is going to be two dimensional, since it is a Signals instance
         values = optional_to(values, self.labels.units, *self.contexts)
@@ -351,6 +493,18 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
     def get_residuals(self, values, return_units=True):
         """
         Get residuals between values and mapped values
+
+        Parameters
+        ----------
+        values : array-like
+            samples in intensity-convertible units or no units.
+        return_units : bool
+            Whether to return mapped values with units.
+
+        Returns
+        -------
+        output : `numpy.ndarray` or `pint.Quantity`
+            Mapped residual intensity values.
         """
 
         values = optional_to(values, units=self.intensity.units)
@@ -366,7 +520,19 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
     def score(self, values, **kwargs):
         """
-        R^2 score.
+        R^2 score for particular mapping.
+
+        Parameters
+        ----------
+        values : array-like
+            samples in intensity-convertible units or no units.
+        return_units : bool
+            Whether to return mapped values with units.
+
+        Returns
+        -------
+        r2 : float
+            R^2-score.
         """
         values = optional_to(values, self.intensity.units, *self.contexts)
         mapped_values = self.map(values, return_units=False)
@@ -391,6 +557,14 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
     @property
     def regressor(self):
+        """
+        Scikit-learn regressor instance used to fit output values
+        to intensity values
+
+        See Also
+        --------
+        sklearn.isotonic.IsotonicRegression
+        """
         if self._regressor is None:
             self._assign_mapper()
         return self._regressor
@@ -446,11 +620,30 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             )
 
 
+@inherit_docstrings
 class MeasuredSpectraContainer(DomainSignalContainer):
-    """Container for measured spectra
+    """
+    A container that can hold multiple `dreye.MeasuredSpectrum` instances.
 
-    Assumes each measured spectrum has a the same spectral
-    distribution across intensities (e.g. LEDs).
+    The `map` methods are also accessible in the container.
+
+    Parameters
+    ----------
+    container : list-like
+        A list of `dreye.DomainSignal` instances.
+    units : str or `ureg.Unit`, optional
+        The units to convert the values to. If None,
+        it will choose the units of the first signal in the list.
+    domain_units : str or `ureg.Unit`, optional
+        The units to convert the domain to. If None,
+        it will choose the units of domain of the first signal in the list.
+    labels_units : str or `ureg.Unit`, optional
+        The units to convert the labels to. If None,
+        it will choose the units of labels of the first signal in the list.
+
+    See Also
+    --------
+    DomainSignalContainer
     """
 
     _xlabel = r'$\lambda$ (nm)'
@@ -464,13 +657,19 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
     def map(self, values, return_units=True):
         """
-        From intensity to output.
+        Map Intensity values to output values.
 
         Parameters
         ----------
         values : array-like
-            samples x channels in intensity units set.
+            2D samples in intensity-convertible units or no units.
         return_units : bool
+            Whether to return mapped values with units.
+
+        Returns
+        -------
+        output : `numpy.ndarray` or `pint.Quantity`
+            Mapped output values.
         """
 
         values = optional_to(values, units=self.intensities.units)
@@ -491,7 +690,19 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
     def inverse_map(self, values, return_units=True):
         """
-        From output to intensity
+        Go from output values to intensity values
+
+        Parameters
+        ----------
+        values : array-like
+            2D samples in output-convertible units or no units.
+        return_units : bool
+            Whether to return mapped values with units.
+
+        Returns
+        -------
+        output : `numpy.ndarray` or `pint.Quantity`
+            Mapped intensity values.
         """
         values = optional_to(values, units=self.labels_units)
         assert values.ndim < 3, 'values must be 1 or 2 dimensional'
@@ -513,7 +724,19 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
     def get_residuals(self, values, return_units=True):
         """
-        Residuals given resolution.
+        Get residuals between values and mapped values
+
+        Parameters
+        ----------
+        values : array-like
+            2D samples in intensity-convertible units or no units.
+        return_units : bool
+            Whether to return mapped values with units.
+
+        Returns
+        -------
+        output : `numpy.ndarray` or `pint.Quantity`
+            Mapped residual intensity values.
         """
 
         values = optional_to(values, units=self.intensities.units)
@@ -536,7 +759,19 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
     def score(self, values, average=True, **kwargs):
         """
-        Score as mean of residuals given resolution
+        R^2 score for particular mapping.
+
+        Parameters
+        ----------
+        values : array-like
+            2D samples in intensity-convertible units or no units.
+        return_units : bool
+            Whether to return mapped values with units.
+
+        Returns
+        -------
+        r2 : float
+            R^2-score.
         """
         values = optional_to(values, units=self.intensities.units)
         assert values.ndim < 3, 'values must be 1 or 2 dimensional'
@@ -609,7 +844,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
     @property
     def output_bounds(self):
         """
-        output bounds for Measured Spectra in two-tuple array form.
+        Output bounds for Measured Spectra in two-tuple array form.
 
         Unit removed
         """
@@ -618,6 +853,15 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
     @property
     def normalized_spectra(self):
+        """
+        Normalized spectra for each LED measurement.
+
+        Returns a `dreye.Spectra` instance in units of `1/nm`.
+
+        See Also
+        --------
+        dreye.MeasuredSpectrum.normalized_spectrum
+        """
         if self._normalized_spectra is None:
             for idx, ele in enumerate(self):
                 if idx == 0:
@@ -632,6 +876,16 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
     @property
     def intensities(self):
+        """
+        Intensities for each LED measurement across outputs.
+
+        Returns a `dreye.Signals` instance in units of integrated
+        intensity.
+
+        See Also
+        --------
+        dreye.MeasuredSpectrum.intensity 
+        """
         if self._intensities is None:
             for idx, ele in enumerate(self):
                 if idx == 0:
