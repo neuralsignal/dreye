@@ -18,10 +18,6 @@ dreye.hardware.AbstractSystem
       AbstractSystem.close
       AbstractSystem.from_dict
       AbstractSystem.load
-      AbstractSystem.map
-      AbstractSystem.map_send
-      AbstractSystem.map_send_value
-      AbstractSystem.map_value
       AbstractSystem.open
       AbstractSystem.save
       AbstractSystem.send

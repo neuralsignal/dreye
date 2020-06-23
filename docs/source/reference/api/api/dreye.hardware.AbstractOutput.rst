@@ -18,10 +18,6 @@ dreye.hardware.AbstractOutput
       AbstractOutput.close
       AbstractOutput.from_dict
       AbstractOutput.load
-      AbstractOutput.map
-      AbstractOutput.map_send
-      AbstractOutput.map_send_value
-      AbstractOutput.map_value
       AbstractOutput.open
       AbstractOutput.save
       AbstractOutput.send

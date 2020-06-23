@@ -688,7 +688,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
     and LED system.
 
     Parameters
-    ---------
+    ----------
     reflectances : dreye.Signals, optional
         A set of reflectances (usually max-normalized) used for fitting.
         X will be a multiples of the reflectances, before applying
