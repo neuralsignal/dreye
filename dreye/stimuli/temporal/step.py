@@ -20,20 +20,23 @@ class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
     # --- standard create and transform methods --- #
 
     def create(self):
-        """create events, metadata, and signal
-        """
 
         self._events, self._metadata = self._create_events()
         self._signal = self._create_signal(self._events)
 
 
 class StepStimulus(AbstractStepStimulus, SetStepMixin):
-    """Step stimulus
+    """
+    Step stimulus.
 
     Parameters
     ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
     rate : float
+        The desired refresh rate.
     values : float or array-like or dict of arrays or dataframe
+        Step values used.
     durations : float or array-like
         Different durations for the stimulus
     pause_durations : float or array-like
@@ -224,7 +227,57 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
 
 class NoiseStepStimulus(StepStimulus):
     """
-    Step stimulus by choosing values from a truncated Gaussian
+    Step stimulus by choosing values from a truncated Gaussian.
+
+    Parameters
+    ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
+    rate : float
+        The desired refresh rate.
+    n_samples : int
+        Number of samples.
+    n_channels : int
+        Number of channels.
+    channel_names : list-like
+        Name of each channel.
+    mean : float or array-like
+        mean values for each channel.
+    var : float or array-like
+        variance for each channel.
+    minimum : float
+        minimum value
+    maximum : float
+        maximum value
+    durations : float or array-like
+        Different durations for the stimulus
+    pause_durations : float or array-like
+        Different durations after the stimulus; before the next stimulus
+    repetitions : int
+        How often to repeat each value. When randomize True, the value
+        will not be repeated in a row.
+    iterations : int
+        How often to iterate over the whole stimulus. Does not rerandomize
+        order for each iteration.
+    randomize : bool
+        randomize order of steps
+    start_delay : float
+        Duration before step stimulus starts (inverse units of rate)
+    end_dur : float
+        Duration after step stimulus ended (inverse units of rate)
+    seed : int
+        seed for randomization.
+    aligned_durations : bool
+        If True will check if durations and pause_durations are the same
+        length and will iterate by zipping the lists for durations.
+    separate_channels : bool
+        Whether to separate each channel for single steps.
+        Works only if values are given as a dict. Each key represents a channel
+    baseline_values : float or array-like or dict
+        Baseline values when no stimulus is being presented. Defaults to 0.
+    func : callable
+        Funtion applied to each step: f(t, values) = output <- (t x values).
+        Defaults to None.
     """
 
     def __init__(
@@ -337,16 +390,21 @@ class NoiseStepStimulus(StepStimulus):
 
 
 class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
-    """Random switch stimulus using truncnorm
+    """
+    Random switch stimulus using truncated Gaussian.
 
     Parameters
     ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
     rate : float
-    values : array-like or dict of arrays
+        The desired refresh rate.
+    values : float or array-like or dict of arrays or dataframe
+        Step values used.
     values_probs : array-like or dict of arrays
-        probability of each value. Default is None.
+        Probability of each value. Default is None.
     loc : float
-        mean duration.
+        Mean duration.
     scale : float
         variation in duration.
     clip_dur : float

@@ -65,6 +65,26 @@ class StimPlottingMixin:
     ):
         """
         Plot different stimulus attributes.
+
+        Parameters
+        ----------
+        skip_attrs : list-like
+            Attributes that should not be plotted
+        fig : matplotlib.pyplot.Figure
+            Figure instance
+        subplot_spec : matplotlib.gridspec.SubplotSpec
+            SubplotSpec instance
+        fig_kws : dict
+            Keyword arguments passed to Figure instance.
+        gridspec_kws : dict
+            Keyword arguments passed to GridSpec instance
+        add_score : bool
+            Whether to add the RMSE score to each event.
+        kwargs_score : dict
+            Keyword arguments passed to the `matplotlib.pyplot.text`
+            function for each score.
+        kwargs : dict
+            Keyword argument passed to `matplotlib.pyplot.plot`.
         """
 
         plot_attrs = [

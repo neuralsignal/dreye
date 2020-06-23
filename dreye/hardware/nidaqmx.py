@@ -1,4 +1,5 @@
 """
+National instruments hardware
 """
 
 import time
@@ -10,6 +11,7 @@ import pandas as pd
 from dreye.err import DreyeError
 from dreye.hardware.base_system import AbstractOutput, AbstractSystem
 from dreye.utilities import optional_to, asarray
+from dreye.utilities.abstract import inherit_docstrings
 
 # HARDWARE API IMPORTS
 try:
@@ -53,7 +55,34 @@ def get_channel_mappings():
     }
 
 
+@inherit_docstrings
 class NiDaqMxOutput(AbstractOutput):
+    """
+    Output hardware object for single analog output of a
+    National Instruments DAQ.
+
+    Parameters
+    ----------
+    object_name : str
+        A unique object name used for finding the correct hardware.
+    name : str
+        A user-defined name.
+    max_intensity_bound : numeric
+        The output value of the hardware that corresponds to
+        the maximum intensity of the LED.
+    zero_intensity_bound : numeric
+        The output value of the hardware that corresponds to
+        the zero intensity of the LED.
+    units : str or None
+        Units of the outputs (e.g. volts).
+    measured_spectrum : dreye.MeasuredSpectrum, optional
+        A already measured spectrum.
+
+    Notes
+    -----
+    This class uses the `nidaqmx` python module. Values
+    are sent by creating a task and opening the analog output channel.
+    """
     # writer to send values
     task = None
     writer = None
@@ -117,7 +146,22 @@ class NiDaqMxOutput(AbstractOutput):
         return get_channel_mappings().get(self.object_name, None)[0]
 
 
+@inherit_docstrings
 class NiDaqMxSystem(AbstractSystem):
+    """
+    A set of analog output National Instruments outputs.
+
+    Parameters
+    ----------
+    outputs : list-like or NiDaqMxSystem
+        A list of `NiDaqMxOutput` objects.
+
+    Notes
+    -----
+    This class uses the `nidaqmx` python module. Values
+    are sent by creating a task for each unique device and
+    opening the analog output channels.
+    """
     writers = None
     tasks = None
     trigger = None
@@ -130,10 +174,16 @@ class NiDaqMxSystem(AbstractSystem):
 
     @property
     def unique_devices(self):
+        """
+        A `numpy.ndarray` of unique devices.
+        """
         return np.unique(self.device_order)
 
     @property
     def device_order(self):
+        """
+        Order of devices as a `numpy.ndarray` object.
+        """
         devices = [
             output.device.name
             for output in self
@@ -145,6 +195,9 @@ class NiDaqMxSystem(AbstractSystem):
 
     @property
     def object_order(self):
+        """
+        Order of each object as a `numpy.ndarray` object.
+        """
         objects = [
             output.object_name
             for output in self

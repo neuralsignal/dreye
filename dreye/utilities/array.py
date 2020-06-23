@@ -72,7 +72,8 @@ def round_to_significant(x, digits):
 
 
 def array_equal(x, y):
-    """Determine if two arrays are equal
+    """
+    Determine if two arrays are equal
     """
     # asarrays
     x = asarray(x)

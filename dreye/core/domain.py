@@ -362,9 +362,10 @@ class Domain(_UnitArray):
 
         The "most common denominator" domain between self and other is
         chosen as follows:
-            * largest `start` value
-            * smalled `end` value
-            * largest `interval` value
+        
+        * largest `start` value
+        * smalled `end` value
+        * largest `interval` value
         """
 
         # handles only one-dimensional uniform arrays.

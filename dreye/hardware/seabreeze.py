@@ -8,6 +8,7 @@ from dreye.core.spectral_measurement import CalibrationSpectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.err import DreyeError
 from dreye.utilities import is_numeric
+from dreye.utilities.abstract import inherit_docstrings
 
 # HARDWARE API IMPORTS
 try:
@@ -21,7 +22,29 @@ def read_calibration_file(
     filename, return_integration_time=False,
     create_spectrum=True
 ):
-    """read lamp calibration data
+    """
+    Read lamp calibration data for a OceanView Spectrometer.
+
+    Parameters
+    ----------
+    return_integration_time : bool
+        Whether to return the integration time used.
+    create_spectrum : bool
+        Whether to create a `dreye.CalibrationSpectrum` object.
+
+    Returns
+    -------
+    (wavelengths) : numpy.ndarray
+        Wavelength domain of calibration. Only returned,
+        if `create_spectrum` is False.
+    calibration : numpy.ndarray or dreye.CalibrationSpectrum
+        Calibration instance.
+    (area) : `pint.Quantity`
+        Area of spectrometer used. Only returned,
+        if `create_spectrum` is False.
+    (integration_time) : `pint.Quantity`
+        Integration time used for calibration.
+        Only returned, if `return_integration_time` is True.
     """
     assert isinstance(filename, str)
     area_texts = {
@@ -90,8 +113,33 @@ def read_calibration_file(
     return cal_data[:, 0], cal_data[:, 1], area
 
 
+@inherit_docstrings
 class OceanSpectrometer(AbstractSpectrometer):
-    """Basic Spectrometer class for OceanView Spectrometer
+    """
+    Basic Spectrometer class for OceanView Spectrometer.
+
+    This requires installation of the `seabreeze` package.
+
+    Parameters
+    ----------
+    calibration : dreye.CalibrationSpectrum or str, optional
+        Calibration filename or calibration instance used for
+        converting measurements to intensity units.
+    sb_device : seabreeze.Spectrometer or str, optional
+        The OceanView device for measurements. If None,
+        it will use the first device available.
+    integration_time : numeric, optional
+        The initial integration time used.
+    correct_dark_counts : bool, optional
+        Whether to correct for dark counts during measurements.
+    correct_nonlinearity : bool, optional
+        Whether to correct for a nonlinearity during measurements.
+    min_it : numeric, optional
+        The minimum integration time allowed. If not given,
+        the `min_it` will be taken from the `sb_device`.
+    max_it : numeric, optional
+        The maximum integration time allowed. If not given,
+        the `max_it` will be taken from the `sb_device`.
     """
 
     def __init__(
@@ -163,8 +211,6 @@ class OceanSpectrometer(AbstractSpectrometer):
         ])
 
     def set_it(self, it):
-        """set integration time in seconds
-        """
         self.spec.integration_time_micros(it * 10 ** 6)
         self.current_it = it
 

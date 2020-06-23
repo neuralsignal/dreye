@@ -4,6 +4,16 @@ API Reference
 
 .. currentmodule:: dreye
 
+
+Domain class
+============
+
+.. autosummary::
+   :toctree: api/
+
+   Domain
+
+
 Signal-type classes
 ===================
 
@@ -87,3 +97,27 @@ Scikit-learn type estimators
    IndependentExcitationFit
    TransformExcitationFit
    ReflectanceExcitationFit
+
+
+Miscellaneous functions and classes
+===================================
+
+.. autosummary::
+  :toctree: api/
+
+  ureg
+  read_json
+  write_json
+  read_pickle
+  write_pickle
+
+
+Submodules
+==========
+
+.. autosummary::
+   :toctree: api/
+
+   hardware
+   stimuli
+   utilities

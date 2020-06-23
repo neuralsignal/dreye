@@ -22,7 +22,7 @@ class MeasurementRunner:
     ----------
     system : dreye.hardware.AbstractSystem
         Defines the visual stimulation system.
-    spec : dreye.hardware.AbstractSpectrometer
+    spectrometer : dreye.hardware.AbstractSpectrometer
         Defines the spectrophotometer.
     wls : array-like, optional
         A numpy array with specific wavelength values. Alternatively, set
@@ -30,17 +30,18 @@ class MeasurementRunner:
         for the spectrophotometer used.
     smoothing_window : float, optional
         Savgol filter window to smooth the spectrum of each averaged
-        intensity value of each LED. polyorder argument for the
-        scipy.signal.savgol_filter is set to 2.
+        intensity value of each LED. `polyorder` argument for the
+        `scipy.signal.savgol_filter` is set to 2.
     n_steps: int, optional
-        Number of steps from 0 boundary to max boundary per LED, inclusive.
+        Number of steps from 0 boundary to max intensity boundary per LED,
+        inclusive.
     n_avg : int, optional
         Number of times each step is averaged over.
     remove_zero: bool, optional
-        substracts the zero boundary from all the other measurements. If set to
-        False, zero boundary will not be subtracted.
-    step_kwargs :
-    sleep :
+        Substracts the zero intensity boundary from all the other measurements.
+        If set to False, zero boundary will not be subtracted.
+    sleep : numeric, optional
+        Seconds sleep between measurements.
     """
 
     def __init__(
@@ -64,6 +65,14 @@ class MeasurementRunner:
         self.smoothing_window = smoothing_window
 
     def run(self, verbose=0):
+        """
+        Run a measurement.
+
+        Parameters
+        ----------
+        verbose : int, optional
+            Verbosity level.
+        """
         if verbose:
             sys.stdout.write(
                 '\n---------------------STARTING MEASUREMENTS--------'
@@ -76,27 +85,6 @@ class MeasurementRunner:
             output.open()
             output._zero()
             output.close()
-        # create background
-        # if self.remove_zero:
-        #     if verbose:
-        #         sys.stdout.write(
-        #             '\nPerforming background measurement for subtraction...'
-        #         )
-        #     background = self.spectrometer.perform_measurement(
-        #         self.n_avg, self.sleep, return_spectrum=True,
-        #         verbose=verbose, optimize_it=False
-        #     )
-        #
-        #     if self.wls is not None:
-        #         background = background(self.wls)
-        #
-        #     if verbose:
-        #         sys.stdout.write(
-        #             '\nOverall intensity of the background: '
-        #             f'{background.integral}\n'
-        #         )
-        # else:
-        #     background = None
         # iterate over system devices
         for n, output in enumerate(self.system):
             if verbose:
@@ -135,9 +123,6 @@ class MeasurementRunner:
                         f'== {photons_per_sec} photons/second\n')
                 elif verbose:
                     sys.stdout.write('.')
-            # remove background zero from the rest
-            # if self.remove_zero:
-            #     spectrum_array -= spectrum_array[:, :1]
             if verbose == 1:
                 sys.stdout.write('\n')
             if verbose:
@@ -162,11 +147,11 @@ class MeasurementRunner:
                 zero_intensity_bound=output.zero_intensity_bound,
                 max_intensity_bound=output.max_intensity_bound,
                 name=output.name,
-                # background=background
             )
             if self.wls is not None:
                 mspectrum = mspectrum(self.wls)
             if self.remove_zero:
+                # this should be the correct order
                 mspectrum = MeasuredSpectrum(mspectrum - mspectrum[:, 0])
             if self.smoothing_window is not None:
                 mspectrum = mspectrum.smooth()
@@ -189,6 +174,9 @@ class MeasurementRunner:
         return self
 
     def save(self, filename):
+        """
+        Save `dreye.hardware.AbstractSystem` object.
+        """
         self.system.save(filename)
 
     def __str__(self):

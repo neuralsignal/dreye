@@ -20,7 +20,7 @@ from dreye.err import DreyeError
 from dreye.constants import DEFAULT_FLOAT_DTYPE
 from dreye.core.abstract import _UnitArray
 from dreye.core.domain import Domain
-from dreye.algebra.filtering import Filter1D
+from dreye.utilities import Filter1D
 from dreye.core.plotting_mixin import _PlottingMixin
 from dreye.core.numpy_mixin import _NumpyMixin
 
@@ -892,7 +892,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
         See Also
         --------
-        dreye.algebra.Filter1D
+        dreye.utilities.Filter1D
         """
 
         assert self.domain.is_uniform, (

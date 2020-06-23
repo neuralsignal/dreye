@@ -9,6 +9,19 @@ from dreye.utilities import asarray
 
 
 class StimSet(BaseStimulus, SetBaselineMixin, SetStepMixin):
+    """
+    Parameters
+    ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
+    values : float or array-like or dict of arrays or dataframe
+        Step values used.
+    separate_channels : bool
+        Whether to separate each channel for single steps.
+        Works only if values are given as a dict. Each key represents a channel
+    baseline_values : float or array-like or dict
+        Baseline values when no stimulus is being presented. Defaults to 0.
+    """
 
     def __init__(
         self,

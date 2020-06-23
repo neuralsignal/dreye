@@ -14,7 +14,6 @@ __version__ = '0.0.0'
 
 # import all core elements and constants
 from dreye.constants.units import ureg
-from dreye.algebra.filtering import Filter1D
 from dreye.core.signal import Signals, DomainSignal, Signal
 from dreye.core.signal_container import (
     SignalsContainer, DomainSignalContainer
@@ -51,15 +50,14 @@ from dreye.io.serialization import (
     read_json, write_json, read_pickle, write_pickle
 )
 
-
-# import modules
-from dreye import stimuli
-from dreye import utilities
+# modules
 from dreye import hardware
-from dreye.utilities import abstract
+from dreye import utilities
+from dreye import stimuli
 
 
 __all__ = [
+    'hardware', 'utilities', 'stimuli',
     # io
     'read_json',
     'write_json',
@@ -67,7 +65,6 @@ __all__ = [
     'write_pickle',
     # misc
     'ureg',
-    'Filter1D',
     # domain
     'Domain',
     # signal
@@ -105,8 +102,4 @@ __all__ = [
     'ReflectanceExcitationFit',
     'IntensityFit',
     'RelativeIntensityFit',
-    # modules
-    'stimuli', 'utilities',
-    'io', 'hardware', 'algebra',
-    'constants', 'abstract'
 ]

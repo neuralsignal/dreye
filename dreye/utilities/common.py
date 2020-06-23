@@ -12,7 +12,7 @@ from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE
 
 def has_units(value):
     """
-    check if has units via duck-typing
+    Check if has units via duck-typing.
     """
     return (
         hasattr(value, 'units')
@@ -23,7 +23,7 @@ def has_units(value):
 
 def optional_to(obj, units, *args, **kwargs):
     """
-    convert to units and return magnitude (number or array)
+    Optionally convert to units and return magnitude (numeric or array).
     """
     if has_units(obj):
         if units is None:
@@ -42,7 +42,7 @@ def optional_to(obj, units, *args, **kwargs):
 
 def get_units(obj):
     """
-    get units from obj or return dimensionless units if None
+    Get units from obj or return dimensionless units if None
     """
     if has_units(obj):
         return obj.units
@@ -55,6 +55,9 @@ def get_units(obj):
 
 
 def get_value(obj):
+    """
+    Get magnitude of object.
+    """
     if has_units(obj):
         return obj.magnitude
     elif isinstance(obj, ureg.Unit):
@@ -65,7 +68,7 @@ def get_value(obj):
 
 def is_hashable(obj):
     """
-    returns True if allowed hashable (e.g. string, numeric, tuple).
+    Returns True if allowed hashable (e.g. string, numeric, tuple).
     """
     return (
         is_numeric(obj)
@@ -78,12 +81,15 @@ def is_hashable(obj):
 
 
 def is_string(obj):
+    """
+    Returns True if string
+    """
     return isinstance(obj, str)
 
 
 def is_integer(obj):
     """
-    True if integer (ignoring units)
+    Returns True if integer (ignoring units)
     """
     value = get_value(obj)
     if hasattr(value, 'item') and hasattr(value, 'ndim'):
@@ -121,7 +127,7 @@ def is_listlike(obj):
 
 def is_dictlike(obj):
     """
-    return True if object is dict-like mapping object
+    Return True if object is dict-like mapping object
     """
     return isinstance(obj, Mapping)
 

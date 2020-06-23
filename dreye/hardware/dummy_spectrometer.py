@@ -8,10 +8,14 @@ from dreye.core.spectral_measurement import CalibrationSpectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.dummy_system import DummySystem
 from dreye.utilities import asarray, get_value
+from dreye.utilities.abstract import inherit_docstrings
 
 
+@inherit_docstrings
 class DummySpectrometer(AbstractSpectrometer):
-    """Dummy Spectrometer class
+    """
+    Dummy Spectrometer class that can be used to test
+    `dreye.hardware.MeasurementRunner`.
     """
 
     def __init__(
@@ -62,8 +66,6 @@ class DummySpectrometer(AbstractSpectrometer):
         return 0.001
 
     def set_it(self, it):
-        """set integration time in seconds
-        """
         pass
 
     @property

@@ -163,7 +163,8 @@ def dump_json(obj):
 
 
 def serializer(obj):
-    """serializer of numpy, pandas objects and dreye objects etc.
+    """
+    Serializer of numpy, pandas objects and dreye objects etc.
     """
 
     if isinstance(obj, np.ndarray) and obj.dtype.fields is not None:
@@ -221,7 +222,8 @@ def serializer(obj):
 
 
 def deserializer(obj):
-    """deserializer of numpy, pandas objects and dreye objects etc.
+    """
+    Deserializer of numpy, pandas objects and dreye objects etc.
     """
 
     if len(obj) != 1:
@@ -260,7 +262,8 @@ def deserializer(obj):
 
 
 def spickledumps(obj):
-    """saver pickle.dumps for relative imports
+    """
+    Saver pickle.dumps for relative imports
     """
     # TODO doesn't work across unix and windows together
     # TODO doesn't work properly if sys path was modified!
@@ -336,7 +339,8 @@ def spickledumps(obj):
 
 
 def spickleloads(binary):
-    """saver pickle.loads for relative imports
+    """
+    Saver pickle.loads for relative imports
     """
 
     number = binary[0]
@@ -371,7 +375,14 @@ def spickleloads(binary):
 
 def write_pickle(filename, data):
     """
-    write pickled file
+    Write pickled file.
+
+    Parameters
+    ----------
+    filename : str
+        location of file.
+    data : dict
+        Data to write to PICKLE file.
     """
 
     compression = infer_compression_from_filename(filename)
@@ -391,7 +402,17 @@ def write_pickle(filename, data):
 
 def read_pickle(filename):
     """
-    read pickled file
+    Read pickled file.
+
+    Parameters
+    ----------
+    filename : str
+        location of file.
+
+    Returns
+    -------
+    data : dict
+        Data in PICKLE file.
     """
 
     compression = infer_compression_from_filename(filename)

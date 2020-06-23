@@ -9,6 +9,19 @@ from inspect import getmembers, isfunction
 from dreye.err import DreyeError
 
 
+def inherit_docstrings(cls):
+    """
+    Decorator to inherit docstrings of parent class.
+    """
+    for name, func in getmembers(cls, isfunction):
+        if func.__doc__:
+            continue
+        for parent in cls.__mro__[1:]:
+            if hasattr(parent, name):
+                func.__doc__ = getattr(parent, name).__doc__
+    return cls
+
+
 class _AbstractArray(ABC):
     """
     Abstract Sequence
@@ -16,16 +29,26 @@ class _AbstractArray(ABC):
 
     @abstractmethod
     def to_dict(self):
+        """
+        Convert object to dictionary.
+        """
         pass
 
     @abstractmethod
     def from_dict(self):
+        """
+        Create instance from a dictionary.
+        """
         pass
 
 
+@inherit_docstrings
 class CallableList(list):
-    """Works the same way as a native python list except that it has a
-    __call__ method that is applied to each element of the list.
+    """
+    Callable list type.
+
+    This class works the same way as a native python list except that it has a
+    `__call__` method that is applied to each element of the list.
     """
 
     def __init__(self, iterable, container_class=None):
@@ -33,6 +56,25 @@ class CallableList(list):
         self._container_class = container_class
 
     def __call__(self, *args, iter_kwargs=None, **kwargs):
+        """
+        Calls each element in the list, and attempts to return
+        a container-type class if they match the allowed objects.
+
+        Parameters
+        ----------
+        args : tuple
+            Positional arguments passed directly to call
+            of each element.
+        iter_kwargs : list of dicts
+            List of keyword argument for each element individually
+        kwargs : dict
+            Keyword argument passed directly to call of each element.
+
+        Returns
+        -------
+        container : list-like or container-type class
+            The list of the objects after having been called
+        """
         container = [
             ele(*args, **kwargs)
             if iter_kwargs is None
@@ -54,6 +96,10 @@ class CallableList(list):
 
 
 class _AbstractContainer(ABC):
+    """
+    The abstract container allows storage of specific objects and
+    access to their attributes and methods.
+    """
 
     _init_keys = []
     _enforce_instance = None
@@ -66,6 +112,14 @@ class _AbstractContainer(ABC):
         return type(self)([ele.copy() for ele in self])
 
     def copy(self):
+        """
+        Copy container.
+
+        Returns
+        -------
+        container : object
+            A copy of the container.
+        """
         return copy.copy(self)
 
     def _init_attrs(self):
@@ -99,6 +153,9 @@ class _AbstractContainer(ABC):
 
     @property
     def container(self):
+        """
+        Python `list` of container.
+        """
         return self._container
 
     @container.setter
@@ -112,6 +169,14 @@ class _AbstractContainer(ABC):
         return len(self.container)
 
     def len(self):
+        """
+        Length of container.
+
+        Returns
+        -------
+        length : int
+            Number of elements in container.
+        """
         return len(self.container)
 
     def __getitem__(self, key):
@@ -123,6 +188,24 @@ class _AbstractContainer(ABC):
         self._init_attrs()
 
     def __call__(self, *args, iter_kwargs=None, **kwargs):
+        """
+        Use the `__call__` method on each element in container
+
+        Parameters
+        ----------
+        args : tuple
+            Positional arguments passed directly to call
+            of each element.
+        iter_kwargs : list of dicts
+            List of keyword argument for each element individually
+        kwargs : dict
+            Keyword argument passed directly to call of each element.
+
+        Returns
+        -------
+        container : list-like or container-type class
+            The list of the objects after having been called
+        """
         container = [
             ele(*args, **kwargs)
             if iter_kwargs is None
@@ -148,10 +231,16 @@ class _AbstractContainer(ABC):
             )
 
     def to_dict(self):
-        return self._container
+        """
+        Returns Python list of container.
+        """
+        return self.container
 
     @classmethod
     def from_dict(cls, data):
+        """
+        Creates container instance from python list.
+        """
         return cls(data)
 
     def _check_list(self, container):
@@ -177,26 +266,40 @@ class _AbstractContainer(ABC):
         return ele
 
     def append(self, value):
+        """
+        Append allowed object to container inplace
+
+        Parameters
+        ----------
+        value : type
+            An allowed object.
+        """
         value = self._check_ele(value)
         self._container.append(value)
         self._init_attrs()
 
     def extend(self, value):
+        """
+        Extend a list of allowed objects to container inplace.
+
+        Parameters
+        ----------
+        value : list-like
+            A list of allowed objects.
+        """
         value = self._check_list(value)
         self._container.extend(value)
         self._init_attrs()
 
     def pop(self, index=-1):
+        """
+        Remove an element/object from the container.
+
+        Parameters
+        ----------
+        index : int
+            The index of the element to remove.
+        """
         value = self._container.pop(index)
         self._init_attrs()
         return value
-
-
-def inherit_docstrings(cls):
-    for name, func in getmembers(cls, isfunction):
-        if func.__doc__:
-            continue
-        for parent in cls.__mro__[1:]:
-            if hasattr(parent, name):
-                func.__doc__ = getattr(parent, name).__doc__
-    return cls

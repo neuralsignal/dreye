@@ -15,9 +15,11 @@ import scipy.signal
 
 from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY, PAUSE_KEY
 from dreye.utilities import convert_truncnorm_clip, asarray
-from dreye.algebra import Filter1D
+from dreye.utilities import Filter1D
+from dreye.utilities.abstract import inherit_docstrings
 
 
+@inherit_docstrings
 class AbstractNoiseStimulus(BaseStimulus):
     """Abstract class for noise stimulus that implements convolution/filtering
     of noise signals.
@@ -27,7 +29,7 @@ class AbstractNoiseStimulus(BaseStimulus):
     filter_style : {'filtfilt', 'window', 'complete'}
         Filter styles. 'filtfilt' will use filter function to get a and
         b for the filtfilt function (x is the signal). 'window' will
-        use dreye.algebra.Filter1D. 'complete' will pass the signal as the
+        use dreye.utilities.Filter1D. 'complete' will pass the signal as the
         first argument to filter function, and return the complete filtered
         signal.
     filter_function : str
@@ -35,14 +37,14 @@ class AbstractNoiseStimulus(BaseStimulus):
         filtfilt or window, or it is a finished filtering method.
         If filter_function is a string, must be a method in scipy.signal.
         For filter_style window, filter_function must be in
-        scipy.signal.windows (also see dreye.algebra.Filter1D).
+        scipy.signal.windows (also see dreye.utilities.Filter1D).
     filter_along_axis : int
         apply filtering process along axis. Default is None.
     filter_kwargs : dict
         Arguments passed to the filter function.
     extra_kwargs : dict
         Arguments passed to call of scipy.signal.filtfilt or
-        dreye.algebra.Filter1D.
+        dreye.utilities.Filter1D.
     """
 
     _add_mean_to_events = False
@@ -78,7 +80,8 @@ class AbstractNoiseStimulus(BaseStimulus):
         signal, filter_function, filter_style,
         filter_kwargs, extra_kwargs
     ):
-        """apply filter to signal according to filter function and style.
+        """
+        Apply filter to signal according to filter function and style.
         """
 
         if filter_style is None or filter_function is None:
@@ -106,6 +109,9 @@ class AbstractNoiseStimulus(BaseStimulus):
             raise NameError(f'filter style {filter_style} is unknown')
 
     def filter_signal(self, signal):
+        """
+        Filter signal.
+        """
 
         if self.filter_along_axis is None:
             return self.apply_filter(
@@ -126,11 +132,15 @@ class AbstractNoiseStimulus(BaseStimulus):
             )
 
 
+@inherit_docstrings
 class WhiteNoiseStimulus(AbstractNoiseStimulus):
-    """white noise stimulus
+    """
+    White noise stimulus with truncated Gaussian.
 
     Parameters
     ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
     stim_dur : float
         duration of stimulus
     mean : float or array-like
@@ -153,11 +163,13 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
     rate : float
         frame rate / rate of change.
     n_channels : int
-        number of channels.
+        Number of channels.
+    channel_names : list-like
+        Name of each channel.
     filter_style : {'filtfilt', 'window', 'complete'}
         Filter styles. 'filtfilt' will use filter function to get a and
         b for the filtfilt function (x is the signal). 'window' will
-        use dreye.algebra.Filter1D. 'complete' will pass the signal as the
+        use dreye.utilities.Filter1D. 'complete' will pass the signal as the
         first argument to filter function, and return the complete filtered
         signal.
     filter_function : str
@@ -165,14 +177,14 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         filtfilt or window, or it is a finished filtering method.
         If filter_function is a string, must be a method in scipy.signal.
         For filter_style window, filter_function must be in
-        scipy.signal.windows (also see dreye.algebra.Filter1D).
+        scipy.signal.windows (also see dreye.utilities.Filter1D).
     filter_along_axis : int
         apply filtering process along axis. Default is None.
     filter_kwargs : dict
         Arguments passed to the filter function.
     extra_kwargs : dict
         Arguments passed to call of scipy.signal.filtfilt or
-        dreye.algebra.Filter1D.
+        dreye.utilities.Filter1D.
     """
 
     def __init__(
@@ -253,7 +265,8 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         return self.channel_names
 
     def create_random_signal(self):
-        """create of truncated white noise signal
+        """
+        Create a truncated white noise signal.
         """
 
         a, b = convert_truncnorm_clip(
@@ -274,7 +287,8 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         )
 
     def create_baseline(self, dur):
-        """create numpy array of length dur*rate
+        """
+        Create `numpy.ndarray` of length dur*rate
         with only the mean values.
         """
 
@@ -284,8 +298,6 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         return signal
 
     def create(self):
-        """create events, metadata, and signal
-        """
         # pause signal
         pause_signal = self.create_baseline(self.pause_dur)
         stim_dur_signal = self.create_baseline(self.stim_dur)
@@ -352,11 +364,15 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         return self
 
 
+@inherit_docstrings
 class BrownNoiseStimulus(WhiteNoiseStimulus):
-    """brown noise stimulus (cumulative white noise).
+    """
+    Brownian noise stimulus (cumulative white noise).
 
     Parameters
     ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
     stim_dur : float
         duration of stimulus
     mean : float or array-like
@@ -379,11 +395,13 @@ class BrownNoiseStimulus(WhiteNoiseStimulus):
     rate : float
         frame rate / rate of change.
     n_channels : int
-        number of channels.
+        Number of channels.
+    channel_names : list-like
+        Name of each channel.
     filter_style : {'filtfilt', 'window', 'complete'}
         Filter styles. 'filtfilt' will use filter function to get a and
         b for the filtfilt function (x is the signal). 'window' will
-        use dreye.algebra.Filter1D. 'complete' will pass the signal as the
+        use dreye.utilities.Filter1D. 'complete' will pass the signal as the
         first argument to filter function, and return the complete filtered
         signal.
     filter_function : str
@@ -391,18 +409,19 @@ class BrownNoiseStimulus(WhiteNoiseStimulus):
         filtfilt or window, or it is a finished filtering method.
         If filter_function is a string, must be a method in scipy.signal.
         For filter_style window, filter_function must be in
-        scipy.signal.windows (also see dreye.algebra.Filter1D).
+        scipy.signal.windows (also see dreye.utilities.Filter1D).
     filter_along_axis : int
         apply filtering process along axis. Default is None.
     filter_kwargs : dict
         Arguments passed to the filter function.
     extra_kwargs : dict
         Arguments passed to call of scipy.signal.filtfilt or
-        dreye.algebra.Filter1D.
+        dreye.utilities.Filter1D.
     """
 
     def create_random_signal(self):
-        """create of truncated white noise signal
+        """
+        Create of truncated Brownian noise signal.
         """
 
         # using truncnorm from parent class

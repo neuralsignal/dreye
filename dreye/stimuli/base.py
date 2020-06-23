@@ -3,19 +3,22 @@
 
 from abc import ABC, abstractmethod
 import random
+import warnings
 
 import numpy as np
 import pandas as pd
 
 from dreye.io import read_json, write_json
 from dreye.utilities import is_numeric, is_listlike, asarray, is_callable
+from dreye.utilities.abstract import inherit_docstrings
 from dreye.err import DreyeError
 from dreye.stimuli.variables import DUR_KEY, DELAY_KEY, PAUSE_KEY
 from dreye.stimuli.plotting import StimPlottingMixin
 
 
 def _check_events(df):
-    """check that event dataframe contains columns DELAY_KEY and DUR_KEY
+    """
+    Check that event dataframe contains columns DELAY_KEY and DUR_KEY
     """
 
     if not isinstance(df, pd.DataFrame):
@@ -52,16 +55,36 @@ def _check_events(df):
     return df
 
 
+@inherit_docstrings
 class BaseStimulus(ABC, StimPlottingMixin):
+    """
+    Abstract base stimulus class.
+
+    For subclassing, you only need to implement a `create` method
+    that assigns the following attributes:
+
+    * `signal` (`numpy.ndarray`)
+    * `events` (`pandas.DataFrame`)
+    * `metadata` (`dict`)
+
+    Parameters
+    ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
+    rate : numeric
+        The refresh rate.
+    seed : int
+        A random seed.
+    kwargs : dict
+        Keyword arguments that are kept as attributes. These can be seen
+        as specific settings for particular stimuli.
+    """
 
     time_axis = 0
     channel_axis = 1
     _add_mean_to_events = True
 
     def __init__(self, *, estimator=None, rate=None, seed=None, **kwargs):
-        """base initialization
-        """
-
         self.estimator = estimator
         self.seed = seed
         self.rate = rate
@@ -109,11 +132,14 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     @abstractmethod
     def create(self):
-        """create signal and metadata
+        """
+        Create `signal`, `events`, and `metadata` attributes.
         """
 
     def transform(self):
-        """transform signal to stimulus
+        """
+        Transform `signal` to `stimulus` using the `estimator` `fit_transform`
+        method or simply set them equal if no `estimator` was passed.
         """
 
         if self.estimator is None:
@@ -189,12 +215,14 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     def __getitem__(self, index):
         """
+        Get metadata item.
         """
 
         return self.metadata[index]
 
     def __setitem__(self, index, value):
         """
+        Set metadata item.
         """
 
         self.metadata[index] = value
@@ -211,14 +239,16 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     @property
     def name(self):
-        """short-hand for stimulus class name
+        """
+        Short-hand for the stimulus class name
         """
 
         return type(self).__name__
 
     @property
     def metadata(self):
-        """a dictionary of the metadata
+        """
+        A dictionary of the metadata
         """
 
         if self._signal is None:
@@ -226,17 +256,34 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         return self._metadata
 
+    @metadata.setter
+    def metadata(self, value):
+        """
+        Set metadata dictionary.
+
+        This can only be done once.
+        """
+
+        if self._signal is not None:
+            warnings.warn('Metadata already set. Cannot reset')
+            return
+
+        assert isinstance(value, dict)
+
+        self._metadata = value
+
     @property
     def ch_names(self):
         """
-        Name for each channel
+        List of names for each channel.
         """
         return list(range(self.signal.shape[self.channel_axis]))
 
     @property
     def events(self):
-        """a pandas dataframe of events in the stimulus (custom-formatted).
-        Each row is a single event.
+        """
+        A `pandas.DataFrame` of events in the stimulus;
+        each row represents a single event
         """
 
         if self._signal is None:
@@ -244,8 +291,25 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         return self._events
 
+    @events.setter
+    def events(self, value):
+        """
+        Set events `pandas.DataFrame`.
+
+        This can only be done once.
+        """
+
+        if self._signal is not None:
+            warnings.warn('Events already set. Cannot reset')
+            return
+
+        assert isinstance(value, pd.DataFrame)
+
+        self._events = value
+
     def time2frame(self, key=DELAY_KEY):
-        """get idcs for delay period
+        """
+        Get frame idcs for delay period of each event.
         """
 
         if self.rate is None:
@@ -255,7 +319,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     @property
     def signal(self):
-        """unprocessed array of stimulus (not for sending to hardware)
+        """
+        Signal prior to transforming to `stimulus`.
         """
 
         if self._signal is None:
@@ -263,10 +328,30 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         return self._signal
 
+    @signal.setter
+    def signal(self, value):
+        """
+        Set signal.
+
+        This setter can only be used once.
+        """
+
+        if self._signal is not None:
+            warnings.warn('Signal already set. Cannot reset')
+            return
+
+        assert isinstance(value, np.ndarray)
+
+        self._signal = value
+
     @property
     def fitted_signal(self):
         """
-        fitted array using the estimator (if hasattr fitted_X)
+        Fitted `signal` instance after applying transforming using
+        the `estimator`.
+
+        This only differs from `signal` if the `estimator` has
+        the property `fitted_X`.
         """
 
         if self._fitted_signal is None:
@@ -276,7 +361,11 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     @property
     def stimulus(self):
-        """processed numpy array of stimulus (for sending to hardware)
+        """
+        Stimulus array after applying `fit_transform` to `signal`.
+
+        This array is usually suited for sending values directly
+        to a `hardware.AbstractSystem`.
         """
 
         if self._stimulus is None:
@@ -286,7 +375,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     @property
     def other_shape(self):
-        """shape of stimulus (excluding time axis)
+        """
+        Shape of stimulus (excluding `time_axis`).
         """
 
         shape = list(self.stimulus.shape)
@@ -295,21 +385,24 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     @property
     def time_len(self):
-        """length of time axis
+        """
+        Length of stimulus along `time_axis`.
         """
 
         return self.stimulus.shape[self.time_axis]
 
     @property
     def channel_len(self):
-        """length of channel axis
+        """
+        Length of stimulus along `channel_axis`.
         """
 
         return self.stimulus.shape[self.channel_axis]
 
     @property
     def timestamps(self):
-        """timestamps of stimulus same size of first axis
+        """
+        Timestamps array of stimulus.
         """
 
         length = self.signal.shape[self.time_axis]
@@ -322,7 +415,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     @property
     def duration(self):
-        """duration of stimulus
+        """
+        Duration of stimulus.
         """
 
         length = self.signal.shape[self.time_axis]
@@ -334,7 +428,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
     @property
     def settings(self):
-        """a dictionary of the settings
+        """
+        A dictionary of the settings initialized with.
         """
 
         if not hasattr(self, '_settings'):
@@ -345,7 +440,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
     # --- serialization methods --- #
 
     def to_dict(self):
-        """dictionary format of stimulus class
+        """
+        Dictionary format of stimulus class
         """
 
         return {
@@ -360,6 +456,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
     @classmethod
     def from_dict(cls, data):
         """
+        Create stimulus class from dictionary.
         """
 
         self = cls(**data['settings'])
@@ -372,34 +469,38 @@ class BaseStimulus(ABC, StimPlottingMixin):
         return self
 
     def save_settings(self, filename):
-        """convenience function to save settings.
+        """
+        Save `settings` dictionary as JSON.
         """
 
         write_json(filename, self.settings)
 
     @classmethod
     def load_settings(cls, filename):
-        """convenience function to load settings (just call read_json)
+        """
+        Load JSON file with `settings` dictionary.
         """
 
         return read_json(filename)
 
     def save(self, filename):
-        """function to save stimulus
+        """
+        Save complete stimulus.
         """
 
         write_json(filename, self)
 
     @classmethod
     def load(cls, filename):
-        """function to load stimulus
+        """
+        Load complete stimulus.
         """
 
         return read_json(filename)
 
     def _add_to_events(self, events, labels, signal, prefix, attr_name):
         """
-        method used to add transformations of signals
+        Method used to add transformations of signals
         """
         # has to be an array
         signal = asarray(signal)
@@ -463,9 +564,37 @@ class BaseStimulus(ABC, StimPlottingMixin):
         return events
 
 
+@inherit_docstrings
 class DynamicStimulus(BaseStimulus):
     """
-    Create a stimulus from a function dynamically.
+    Create a Stimulus dynamically given a create function.
+
+    Parameters
+    ----------
+    create_func : callable
+        Callable that accepts the `settings` dictionary as a single
+        positional argument. This function must return a single
+        `numpy.ndarray` or a tuple of 1, 2, or 3 elements.
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
+    rate : numeric
+        The refresh rate.
+    seed : int
+        A random seed.
+    kwargs : dict
+        Keyword arguments that are kept as attributes. These can be seen
+        as specific settings for particular stimuli. These are also
+        present in the `settings` attribute.
+
+    Notes
+    -----
+    The `create_func` can return different values. If it returns a
+    `numpy.ndarray`, it is assumed that it corresponds to the
+    `signal`. If it returns a tuple of 1 element, this element should
+    correspond to the `signal`. If it returns a tuple of 2 elements, the
+    first corresponds to the `signal` and the second corresponds to `events`.
+    If there are 3 elements, they correspond to the `signal`, `events`, and
+    `metadata` respectively.
     """
 
     def __init__(
@@ -488,9 +617,7 @@ class DynamicStimulus(BaseStimulus):
         )
 
     def create(self):
-        """create signal and metadata
-        """
-        output = self.create_func(self)
+        output = self.create_func(self.settings)
         if isinstance(output, tuple):
             if len(output) == 1:
                 self._signal = output[0]
@@ -517,6 +644,15 @@ class DynamicStimulus(BaseStimulus):
 class ChainedStimuli:
     """
     Chain multiple stimuli together.
+
+    Parameters
+    ----------
+    stimuli : list-like
+        A list of `dreye.stimuli.BaseStimulus` objects.
+    shuffle : bool
+        Whether to shuffle the list.
+    seed : int
+        The seed used for shuffling.
     """
 
     def __init__(self, stimuli, shuffle=False, seed=None):
@@ -564,19 +700,33 @@ class ChainedStimuli:
 
     @property
     def rate(self):
+        """
+        Refresh rate.
+        """
         return self.stimuli[0].rate
 
     @property
     def time_axis(self):
+        """
+        The time axis.
+        """
         return self.stimuli[0].time_axis
 
     @property
     def stimuli(self):
+        """
+        The list of stimuli.
+        """
         return self._stimuli
 
     @property
     def events(self):
-        """combine dataframe
+        """
+        A concatenated `events` `pandas.DataFrame`.
+
+        See Also
+        --------
+        BaseStimulus.events
         """
         events = pd.DataFrame()
         dur = 0.0
@@ -593,6 +743,9 @@ class ChainedStimuli:
 
     @property
     def metadata(self):
+        """
+        A list of the metadata dictionaries.
+        """
         return [
             stim.metadata
             for stim in self.stimuli
@@ -600,7 +753,8 @@ class ChainedStimuli:
 
     @property
     def stimulus(self):
-        """concatenate along time axis
+        """
+        A concatenated stimulus array.
         """
         return np.concatenate([
             stim.stimulus for stim in self.stimuli
@@ -608,6 +762,9 @@ class ChainedStimuli:
 
     @property
     def timestamps(self):
+        """
+        A concatenated timestamps array.
+        """
         return np.concatenate([
             stim.timestamps
             + (0 if idx == 0 else np.cumsum(self.durations)[idx-1])
@@ -616,11 +773,15 @@ class ChainedStimuli:
 
     @property
     def duration(self):
+        """
+        The complete duration of the stimulus.
+        """
         return np.sum(self.durations)
 
     @property
     def durations(self):
-        """array of duration for each stimulus
+        """
+        An array of all the individual durations.
         """
         return asarray([
             stim.duration
@@ -629,31 +790,57 @@ class ChainedStimuli:
 
     @property
     def settings(self):
+        """
+        A list of the settings dictionary.
+        """
         return [
             stim.settings
             for stim in self.stimuli
         ]
 
     def to_dict(self):
+        """
+        Convert to list of stimuli.
+        """
         return self.stimuli
 
     @classmethod
     def from_dict(cls, data):
+        """
+        Create combined stimulus class from list of stimuli
+        """
         return cls(data)
 
     def save(self, filename):
+        """
+        Save combined stimulus.
+        """
         write_json(filename, self)
 
     @classmethod
     def load(cls, filename):
+        """
+        Load combined stimulus.
+        """
         return read_json(filename)
 
 # have alist of all attributes
 
 
+@inherit_docstrings
 class RandomizeChainedStimuli(ChainedStimuli):
     """
-    Randomize chained stimuli by reordering events dataframe.
+    Randomize a list of stimuli by reordering the concatenated
+    `events` dataframe.
+
+    Parameters
+    ----------
+    stimuli : list-like
+        A list of `dreye.stimuli.BaseStimulus` objects.
+    shuffle : bool
+        Whether the concatenated `events` dataframe.
+    seed : int
+        The seed used for shuffling.
     """
 
     def __init__(self, stimuli, shuffle=True, seed=None):
@@ -700,17 +887,17 @@ class RandomizeChainedStimuli(ChainedStimuli):
 
     @property
     def events(self):
-        """events dataframe
-        """
         return self._events
 
     @property
     def stimulus(self):
-        """concatenate along time axis
-        """
         return self._stimulus
 
     def to_dict(self):
+        """
+        A dictionary of all the reshuffled information
+        necessary for creating instance.
+        """
         return {
             'stimuli': self.stimuli,
             'events': self.events,
@@ -719,6 +906,9 @@ class RandomizeChainedStimuli(ChainedStimuli):
 
     @classmethod
     def from_dict(cls, data):
+        """
+        Create class from dictionary.
+        """
         self = cls(data['stimuli'], shuffle=False)
         self._events = data['events']
         self._stimulus = data['stimulus']
