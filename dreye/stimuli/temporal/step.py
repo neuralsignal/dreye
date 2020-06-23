@@ -11,8 +11,10 @@ from dreye.stimuli.mixin import (
     SetBaselineMixin, SetStepMixin, SetRandomStepMixin
 )
 from dreye.utilities import is_numeric, convert_truncnorm_clip, asarray
+from dreye.utilities.abstract import inherit_docstrings
 
 
+@inherit_docstrings
 class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
     """Abstract base class that has various helper functions
     """
@@ -25,6 +27,7 @@ class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
         self._signal = self._create_signal(self._events)
 
 
+@inherit_docstrings
 class StepStimulus(AbstractStepStimulus, SetStepMixin):
     """
     Step stimulus.
@@ -225,6 +228,7 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
         return dur_iterable
 
 
+@inherit_docstrings
 class NoiseStepStimulus(StepStimulus):
     """
     Step stimulus by choosing values from a truncated Gaussian.
@@ -389,6 +393,7 @@ class NoiseStepStimulus(StepStimulus):
         )
 
 
+@inherit_docstrings
 class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
     """
     Random switch stimulus using truncated Gaussian.

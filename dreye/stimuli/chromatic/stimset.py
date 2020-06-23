@@ -6,8 +6,10 @@ import numpy as np
 from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY
 from dreye.stimuli.mixin import SetStepMixin, SetBaselineMixin
 from dreye.utilities import asarray
+from dreye.utilities.abstract import inherit_docstrings
 
 
+@inherit_docstrings
 class StimSet(BaseStimulus, SetBaselineMixin, SetStepMixin):
     """
     Parameters
@@ -48,8 +50,6 @@ class StimSet(BaseStimulus, SetBaselineMixin, SetStepMixin):
     # --- standard create and transform methods --- #
 
     def create(self):
-        """create events, metadata, and signal
-        """
         self._events, self._metadata = self._create_events()
         self._signal = self._create_signal(self._events)
 
