@@ -24,3 +24,4 @@ pandoc
 flake8
 gitpython
 pygithub
+jupyter_client

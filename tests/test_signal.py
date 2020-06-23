@@ -5,7 +5,7 @@ import numpy as np
 import os
 from pytest import raises
 
-from .context import dreye, constants, err, test_datapath
+from .context import dreye, err, test_datapath
 
 
 class TestSignal:
