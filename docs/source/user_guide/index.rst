@@ -29,6 +29,7 @@ Tutorials
 
 The different tutorials are listed below:
 
+* `Introduction to signal-type classes <signals.ipynb>`_.
 * `Estimating chromatic stimuli <estimators.ipynb>`_.
 
 .. toctree::
@@ -37,4 +38,5 @@ The different tutorials are listed below:
     :hidden:
 
     philosophy
+    Introduction to signal-type classes <signals.nblink>
     Estimating chromatic stimuli <estimators.nblink>
