@@ -17,11 +17,4 @@ sys.path.insert(
 )
 
 import dreye
-from dreye import hardware
-from dreye import algebra
-from dreye import io
-from dreye import constants
-from dreye import data
-from dreye import stimuli
-from dreye import utilities
 from dreye import err

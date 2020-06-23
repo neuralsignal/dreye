@@ -5,7 +5,7 @@ import numpy as np
 import os
 from pytest import raises
 
-from .context import dreye, constants, err, test_datapath, io
+from .context import dreye, err, test_datapath
 
 
 class TestDomain:
@@ -33,21 +33,21 @@ class TestDomain:
 
     def test_add(self):
         self.test_init()
-        assert self.domain1 == (self.domain4 + (1 * constants.ureg('s')))
-        assert (self.domain1 + (10 * constants.ureg('s'))).end == 11.
+        assert self.domain1 == (self.domain4 + (1 * dreye.ureg('s')))
+        assert (self.domain1 + (10 * dreye.ureg('s'))).end == 11.
 
     def test_mul(self):
         self.test_init()
         assert (self.domain1 * 3).start == -1.5
         assert (
-            (self.domain1 * constants.ureg('s')).units
-            == constants.ureg('s**2').units
+            (self.domain1 * dreye.ureg('s')).units
+            == dreye.ureg('s**2').units
         )
 
     def test_equality(self):
         self.test_init()
         assert self.domain1 == self.domain1.copy()
-        assert self.domain1 == (self.domain4 + (1 * constants.ureg('s')))
+        assert self.domain1 == (self.domain4 + (1 * dreye.ureg('s')))
         assert self.domain1 != self.domain2
         assert self.domain1 != self.domain3
         assert self.domain1 != self.domain4
@@ -57,7 +57,7 @@ class TestDomain:
     def test_conversion(self):
         self.test_init()
         assert self.domain1.to('ms') != self.domain1
-        assert self.domain1.to('ms').units == constants.ureg('ms').units
+        assert self.domain1.to('ms').units == dreye.ureg('ms').units
 
     def test_attributes(self):
         self.test_init()
@@ -68,10 +68,10 @@ class TestDomain:
         assert self.domain1.interval == 0.1
         assert self.domain1.span == 1.5
         assert isinstance(self.domain3.interval, np.ndarray)
-        assert isinstance(self.domain1.units, constants.ureg.Unit)
+        assert isinstance(self.domain1.units, dreye.ureg.Unit)
         assert isinstance(self.domain1.magnitude, np.ndarray)
-        assert isinstance(self.domain1.gradient, constants.ureg.Quantity)
-        assert isinstance(self.domain1.values, constants.ureg.Quantity)
+        assert isinstance(self.domain1.gradient, dreye.ureg.Quantity)
+        assert isinstance(self.domain1.values, dreye.ureg.Quantity)
 
     def test_methods(self):
         self.test_init()
@@ -96,6 +96,6 @@ class TestDomain:
             domain = dreye.Domain.load(filepath)
             assert domain == _domain
             # using write_json
-            io.write_json(filepath, domain)
-            domain = io.read_json(filepath)
+            dreye.write_json(filepath, domain)
+            domain = dreye.read_json(filepath)
             assert domain == _domain
