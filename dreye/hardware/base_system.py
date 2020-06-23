@@ -135,13 +135,6 @@ class AbstractOutput(AbstractSender):
     Abstract output class for sending values to one particular hardware
     or output.
 
-    The following method need to be implemented for subclassing:
-
-    * `open` method
-    * `close` method
-    * `send` method
-    * `send_value` method
-
     Parameters
     ----------
     object_name : str
@@ -158,6 +151,15 @@ class AbstractOutput(AbstractSender):
         Units of the outputs (e.g. volts).
     measured_spectrum : dreye.MeasuredSpectrum, optional
         A already measured spectrum.
+
+    Notes
+    -----
+    The following method need to be implemented for subclassing:
+
+    * `open` method
+    * `close` method
+    * `send` method
+    * `send_value` method
     """
 
     def __init__(
@@ -365,17 +367,19 @@ class AbstractSystem(AbstractSender):
     Abstract class for implementing a complete system of output
     hardware (a list of `AbstractOutput` objects).
 
+    Parameters
+    ----------
+    outputs : list-like or AbstractSystem
+        A list of AbstractOutput objects.
+
+    Notes
+    -----
     The following method need to be implemented for subclassing:
 
     * `open` method
     * `close` method
     * `send` method
     * `send_value` method
-
-    Parameters
-    ----------
-    outputs : list-like or AbstractSystem
-        A list of AbstractOutput objects.
     """
 
     _output_class = AbstractOutput

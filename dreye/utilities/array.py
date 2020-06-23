@@ -1,11 +1,5 @@
 """
 Array Utilities
-===============
-
-Defines array utilities objects.
-
-References
-----------
 """
 
 import warnings
@@ -233,9 +227,6 @@ def array_domain(array, sorted=False, uniform=None, axis=None):
     start : numeric or array-like
     end : numeric or array-like
     spacing : numeric or array-like
-
-    Examples
-    --------
     """
 
     if axis is None:

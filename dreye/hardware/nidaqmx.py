@@ -85,7 +85,13 @@ class NiDaqMxOutput(AbstractOutput):
     """
     # writer to send values
     task = None
+    """
+    Task used when opening hardware
+    """
     writer = None
+    """
+    Writer used when opening hardware
+    """
 
     def __init__(self, *args, **kwargs):
         _check_install()
@@ -139,10 +145,16 @@ class NiDaqMxOutput(AbstractOutput):
 
     @property
     def channel(self):
+        """
+        Channel of output
+        """
         return get_channel_mappings().get(self.object_name, None)[1]
 
     @property
     def device(self):
+        """
+        Device name of output.
+        """
         return get_channel_mappings().get(self.object_name, None)[0]
 
 

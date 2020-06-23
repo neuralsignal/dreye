@@ -221,20 +221,23 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     @property
     def output_units(self):
-        """units of transformed X
+        """
+        Units of transformed X.
         """
         return self.measured_spectra_.labels_units
 
     @property
     @abstractmethod
     def input_units(self):
-        """units of X
+        """
+        Units of X.
         """
 
     @property
     @abstractmethod
     def fitted_X(self):
-        """X after fitting
+        """
+        X after fitting.
         """
         return self.current_X_
 
