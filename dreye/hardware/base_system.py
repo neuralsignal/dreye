@@ -123,8 +123,8 @@ class AbstractSender(ABC):
             if (n % 2) == 0:
                 trigger_values[idx:idx+trigger_length] = on
 
-        # make sure trigger always ends at 0
-        trigger_values[-1] = 0
+        # make sure trigger always ends at off
+        trigger_values[-1] = off
 
         return trigger_values
 

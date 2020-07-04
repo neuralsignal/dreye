@@ -12,6 +12,8 @@ from dreye.utilities.abstract import inherit_docstrings
 @inherit_docstrings
 class StimSet(BaseStimulus, SetBaselineMixin, SetStepMixin):
     """
+    Set of step-type stimuli.
+
     Parameters
     ----------
     estimator : scikit-learn type estimator
