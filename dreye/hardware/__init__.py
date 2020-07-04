@@ -3,7 +3,9 @@ hardware
 """
 
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
-from dreye.hardware.base_system import AbstractOutput, AbstractSystem
+from dreye.hardware.base_system import (
+    AbstractOutput, AbstractSystem, create_trigger_array
+)
 from dreye.hardware.dummy_spectrometer import DummySpectrometer
 from dreye.hardware.dummy_system import DummyOutput, DummySystem
 from dreye.hardware.measurement_runner import MeasurementRunner
@@ -22,5 +24,6 @@ __all__ = [
     'DummySpectrometer',
     'DummyOutput',
     'DummySystem',
-    'read_calibration_file'
+    'read_calibration_file',
+    'create_trigger_array'
 ]

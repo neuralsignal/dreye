@@ -15,6 +15,28 @@ from dreye.err import DreyeError
 from dreye.utilities.abstract import inherit_docstrings
 
 
+def create_trigger_array(length, rate, trigger_rate, on=1, off=0):
+    """
+    Create a trigger with a particular constant frequency.
+    """
+    # get length and points of trigger
+    trigger_values = np.ones(length) * off
+    trigger_length = int((rate / trigger_rate) // 2)
+    trigger_points = np.arange(
+        0, length, trigger_length
+    ).astype(int)
+
+    for n, idx in enumerate(trigger_points):
+        # set trigger to value
+        if (n % 2) == 0:
+            trigger_values[idx:idx+trigger_length] = on
+
+    # make sure trigger always ends at off
+    trigger_values[-1] = off
+
+    return trigger_values
+
+
 class AbstractSender(ABC):
     """
     Abstract Sender class.
@@ -111,22 +133,11 @@ class AbstractSender(ABC):
 
     @staticmethod
     def _create_trigger_array(length, rate, trigger_rate, on=1, off=0):
-        # get length and points of trigger
-        trigger_values = np.ones(length) * off
-        trigger_length = int((rate / trigger_rate) // 2)
-        trigger_points = np.arange(
-            0, length, trigger_length
-        ).astype(int)
-
-        for n, idx in enumerate(trigger_points):
-            # set trigger to value
-            if (n % 2) == 0:
-                trigger_values[idx:idx+trigger_length] = on
-
-        # make sure trigger always ends at off
-        trigger_values[-1] = off
-
-        return trigger_values
+        return create_trigger_array(
+            length=length, rate=rate,
+            trigger_rate=trigger_rate,
+            on=on, off=off
+        )
 
 
 @inherit_docstrings
