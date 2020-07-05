@@ -12,7 +12,9 @@ from dreye.io import read_json, write_json
 from dreye.utilities import is_numeric, is_listlike, asarray, is_callable
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.err import DreyeError
-from dreye.stimuli.variables import DUR_KEY, DELAY_KEY, PAUSE_KEY
+from dreye.stimuli.variables import (
+    DUR_KEY, DELAY_KEY, PAUSE_KEY, CHAINED_STIM_INDEX
+)
 from dreye.stimuli.plotting import StimPlottingMixin
 
 
@@ -731,12 +733,12 @@ class ChainedStimuli:
         events = pd.DataFrame()
         dur = 0.0
         for idx, stim in enumerate(self.stimuli):
-            assert 'stim_index' not in stim.events
+            assert CHAINED_STIM_INDEX not in stim.events
             event = stim.events.copy()
             # add duration
             event[DELAY_KEY] += dur
             # add index
-            event['stim_index'] = idx
+            event[CHAINED_STIM_INDEX] = idx
             events = events.append(event, ignore_index=True, sort=True)
             dur += stim.duration
         return events
