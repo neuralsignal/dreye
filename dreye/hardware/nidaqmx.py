@@ -126,8 +126,9 @@ class NiDaqMxOutput(AbstractOutput):
 
     def send(self, values, rate=None, return_value=None):
         dt = float(optional_to(1 / rate, 's'))
+        values = asarray(values).astype(np.float64)
         self.open()
-        for value in asarray(values).astype(np.float64):
+        for value in values:
             now = time.clock()
             # assumes sending does not take a lot of time
             self.send_value(value)
@@ -136,9 +137,11 @@ class NiDaqMxOutput(AbstractOutput):
         if return_value is not None:
             self.send_value(return_value)
         self.close()
+        return values
 
     def send_value(self, value):
         self.writer.write_one_sample(value)
+        return value
 
     def channel_exists(self):
         return self.object_name in get_channels()
@@ -285,7 +288,7 @@ class NiDaqMxSystem(AbstractSystem):
 
         dt = float(optional_to(1 / rate, 's'))
         values = asarray(values, dtype=np.float64)
-        grouped_values = self._group_values(values, rate)
+        grouped_values, values = self._group_values(values, rate)
         length = len(grouped_values)
         percentile = length // 100
         if not percentile:
@@ -311,6 +314,7 @@ class NiDaqMxSystem(AbstractSystem):
             self.send_value(return_value)
 
         self.close()
+        return values
 
     def _group_values(self, values, rate):
 
@@ -335,7 +339,7 @@ class NiDaqMxSystem(AbstractSystem):
             _v = [v.astype(np.float64) for v in _v]
             grouped_values[n] = _v
 
-        return asarray(grouped_values)
+        return asarray(grouped_values), values
 
     def _group_value(self, value):
         grouped_value = []
@@ -352,3 +356,4 @@ class NiDaqMxSystem(AbstractSystem):
         value = asarray(value, dtype=np.float64)
         grouped_value = self._group_value(value)
         self._send_value(grouped_value)
+        return value
