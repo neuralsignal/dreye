@@ -655,9 +655,11 @@ class ChainedStimuli:
         Whether to shuffle the list.
     seed : int
         The seed used for shuffling.
+    attrs : object
+        Arbitrary object to save with the stimulus set
     """
 
-    def __init__(self, stimuli, shuffle=False, seed=None):
+    def __init__(self, stimuli, shuffle=False, seed=None, attrs=None):
 
         if isinstance(stimuli, type(self)):
             stimuli = list(stimuli.stimuli)
@@ -690,6 +692,7 @@ class ChainedStimuli:
         ), "stimuli rates must be the same"
 
         self._stimuli = stimuli
+        self.attrs = attrs
 
     def __len__(self):
         return len(self.stimuli)
@@ -804,13 +807,18 @@ class ChainedStimuli:
         """
         Convert to list of stimuli.
         """
-        return self.stimuli
+        return {
+            'stimuli': self.stimuli,
+            'attrs': self.attrs
+        }
 
     @classmethod
     def from_dict(cls, data):
         """
         Create combined stimulus class from list of stimuli
         """
+        if isinstance(data, dict):
+            return cls(**data)
         return cls(data)
 
     def save(self, filename):
@@ -845,9 +853,9 @@ class RandomizeChainedStimuli(ChainedStimuli):
         The seed used for shuffling.
     """
 
-    def __init__(self, stimuli, shuffle=True, seed=None):
+    def __init__(self, stimuli, shuffle=True, seed=None, attrs=None):
         # initialize chained stimuli
-        super().__init__(stimuli, shuffle=False, seed=None)
+        super().__init__(stimuli, shuffle=False, seed=None, attrs=attrs)
 
         # dataframe to shuffle
         if shuffle:
@@ -903,7 +911,8 @@ class RandomizeChainedStimuli(ChainedStimuli):
         return {
             'stimuli': self.stimuli,
             'events': self.events,
-            'stimulus': self.stimulus
+            'stimulus': self.stimulus,
+            'attrs': self.attrs
         }
 
     @classmethod
@@ -911,7 +920,11 @@ class RandomizeChainedStimuli(ChainedStimuli):
         """
         Create class from dictionary.
         """
-        self = cls(data['stimuli'], shuffle=False)
+        self = cls(
+            data['stimuli'],
+            shuffle=False,
+            attrs=data.get('attrs', None)
+        )
         self._events = data['events']
         self._stimulus = data['stimulus']
         return self
