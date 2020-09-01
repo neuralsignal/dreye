@@ -16,7 +16,7 @@ from dreye.utilities.abstract import inherit_docstrings
 
 @inherit_docstrings
 class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
-    """Abstract base class that has various helper functions
+    """Abstract base class that has various helper functions.
     """
 
     # --- standard create and transform methods --- #
@@ -28,99 +28,9 @@ class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
 
 
 @inherit_docstrings
-class StepStimulus(AbstractStepStimulus, SetStepMixin):
+class StepStimulusMixin(AbstractStepStimulus, SetStepMixin):
+    """Mixin class for standard Step stimuli.
     """
-    Step stimulus.
-
-    Parameters
-    ----------
-    estimator : scikit-learn type estimator
-        Estimator that implements the `fit_transform` method.
-    rate : float
-        The desired refresh rate.
-    values : float or array-like or dict of arrays or dataframe
-        Step values used.
-    durations : float or array-like
-        Different durations for the stimulus
-    pause_durations : float or array-like
-        Different durations after the stimulus; before the next stimulus
-    repetitions : int
-        How often to repeat each value. When randomize True, the value
-        will not be repeated in a row.
-    iterations : int
-        How often to iterate over the whole stimulus. Does not rerandomize
-        order for each iteration.
-    randomize : bool
-        randomize order of steps
-    start_delay : float
-        Duration before step stimulus starts (inverse units of rate)
-    end_dur : float
-        Duration after step stimulus ended (inverse units of rate)
-    seed : int
-        seed for randomization.
-    aligned_durations : bool
-        If True will check if durations and pause_durations are the same
-        length and will iterate by zipping the lists for durations.
-    separate_channels : bool
-        Whether to separate each channel for single steps.
-        Works only if values are given as a dict. Each key represents a channel
-    baseline_values : float or array-like or dict
-        Baseline values when no stimulus is being presented. Defaults to 0.
-    func : callable
-        Funtion applied to each step: f(t, values) = output <- (t x values).
-        Defaults to None.
-    """
-
-    def __init__(
-        self,
-        *,
-        estimator=None,
-        values=1,
-        durations=1,
-        pause_durations=0,
-        repetitions=1,
-        iterations=1,
-        randomize=False,
-        rate=1,
-        start_delay=0,
-        end_dur=0,
-        seed=None,
-        aligned_durations=False,
-        separate_channels=False,
-        baseline_values=0,
-        func=None
-    ):
-
-        # call init method of BaseStimulus class
-        super().__init__(
-            estimator=estimator,
-            rate=rate,
-            values=values,
-            durations=durations,
-            pause_durations=pause_durations,
-            repetitions=repetitions,
-            iterations=iterations,
-            randomize=randomize,
-            start_delay=start_delay,
-            end_dur=end_dur,
-            seed=seed,
-            aligned_durations=aligned_durations,
-            separate_channels=separate_channels,
-            baseline_values=baseline_values,
-            func=func
-        )
-
-        # sets values and baseline values attribute correctly
-        self.values, self.baseline_values = self._set_values(
-            values=values, baseline_values=baseline_values,
-            separate_channels=separate_channels
-        )
-
-        # reset duration attributes correctly
-        self.dur_iterable = self._set_durs(
-            durations=durations, pause_durations=pause_durations,
-            aligned_durations=aligned_durations
-        )
 
     @property
     def ch_names(self):
@@ -229,7 +139,103 @@ class StepStimulus(AbstractStepStimulus, SetStepMixin):
 
 
 @inherit_docstrings
-class NoiseStepStimulus(StepStimulus):
+class StepStimulus(StepStimulusMixin):
+    """
+    Step stimulus.
+
+    Parameters
+    ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
+    rate : float
+        The desired refresh rate.
+    values : float or array-like or dict of arrays or dataframe
+        Step values used.
+    durations : float or array-like
+        Different durations for the stimulus
+    pause_durations : float or array-like
+        Different durations after the stimulus; before the next stimulus
+    repetitions : int
+        How often to repeat each value. When randomize True, the value
+        will not be repeated in a row.
+    iterations : int
+        How often to iterate over the whole stimulus. Does not rerandomize
+        order for each iteration.
+    randomize : bool
+        randomize order of steps
+    start_delay : float
+        Duration before step stimulus starts (inverse units of rate)
+    end_dur : float
+        Duration after step stimulus ended (inverse units of rate)
+    seed : int
+        seed for randomization.
+    aligned_durations : bool
+        If True will check if durations and pause_durations are the same
+        length and will iterate by zipping the lists for durations.
+    separate_channels : bool
+        Whether to separate each channel for single steps.
+        Works only if values are given as a dict. Each key represents a channel
+    baseline_values : float or array-like or dict
+        Baseline values when no stimulus is being presented. Defaults to 0.
+    func : callable
+        Funtion applied to each step: f(t, values) = output <- (t x values).
+        Defaults to None.
+    """
+
+    def __init__(
+        self,
+        *,
+        estimator=None,
+        values=1,
+        durations=1,
+        pause_durations=0,
+        repetitions=1,
+        iterations=1,
+        randomize=False,
+        rate=1,
+        start_delay=0,
+        end_dur=0,
+        seed=None,
+        aligned_durations=False,
+        separate_channels=False,
+        baseline_values=0,
+        func=None
+    ):
+
+        # call init method of BaseStimulus class
+        super().__init__(
+            estimator=estimator,
+            rate=rate,
+            values=values,
+            durations=durations,
+            pause_durations=pause_durations,
+            repetitions=repetitions,
+            iterations=iterations,
+            randomize=randomize,
+            start_delay=start_delay,
+            end_dur=end_dur,
+            seed=seed,
+            aligned_durations=aligned_durations,
+            separate_channels=separate_channels,
+            baseline_values=baseline_values,
+            func=func
+        )
+
+        # sets values and baseline values attribute correctly
+        self.values, self.baseline_values = self._set_values(
+            values=values, baseline_values=baseline_values,
+            separate_channels=separate_channels
+        )
+
+        # reset duration attributes correctly
+        self.dur_iterable = self._set_durs(
+            durations=durations, pause_durations=pause_durations,
+            aligned_durations=aligned_durations
+        )
+
+
+@inherit_docstrings
+class NoiseStepStimulus(StepStimulusMixin):
     """
     Step stimulus by choosing values from a truncated Gaussian.
 
@@ -309,6 +315,7 @@ class NoiseStepStimulus(StepStimulus):
         func=None
     ):
 
+        # init for BaseStimulus class
         super().__init__(
             estimator=estimator,
             n_channels=n_channels,
