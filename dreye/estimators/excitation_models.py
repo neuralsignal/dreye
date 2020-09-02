@@ -384,7 +384,7 @@ class IndependentExcitationFit(_SpectraModel):
                 return_units=False
             )
             # ensure vector form
-            x_pred = np.squeeze(x_pred)
+            x_pred = np.atleast_1d(np.squeeze(x_pred))
         return x_pred
 
     def _process_X(self, X):
