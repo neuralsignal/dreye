@@ -607,6 +607,67 @@ class HyperbolicPhotoreceptor(Photoreceptor):
         return arr / (1 - arr)
 
 
+@inherit_docstrings
+class LinearContrastPhotoreceptor(Photoreceptor):
+    """
+    A linear contrast photoreceptor model.
+
+    Parameters
+    ----------
+    sensitivity : Sensitivity instance or array-like, optional
+        An array that contains the sensitivity of different photoreceptor
+        types across wavelengths (wavelengths x types).
+    wavelengths : array-like, optional
+        The wavelength values in nanometers. This must be the same size as
+        the number of rows in the sensitivity array.
+    filterfunc : callable, optional
+        A function that accepts three positional arguments:
+        wavelengths, illuminant, and sensitivity. All three arguments are
+        `numpy.ndarray` objects that are broadcastable to each other.
+        The function should return the illuminant after the wavelength-specific
+        filter has been applied.
+    labels : array-like, optional
+        The labels for each photoreceptor. The length of labels must
+        correspond to the length of the columns in `sensitivity`.
+    kwargs : dict, optional
+        A dictionary that is directly passed to the instantiation of
+        the `dreye.Sensitivity` class.
+
+    See Also
+    --------
+    dreye.get_photoreceptor_model
+    dreye.LinearPhotoreceptor
+    dreye.LogPhotoreceptor
+    dreye.HyperbolicPhotoreceptor
+
+    Notes
+    -----
+    In the linear photoreceptor model, the photoreceptor excitations
+    correspond to the fractional difference of the photon captures:
+    :math:`q-1`
+    with :math:`q` corresponding to the relative capture.
+
+    It is usually not necessary to supply a `filterfunc` argument, unless the
+    photoreceptor model contains a filter that varies with the intensity and
+    wavelength of the illuminant (for example, the photoreceptor model
+    by Stavenga et al, 2003).
+    """
+
+    @staticmethod
+    def excitefunc(arr):
+        """
+        Returns the  `arr`/(1+`arr`).
+        """
+        return arr - 1
+
+    @staticmethod
+    def inv_excitefunc(arr):
+        """
+        Returns the `arr`/(1 - `arr`).
+        """
+        return arr + 1
+
+
 # TODO
 # class SelfScreeningPhotoreceptor(LinearPhotoreceptor):
 #     """
