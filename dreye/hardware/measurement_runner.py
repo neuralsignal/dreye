@@ -116,6 +116,22 @@ class MeasurementRunner:
                         return_it=True, verbose=verbose
                     )
                 )
+                # zero output device
+                output._zero()
+                # remove zero background after finding integration time
+                if self.remove_zero:
+                    bg_array_, bg_it_ = self.spectrometer.perform_measurement(
+                        self.n_avg, self.sleep,
+                        return_spectrum=False,
+                        return_it=True,
+                        optimize_it=False,
+                        verbose=verbose
+                    )
+                    spectrum_array[:, idx] -= bg_array_
+                    # assert integration time for safety
+                    assert bg_it_ == its[idx], (
+                        "Integration times don't match - this is a bug!"
+                    )
                 if verbose > 1:
                     photons_per_sec = np.sum(spectrum_array[:, idx])/its[idx]
                     sys.stdout.write(
@@ -150,9 +166,6 @@ class MeasurementRunner:
             )
             if self.wls is not None:
                 mspectrum = mspectrum(self.wls)
-            if self.remove_zero:
-                # this should be the correct order
-                mspectrum = MeasuredSpectrum(mspectrum - mspectrum[:, 0])
             if self.smoothing_window is not None:
                 mspectrum = mspectrum.smooth()
 
