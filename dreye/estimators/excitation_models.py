@@ -327,6 +327,7 @@ class IndependentExcitationFit(_SpectraModel):
                 bounds[1] = sep_bound
         if self.q1_ints is not None:
             if np.all(capture_x == 1):
+                # TODO close to 1 should be sufficient
                 return OptimizeResult(
                     x=self.q1_ints,
                     cost=0.0,

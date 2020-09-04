@@ -283,7 +283,8 @@ class AbstractSpectrometer(ABC):
         )
 
     def perform_measurement(
-        self, n=1, sleep=None, return_spectrum=True, return_it=False,
+        self, n=1, sleep=None,
+        return_spectrum=True, return_it=False, return_sd=False,
         verbose=0, optimize_it=True, error='raise', **kwargs
     ):
         """
@@ -332,7 +333,10 @@ class AbstractSpectrometer(ABC):
             it = self.find_best_it(error=error)
         else:
             it = self.current_it
-        ints = self.avg_ints(n, sleep)
+        if return_sd:
+            ints, ints_sd = self.avg_ints(n, sleep, return_sd=return_sd)
+        else:
+            ints = self.avg_ints(n, sleep, return_sd=return_sd)
 
         if return_spectrum:
             ints = Spectrum(
@@ -345,7 +349,11 @@ class AbstractSpectrometer(ABC):
                 **kwargs
             )
 
-        if return_it:
+        if return_it and return_sd:
+            return ints, ints_sd, it
+        elif return_sd:
+            return ints, ints_sd
+        elif return_it:
             return ints, it
         else:
             return ints
@@ -407,7 +415,7 @@ class AbstractSpectrometer(ABC):
         else:
             return self.current_it
 
-    def avg_ints(self, n, sleep=None):
+    def avg_ints(self, n, sleep=None, return_sd=False):
         """
         Average over multiple samples of intensities
 
@@ -431,4 +439,6 @@ class AbstractSpectrometer(ABC):
             if sleep is not None:
                 time.sleep(sleep)
         # average
+        if return_sd:
+            return ints.mean(axis=0), ints.std(axis=0, ddof=1)
         return ints.mean(axis=0)

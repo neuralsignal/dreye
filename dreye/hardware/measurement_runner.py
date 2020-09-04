@@ -3,11 +3,15 @@
 
 import sys
 import numpy as np
+import time
 
 from dreye.core.spectral_measurement import MeasuredSpectrum
 from dreye.core.measurement_utils import create_measured_spectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.base_system import AbstractSystem
+
+
+# TODO find the actual zero intensity bound
 
 
 class MeasurementRunner:
@@ -64,7 +68,7 @@ class MeasurementRunner:
         self.remove_zero = remove_zero
         self.smoothing_window = smoothing_window
 
-    def run(self, verbose=0):
+    def run(self, verbose=0, return_raw=False):
         """
         Run a measurement.
 
@@ -78,6 +82,8 @@ class MeasurementRunner:
                 '\n---------------------STARTING MEASUREMENTS--------'
                 '---------------\n'
             )
+        # raw data
+        raw_data = {}
         # reset spms
         self.system._measured_spectra = None
         # set outputs to zero
@@ -97,6 +103,9 @@ class MeasurementRunner:
             # setup values to send to output device
             values = output.steps(self.n_steps, **self.step_kwargs)
             spectrum_array = np.zeros((self.spectrometer.size, len(values)))
+            spectrum_sd = np.zeros(spectrum_array.shape)
+            bg_array = np.zeros(spectrum_array.shape)
+            bg_sd = np.zeros(spectrum_array.shape)
             its = np.zeros(len(values))
             # zero output device
             output._zero()
@@ -110,24 +119,29 @@ class MeasurementRunner:
             # substitute with tqdm?
             for idx, value in enumerate(values):
                 output.send_value(value)
-                spectrum_array[:, idx], its[idx] = (
+                spectrum_array[:, idx], spectrum_sd[:, idx], its[idx] = (
                     self.spectrometer.perform_measurement(
                         self.n_avg, self.sleep, return_spectrum=False,
+                        return_sd=True,
                         return_it=True, verbose=verbose
                     )
                 )
                 # zero output device
                 output._zero()
+                if self.sleep is not None:
+                    time.sleep(self.sleep)
                 # remove zero background after finding integration time
                 if self.remove_zero:
-                    bg_array_, bg_it_ = self.spectrometer.perform_measurement(
-                        self.n_avg, self.sleep,
-                        return_spectrum=False,
-                        return_it=True,
-                        optimize_it=False,
-                        verbose=verbose
-                    )
-                    spectrum_array[:, idx] -= bg_array_
+                    bg_array[:, idx], bg_sd[:, idx], bg_it_ = \
+                        self.spectrometer.perform_measurement(
+                            self.n_avg, self.sleep,
+                            return_spectrum=False,
+                            return_it=True,
+                            return_sd=True,
+                            optimize_it=False,
+                            verbose=verbose
+                        )
+                    spectrum_array[:, idx] -= bg_array[:, idx]
                     # assert integration time for safety
                     assert bg_it_ == its[idx], (
                         "Integration times don't match - this is a bug!"
@@ -151,6 +165,17 @@ class MeasurementRunner:
                 )
             # zero output device
             output._zero()
+            # raw_data
+            raw_data_ = {
+                'volts': values,
+                'wls': self.spectrometer.wavelengths,
+                'spectra': spectrum_array,
+                'spectra_sd': spectrum_sd,
+                'bg_spectra': bg_array,
+                'bg_spectra_sd': bg_sd,
+                'integration_times': its
+            }
+            raw_data[output.name] = raw_data_
             # convert everything correctly
             mspectrum = create_measured_spectrum(
                 spectrum_array=spectrum_array,
@@ -169,6 +194,8 @@ class MeasurementRunner:
             if self.smoothing_window is not None:
                 mspectrum = mspectrum.smooth()
 
+            mspectrum.attrs.update(raw_data_)
+
             output.measured_spectrum = mspectrum
             output.close()
 
@@ -183,6 +210,9 @@ class MeasurementRunner:
                 '\n---------------------MEASUREMENTS FINISHED--------'
                 '---------------\n'
             )
+
+        if return_raw:
+            return raw_data
 
         return self
 
