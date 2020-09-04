@@ -38,8 +38,8 @@ class MeasurementRunner:
     n_avg : int, optional
         Number of times each step is averaged over.
     remove_zero: bool, optional
-        Substracts the zero intensity boundary from all the other measurements.
-        If set to False, zero boundary will not be subtracted.
+        Substracts the background spectrum using the same optimal integration
+        time from each spectrum.
     sleep : numeric, optional
         Seconds sleep between measurements.
     """
