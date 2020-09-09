@@ -589,7 +589,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         # a little redundant but should ensure safety of method
         elif not zero_is_lower and zero_intensity_bound > np.max(x):
             x = np.concatenate([x, [zero_intensity_bound]])
-            y = np.concateante([y, [0]])
+            y = np.concatenate([y, [0]])
 
         # perform isotonic regression
         isoreg = IsotonicRegression(
@@ -884,7 +884,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         See Also
         --------
-        dreye.MeasuredSpectrum.intensity 
+        dreye.MeasuredSpectrum.intensity
         """
         if self._intensities is None:
             for idx, ele in enumerate(self):

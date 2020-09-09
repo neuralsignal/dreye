@@ -180,7 +180,8 @@ class AbstractOutput(AbstractSender):
         max_intensity_bound,
         zero_intensity_bound,
         units,
-        measured_spectrum=None
+        measured_spectrum=None,
+        raw_data=None
     ):
         assert isinstance(object_name, str)
         assert isinstance(name, str)
@@ -193,6 +194,7 @@ class AbstractOutput(AbstractSender):
         self._zero_intensity_bound = zero_intensity_bound
         self._units = units
         self._measured_spectrum = measured_spectrum
+        self._raw_data = raw_data
 
     def channel_exists(self):
         """
@@ -280,6 +282,13 @@ class AbstractOutput(AbstractSender):
         """
         return self._measured_spectrum
 
+    @property
+    def raw_data(self):
+        """
+        Dictionary of raw measurement data.
+        """
+        return self._raw_data
+
     @measured_spectrum.setter
     def measured_spectrum(self, value):
         assert isinstance(value, MeasuredSpectrum)
@@ -339,7 +348,8 @@ class AbstractOutput(AbstractSender):
             "zero_intensity_bound": self._zero_intensity_bound,
             "units": self._units,
             "measured_spectrum": self._measured_spectrum,
-            "object_name": self._object_name
+            "object_name": self._object_name,
+            "raw_data": self._raw_data
         }
         return dictionary
 
