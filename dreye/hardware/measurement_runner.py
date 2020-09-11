@@ -16,8 +16,8 @@ from dreye.hardware.base_system import AbstractSystem
 
 
 def _remove_spectrum_noise(
-    wls, mean_counts, std_counts, n_avg,
-    wls1=None, sigma=10, std_steps=4, axis=0
+    wls, mean_counts, std_counts, mean_bg_counts, std_bg_counts, n_avg,
+    wls1=None, sigma=10, std_steps=3, axis=0
 ):
     """
     Remove noise from mean count array.
@@ -25,14 +25,17 @@ def _remove_spectrum_noise(
     mean_counts = mean_counts.copy()
     # lower bound estimate
     lower = mean_counts - std_counts / np.sqrt(n_avg) * std_steps
+    ubg = mean_bg_counts + std_counts / np.sqrt(n_avg) * std_steps
     if wls1 is None:
         wl_diff = np.mean(np.diff(wls))
     else:
         lower = interp1d(wls, lower, axis=axis)(wls1)
+        ubg = interp1d(wls, ubg, axis=axis)(wls1)
         wl_diff = np.mean(np.diff(wls1))
 
     lower = gaussian_filter1d(lower, sigma/wl_diff, axis=axis)
-    boolean = lower <= 0
+    ubg = gaussian_filter1d(ubg, sigma/wl_diff, axis=axis)
+    boolean = lower <= ubg
     if wls1 is not None:
         boolean = interp1d(
             wls1, boolean.astype(float),
@@ -207,14 +210,16 @@ class MeasurementRunner:
             }
             raw_data[output.name] = raw_data_
 
-            if self.remove_zero:
+            if self.remove_zero and self.smart_zero is None:
                 spectrum_array = spectrum_array - bg_array
                 raw_data_['modified_spectra'] = spectrum_array
-            if self.smart_zero is not None:
+            elif self.remove_zero:
                 spectrum_array = _remove_spectrum_noise(
                     self.spectrometer.wavelengths,
                     spectrum_array,
                     spectrum_sd,
+                    bg_array,
+                    bg_sd,
                     self.n_avg,
                     wls1=self.wls,
                     **self.smart_zero

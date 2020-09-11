@@ -107,18 +107,6 @@ def convert_measurement(
     spectrum = spectrum / (integration_time * area)
     spectrum = spectrum.piecewise_gradient
     # subtract background
-    # spectrum_units = (
-    #     (signal.units * calibration.units)
-    #     / (integration_time.units * area.units * signal.domain.units)
-    # )
-    # spectrum = (
-    #     signal.magnitude
-    #     * np.expand_dims(calibration.magnitude, 1-signal.domain_axis)
-    # ) / (
-    #     integration_time.magnitude
-    #     * area.magnitude * np.mean(np.diff(signal.domain.magnitude))
-    # )
-    # subtract background
     if background is not None:
         spectrum = spectrum - background.to(spectrum.units)
 
