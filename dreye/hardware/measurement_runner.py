@@ -208,7 +208,7 @@ class MeasurementRunner:
             raw_data[output.name] = raw_data_
 
             if self.remove_zero:
-                spectrum_array -= bg_array
+                spectrum_array = spectrum_array - bg_array
             if self.smart_zero is not None:
                 spectrum_array = _remove_spectrum_noise(
                     self.spectrometer.wavelengths,
