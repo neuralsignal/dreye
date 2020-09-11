@@ -27,14 +27,17 @@ def _remove_spectrum_noise(
     lower = mean_counts - std_counts / np.sqrt(n_avg) * std_steps
     ubg = mean_bg_counts + std_counts / np.sqrt(n_avg) * std_steps
     if wls1 is None:
+        bg = mean_bg_counts.copy()
         wl_diff = np.mean(np.diff(wls))
     else:
         lower = interp1d(wls, lower, axis=axis)(wls1)
         ubg = interp1d(wls, ubg, axis=axis)(wls1)
+        bg = interp1d(wls, mean_bg_counts, axis=axis)(wls1)
         wl_diff = np.mean(np.diff(wls1))
 
     lower = gaussian_filter1d(lower, sigma/wl_diff, axis=axis)
     ubg = gaussian_filter1d(ubg, sigma/wl_diff, axis=axis)
+    bg = gaussian_filter1d(bg, sigma/wl_diff, axis=axis)
     boolean = lower <= ubg
     if wls1 is not None:
         boolean = interp1d(
@@ -43,7 +46,15 @@ def _remove_spectrum_noise(
             axis=axis, bounds_error=False,
             fill_value=1
         )(wls).astype(int).astype(bool)
+        bg = interp1d(
+            wls1, bg,
+            kind='linear',
+            axis=axis, bounds_error=False,
+            fill_value=0.0
+        )(wls)
 
+    # remove background
+    mean_counts = mean_counts - bg
     mean_counts[boolean] = 0.0
     return mean_counts
 
@@ -177,7 +188,7 @@ class MeasurementRunner:
                 output._zero()
                 if self.zero_sleep is not None:
                     time.sleep(self.zero_sleep)
-                # remove zero background after finding integration time
+                # calculate background
                 bg_array[:, idx], bg_sd[:, idx], bg_it_ = \
                     self.spectrometer.perform_measurement(
                         self.n_avg, self.sleep,
