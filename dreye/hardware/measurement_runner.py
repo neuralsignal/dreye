@@ -4,14 +4,44 @@
 import sys
 import numpy as np
 import time
+from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter1d
 
-from dreye.core.spectral_measurement import MeasuredSpectrum
 from dreye.core.measurement_utils import create_measured_spectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.base_system import AbstractSystem
 
 
 # TODO find the actual zero intensity bound
+
+
+def _remove_spectrum_noise(
+    wls, mean_counts, std_counts, n_avg,
+    wls1=None, sigma=10, std_steps=4, axis=0
+):
+    """
+    Remove noise from mean count array.
+    """
+    mean_counts = mean_counts.copy()
+    # lower bound estimate
+    lower = mean_counts - std_counts / np.sqrt(n_avg) * std_steps
+    if wls1 is None:
+        wl_diff = np.mean(np.diff(wls))
+    else:
+        lower = interp1d(wls, lower, axis=axis)(wls1)
+        wl_diff = np.mean(np.diff(wls1))
+
+    lower = gaussian_filter1d(lower, sigma/wl_diff, axis=axis)
+    boolean = lower <= 0
+    if wls1 is not None:
+        boolean = interp1d(
+            wls1, boolean.astype(float),
+            axis=axis, bounds_error=False,
+            fill_value=1
+        )(wls).astype(int).astype(bool)
+
+    mean_counts[boolean] = 0.0
+    return mean_counts
 
 
 class MeasurementRunner:
@@ -56,7 +86,9 @@ class MeasurementRunner:
         self, system, spectrometer,
         n_steps=10, step_kwargs={},
         n_avg=10, sleep=None,
-        wls=None, remove_zero=False,
+        wls=None,
+        remove_zero=False,
+        smart_zero=None,
         smoothing_window=None,
         save_raw=True,
         zero_sleep=3
@@ -72,6 +104,7 @@ class MeasurementRunner:
         self.sleep = sleep
         self.wls = wls
         self.remove_zero = remove_zero
+        self.smart_zero = smart_zero
         self.smoothing_window = smoothing_window
         self.save_raw = save_raw
         self.zero_sleep = zero_sleep
@@ -162,7 +195,26 @@ class MeasurementRunner:
                 elif verbose:
                     sys.stdout.write('.')
 
+            if self.smart_zero is not None:
+                spectrum_array = _remove_spectrum_noise(
+                    self.spectrometer.wavelengths,
+                    spectrum_array,
+                    spectrum_sd,
+                    self.n_avg,
+                    wls1=self.wls,
+                    **self.smart_zero
+                )
             if self.remove_zero:
+                if self.smart_zero is not None:
+                    bg_array = _remove_spectrum_noise(
+                        self.spectrometer.wavelengths,
+                        bg_array,
+                        bg_sd,
+                        self.n_avg,
+                        wls1=self.wls,
+                        **self.smart_zero
+                    )
+                # smart zero background?
                 spectrum_array -= bg_array
             if verbose == 1:
                 sys.stdout.write('\n')
