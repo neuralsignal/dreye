@@ -39,6 +39,7 @@ def _remove_spectrum_noise(
     if wls1 is not None:
         boolean = interp1d(
             wls1, boolean.astype(float),
+            kind='nearest',
             axis=axis, bounds_error=False,
             fill_value=1
         )(wls).astype(int).astype(bool)
