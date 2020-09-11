@@ -58,8 +58,8 @@ class MeasurementRunner:
         n_avg=10, sleep=None,
         wls=None, remove_zero=False,
         smoothing_window=None,
-        save_raw=False,
-        zero_sleep=1
+        save_raw=True,
+        zero_sleep=3
     ):
         assert isinstance(system, AbstractSystem)
         assert isinstance(spectrometer, AbstractSpectrometer)
@@ -141,21 +141,19 @@ class MeasurementRunner:
                 if self.zero_sleep is not None:
                     time.sleep(self.zero_sleep)
                 # remove zero background after finding integration time
-                if self.remove_zero:
-                    bg_array[:, idx], bg_sd[:, idx], bg_it_ = \
-                        self.spectrometer.perform_measurement(
-                            self.n_avg, self.sleep,
-                            return_spectrum=False,
-                            return_it=True,
-                            return_sd=True,
-                            optimize_it=False,
-                            verbose=verbose
-                        )
-                    spectrum_array[:, idx] -= bg_array[:, idx]
-                    # assert integration time for safety
-                    assert bg_it_ == its[idx], (
-                        "Integration times don't match - this is a bug!"
+                bg_array[:, idx], bg_sd[:, idx], bg_it_ = \
+                    self.spectrometer.perform_measurement(
+                        self.n_avg, self.sleep,
+                        return_spectrum=False,
+                        return_it=True,
+                        return_sd=True,
+                        optimize_it=False,
+                        verbose=verbose
                     )
+                # assert integration time for safety
+                assert bg_it_ == its[idx], (
+                    "Integration times don't match - this is a bug!"
+                )
                 if verbose > 1:
                     photons_per_sec = np.sum(spectrum_array[:, idx])/its[idx]
                     sys.stdout.write(
@@ -163,6 +161,9 @@ class MeasurementRunner:
                         f'== {photons_per_sec} photons/second\n')
                 elif verbose:
                     sys.stdout.write('.')
+
+            if self.remove_zero:
+                spectrum_array -= bg_array
             if verbose == 1:
                 sys.stdout.write('\n')
             if verbose:
