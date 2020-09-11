@@ -209,6 +209,7 @@ class MeasurementRunner:
 
             if self.remove_zero:
                 spectrum_array = spectrum_array - bg_array
+                raw_data_['modified_spectra'] = spectrum_array
             if self.smart_zero is not None:
                 spectrum_array = _remove_spectrum_noise(
                     self.spectrometer.wavelengths,
@@ -218,6 +219,7 @@ class MeasurementRunner:
                     wls1=self.wls,
                     **self.smart_zero
                 )
+                raw_data_['modified_spectra'] = spectrum_array
             if verbose == 1:
                 sys.stdout.write('\n')
             if verbose:
