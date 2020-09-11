@@ -195,6 +195,20 @@ class MeasurementRunner:
                 elif verbose:
                     sys.stdout.write('.')
 
+            # define raw dictionary
+            raw_data_ = {
+                'volts': values,
+                'wls': self.spectrometer.wavelengths,
+                'spectra': spectrum_array,
+                'spectra_sd': spectrum_sd,
+                'bg_spectra': bg_array,
+                'bg_spectra_sd': bg_sd,
+                'integration_times': its
+            }
+            raw_data[output.name] = raw_data_
+
+            if self.remove_zero:
+                spectrum_array -= bg_array
             if self.smart_zero is not None:
                 spectrum_array = _remove_spectrum_noise(
                     self.spectrometer.wavelengths,
@@ -204,18 +218,6 @@ class MeasurementRunner:
                     wls1=self.wls,
                     **self.smart_zero
                 )
-            if self.remove_zero:
-                if self.smart_zero is not None:
-                    bg_array = _remove_spectrum_noise(
-                        self.spectrometer.wavelengths,
-                        bg_array,
-                        bg_sd,
-                        self.n_avg,
-                        wls1=self.wls,
-                        **self.smart_zero
-                    )
-                # smart zero background?
-                spectrum_array -= bg_array
             if verbose == 1:
                 sys.stdout.write('\n')
             if verbose:
@@ -250,16 +252,6 @@ class MeasurementRunner:
 
             # raw_data
             if self.save_raw:
-                raw_data_ = {
-                    'volts': values,
-                    'wls': self.spectrometer.wavelengths,
-                    'spectra': spectrum_array,
-                    'spectra_sd': spectrum_sd,
-                    'bg_spectra': bg_array,
-                    'bg_spectra_sd': bg_sd,
-                    'integration_times': its
-                }
-                raw_data[output.name] = raw_data_
                 output._raw_data = raw_data_
 
             output.measured_spectrum = mspectrum
