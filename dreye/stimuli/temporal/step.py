@@ -103,7 +103,7 @@ class BackgroundStimulus(AbstractStepStimulus):
         total_frames = int(np.ceil(total_dur * self.rate))
 
         # intitialize signal array
-        signal = np.ones((total_frames, len(self.values.columns)))
+        signal = np.ones((total_frames, len(self.ch_names)))
         signal *= self.baseline_values[None, :]
 
         return signal

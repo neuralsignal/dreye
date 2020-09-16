@@ -29,7 +29,7 @@ def _check_events(df):
     elif len(df) == 0:
 
         cols = list(df.columns)
-        if (DELAY_KEY in cols and DUR_KEY in cols):
+        if (DELAY_KEY in cols and DUR_KEY in cols and PAUSE_KEY in cols):
             pass
         else:
             if DELAY_KEY not in cols:
