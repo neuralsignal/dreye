@@ -7,7 +7,7 @@ from dreye.stimuli.base import (
     RandomizeChainedStimuli
 )
 from dreye.stimuli.temporal.step import (
-    StepStimulus, RandomSwitchStimulus, NoiseStepStimulus
+    StepStimulus, RandomSwitchStimulus, NoiseStepStimulus, BackgroundStimulus
 )
 from dreye.stimuli.temporal.noise import WhiteNoiseStimulus, BrownNoiseStimulus
 from dreye.stimuli.chromatic.stimset import StimSet
@@ -18,5 +18,5 @@ __all__ = [
     'StepStimulus', 'RandomSwitchStimulus',
     'WhiteNoiseStimulus', 'BrownNoiseStimulus',
     'StimSet', 'DynamicStimulus', 'NoiseStepStimulus',
-    'RandomizeChainedStimuli'
+    'RandomizeChainedStimuli', 'BackgroundStimulus'
 ]

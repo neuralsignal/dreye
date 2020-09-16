@@ -28,6 +28,92 @@ class AbstractStepStimulus(BaseStimulus, SetBaselineMixin):
 
 
 @inherit_docstrings
+class BackgroundStimulus(AbstractStepStimulus):
+    """
+    Background stimulus.
+
+    Parameters
+    ----------
+    estimator : scikit-learn type estimator
+        Estimator that implements the `fit_transform` method.
+    rate : float
+        The desired refresh rate.
+    total_dur : float
+        Total duration of stimulus.
+    seed : int
+        seed for randomization.
+    channel_names : list-like
+        Name of each channel.
+    baseline_values : float or array-like or dict
+        Baseline values when no stimulus is being presented. Defaults to 0.
+    """
+
+    def __init__(
+        self,
+        *,
+        estimator=None,
+        total_dur=1,
+        rate=1,
+        seed=None,
+        baseline_values=0,
+        channel_names=None
+    ):
+        # call init method of BaseStimulus class
+        super().__init__(
+            estimator=estimator,
+            rate=rate,
+            total_dur=total_dur,
+            seed=seed,
+            baseline_values=baseline_values,
+            channel_names=channel_names
+        )
+
+        if isinstance(baseline_values, dict):
+            self.baseline_values = pd.Series(baseline_values)
+            if channel_names is None:
+                self.channel_names = list(self.baseline_values.index)
+            else:
+                assert len(channel_names) == len(baseline_values)
+        elif (
+            not isinstance(baseline_values, pd.Series)
+            and channel_names is None
+        ):
+            raise ValueError("If `baseline_values` is not a Series, "
+                             "you need to provide `channel_names`.")
+        elif channel_names is None:
+            self.channel_names = list(baseline_values.index)
+        else:
+            assert len(channel_names) == len(baseline_values)
+
+        # sets values and baseline values attribute correctly
+        self.baseline_values = self._set_baseline_values(
+            self.baseline_values, self.channel_names
+        )
+
+    def _create_events(self):
+        return pd.DataFrame(
+            columns=[DUR_KEY, PAUSE_KEY, DELAY_KEY]
+        ), {}
+
+    def _create_signal(self):
+        """create signal attribute
+        """
+
+        total_dur = self.total_dur
+        total_frames = int(np.ceil(total_dur * self.rate))
+
+        # intitialize signal array
+        signal = np.ones((total_frames, len(self.values.columns)))
+        signal *= self.baseline_values[None, :]
+
+        return signal
+
+    @property
+    def ch_names(self):
+        return list(self.channel_names)
+
+
+@inherit_docstrings
 class StepStimulusMixin(AbstractStepStimulus, SetStepMixin):
     """Mixin class for standard Step stimuli.
     """
@@ -280,9 +366,6 @@ class NoiseStepStimulus(StepStimulusMixin):
     aligned_durations : bool
         If True will check if durations and pause_durations are the same
         length and will iterate by zipping the lists for durations.
-    separate_channels : bool
-        Whether to separate each channel for single steps.
-        Works only if values are given as a dict. Each key represents a channel
     baseline_values : float or array-like or dict
         Baseline values when no stimulus is being presented. Defaults to 0.
     func : callable
