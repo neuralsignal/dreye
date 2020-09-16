@@ -214,11 +214,11 @@ class RelativeIntensityFit(_SpectraModel):
 
         X = X / self.bg_ints_[None]
 
-        assert np.all(X >= 0)
-
         if self.rtype in {'fechner', 'log'}:
-            # may have infs!
+            assert np.all(X > 0), 'If log, X cannot be zero or lower.'
             X = np.log(X)
+        elif self.rtype != 'weber':
+            assert np.all(X >= 0), 'If not log, X must be positive.'
 
         return X
 
