@@ -95,7 +95,7 @@ class BackgroundStimulus(AbstractStepStimulus):
             columns=[DUR_KEY, PAUSE_KEY, DELAY_KEY]
         ), {}
 
-    def _create_signal(self):
+    def _create_signal(self, events):
         """create signal attribute
         """
 
