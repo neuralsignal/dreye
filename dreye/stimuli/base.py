@@ -533,6 +533,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
             'metadata': self.metadata,
             'events': self.events.to_dict('list'),
             'settings': self.settings,
+            '_attrs_to_event_labels_mapping':
+                self._attrs_to_event_labels_mapping
         }
 
     @classmethod
@@ -547,6 +549,9 @@ class BaseStimulus(ABC, StimPlottingMixin):
         self._fitted_signal = data['fitted_signal']
         self._metadata = data['metadata']
         self._events = pd.DataFrame(data['events'])
+        self._attrs_to_event_labels_mapping = data.get(
+            '_attrs_to_event_labels_mapping', {}
+        )
 
         return self
 
