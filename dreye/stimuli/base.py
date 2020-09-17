@@ -86,8 +86,13 @@ class BaseStimulus(ABC, StimPlottingMixin):
     channel_axis = 1
     _add_mean_to_events = True
 
-    def __init__(self, *, estimator=None, rate=None, seed=None, **kwargs):
+    def __init__(
+        self, *, estimator=None,
+        rate=None, seed=None, subsample=None,
+        **kwargs
+    ):
         self.estimator = estimator
+        self.subsample = subsample
         self.seed = seed
         self.rate = rate
         if rate is not None:
@@ -114,6 +119,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
             'rate': self.rate,
             'seed': self.seed,
             'estimator': self.estimator,
+            'subsample': self.subsample,
             **kwargs
         }
         if hasattr(self, '_settings'):
@@ -690,6 +696,7 @@ class DynamicStimulus(BaseStimulus):
         estimator=None,
         rate=None,
         seed=None,
+        subsample=None,
         **kwargs
     ):
         assert is_callable(create_func), (

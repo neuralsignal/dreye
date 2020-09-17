@@ -52,6 +52,7 @@ class BackgroundStimulus(AbstractStepStimulus):
         self,
         *,
         estimator=None,
+        subsample=None,
         total_dur=1,
         rate=1,
         seed=None,
@@ -62,6 +63,7 @@ class BackgroundStimulus(AbstractStepStimulus):
         super().__init__(
             estimator=estimator,
             rate=rate,
+            subsample=subsample,
             total_dur=total_dur,
             seed=seed,
             baseline_values=baseline_values,
@@ -272,6 +274,7 @@ class StepStimulus(StepStimulusMixin):
         self,
         *,
         estimator=None,
+        subsample=None,
         values=1,
         durations=1,
         pause_durations=0,
@@ -292,6 +295,7 @@ class StepStimulus(StepStimulusMixin):
         super().__init__(
             estimator=estimator,
             rate=rate,
+            subsample=subsample,
             values=values,
             durations=durations,
             pause_durations=pause_durations,
@@ -312,6 +316,13 @@ class StepStimulus(StepStimulusMixin):
             values=values, baseline_values=baseline_values,
             separate_channels=separate_channels
         )
+
+        if self.subsample is not None:
+            self.values = self.values.sample(
+                frac=self.subsample,
+                replace=False, axis=0,
+                random_state=self.seed
+            )
 
         # reset duration attributes correctly
         self.dur_iterable = self._set_durs(
@@ -377,6 +388,7 @@ class NoiseStepStimulus(StepStimulusMixin):
         self,
         *,
         estimator=None,
+        subsample=None,
         n_samples=1,
         n_channels=None,
         mean=0,
@@ -402,6 +414,7 @@ class NoiseStepStimulus(StepStimulusMixin):
         super().__init__(
             estimator=estimator,
             n_channels=n_channels,
+            subsample=subsample,
             n_samples=n_samples,
             mean=mean,
             var=var,
@@ -478,6 +491,13 @@ class NoiseStepStimulus(StepStimulusMixin):
             separate_channels=False
         )
 
+        if self.subsample is not None:
+            self.values = self.values.sample(
+                frac=self.subsample,
+                replace=False, axis=0,
+                random_state=self.seed
+            )
+
         # reset duration attributes correctly
         self.dur_iterable = self._set_durs(
             durations=durations, pause_durations=pause_durations,
@@ -527,6 +547,7 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
         self,
         *,
         estimator=None,
+        subsample=None,
         values=[0, 1],
         values_probs=None,
         loc=0,
@@ -546,6 +567,7 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
         super().__init__(
             estimator=estimator,
             values=values,
+            subsample=subsample,
             values_probs=values_probs,
             rate=rate,
             iterations=iterations,

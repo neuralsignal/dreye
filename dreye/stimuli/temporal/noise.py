@@ -191,6 +191,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         self,
         *,
         estimator=None,
+        subsample=None,
         rate=1,
         n_channels=None,
         stim_dur=10,
@@ -214,6 +215,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         super().__init__(
             estimator=estimator,
             rate=rate,
+            subsample=subsample, 
             stim_dur=stim_dur,
             mean=mean,
             var=var,
