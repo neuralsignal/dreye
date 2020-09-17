@@ -133,8 +133,8 @@ class StepStimulusMixin(AbstractStepStimulus, SetStepMixin):
 
         for index, row in self.values.iterrows():
             for dur, pause in self.dur_iterable:
-                row[DUR_KEY] = dur
-                row[PAUSE_KEY] = pause
+                row[DUR_KEY] = dur - (dur % (1 / self.rate))
+                row[PAUSE_KEY] = pause - (pause % (1 / self.rate))
                 df = pd.DataFrame([row] * self.repetitions)
                 df['repeat'] = asarray(df.index)
                 events = events.append(df, ignore_index=True, sort=False)
@@ -451,6 +451,8 @@ class NoiseStepStimulus(StepStimulusMixin):
         if np.all(self.maximum == self.minimum):
             self.maximum += 10**-5
             self.minimum -= 10**-5
+
+        assert np.all(self.minimum < self.maximum)
 
         a, b = convert_truncnorm_clip(
             self.minimum, self.maximum, self.mean, self.var)

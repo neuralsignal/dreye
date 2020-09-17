@@ -293,6 +293,77 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         return self._events
 
+    def subsample_events(self, n=None, frac=None, seed=None):
+        """
+        Subsample `events` attribute to create a new stimulus, with
+        shuffled and subsampled events.
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of events to sample. Cannot be used with `frac`.
+        frac : float, optional
+            Fraction of events to sample. Cannot be used with `n`.
+        seed : int
+            Seed for random number generator.
+
+        Returns
+        -------
+        obj : subclass of `BaseStimulus`
+        """
+        # get data dictionary
+        data = self.to_dict()
+        # stimulus, signal, fitted_signal reassigned to data
+        # get events dataframe and sort by delay key
+        events = pd.DataFrame(data.pop('events')).sort_values(DELAY_KEY)
+        stimulus = data.pop('stimulus')
+        signal = data.pop('signal')
+        fitted_signal = data.pop('fitted_signal')
+        # get number of events to remove
+        n = (1 if ((n is None) and (frac is None)) else n)
+        if n is None:
+            n = int(frac * events.shape[0])
+        rm_n = events.shape[0] - n
+
+        # get indices of events to remove
+        rm_idcs = events.sample(
+            n=rm_n, replace=False, random_state=seed, axis=0
+        ).index
+
+        # remove events from traces
+        # everything happens inplace
+        for rm_idx in rm_idcs:
+            rm_row = events.loc[rm_idx]
+            rm_delay = rm_row[DELAY_KEY]
+            rm_dur = rm_row[[DUR_KEY, PAUSE_KEY]].sum()
+            # get idcs to keep
+            rm_idx1 = int(rm_delay * self.rate)
+            rm_idx2 = int((rm_delay + rm_dur) * self.rate)
+            idcs = np.arange(signal.shape[self.time_axis])
+            keep_bool = (idcs < rm_idx1) | (idcs >= rm_idx2)
+            # remove signal, stimulus, fitted_signal part
+            signal = np.compress(
+                keep_bool, signal, axis=self.time_axis
+            )
+            stimulus = np.compress(
+                keep_bool, stimulus, axis=self.time_axis
+            )
+            fitted_signal = np.compress(
+                keep_bool, fitted_signal, axis=self.time_axis
+            )
+            # remove event
+            events.drop(index=rm_idx, inplace=True)
+            # change delay in events after removed events
+            events.loc[
+                events.loc[:, DELAY_KEY] > rm_delay, DELAY_KEY
+            ] -= rm_dur
+
+        data['events'] = events
+        data['signal'] = signal
+        data['stimulus'] = stimulus
+        data['fitted_signal'] = fitted_signal
+        return type(self).from_dict(data)
+
     @events.setter
     def events(self, value):
         """
@@ -871,6 +942,7 @@ class RandomizeChainedStimuli(ChainedStimuli):
             new_stimulus = stimulus.copy()
             # loop over events
             for idx, event in events.iterrows():
+                # this should be 0 decimal float anyways
                 frames = int(
                     (event[DUR_KEY] + event[PAUSE_KEY]) * self.rate
                 )
@@ -925,6 +997,7 @@ class RandomizeChainedStimuli(ChainedStimuli):
             shuffle=False,
             attrs=data.get('attrs', None)
         )
+        # TODO is this necessary?
         self._events = data['events']
         self._stimulus = data['stimulus']
         return self
