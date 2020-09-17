@@ -351,6 +351,15 @@ class BaseStimulus(ABC, StimPlottingMixin):
             fitted_signal = np.compress(
                 keep_bool, fitted_signal, axis=self.time_axis
             )
+            if hasattr(self.estimator, '_X_length'):
+                for attr in self.estimator._X_length:
+                    arr = getattr(self.estimator, attr)
+                    setattr(
+                        self.estimator, attr,
+                        np.compress(
+                            keep_bool, arr, axis=self.time_axis
+                        )
+                    )
             # remove event
             events.drop(index=rm_idx, inplace=True)
             # change delay in events after removed events
