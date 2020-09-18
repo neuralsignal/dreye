@@ -477,27 +477,24 @@ class NoiseStepStimulus(StepStimulusMixin):
             scale=self.var
         )
 
-        values = pd.DataFrame(
-            distribution.rvs(
-                size=(n_samples, self.n_channels),
-                random_state=self.values_seed
-            ),
-            columns=self.channel_names
+        values = distribution.rvs(
+            size=(n_samples, self.n_channels),
+            random_state=self.values_seed
         )
-
+        if self.subsample:
+            rng = np.random.default_rng(self.seed)
+            values = rng.choice(
+                values,
+                size=int(values.shape[0]*self.subsample),
+                replace=False,
+                axis=0
+            )
+        values = pd.DataFrame(values, columns=self.channel_names)
         # sets values and baseline values attribute correctly
         self.values, self.baseline_values = self._set_values(
             values=values, baseline_values=self.mean,
             separate_channels=False
         )
-
-        if self.subsample is not None:
-            self.values = self.values.sample(
-                frac=self.subsample,
-                replace=False, axis=0,
-                random_state=self.seed
-            )
-
         # reset duration attributes correctly
         self.dur_iterable = self._set_durs(
             durations=durations, pause_durations=pause_durations,
