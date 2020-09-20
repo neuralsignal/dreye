@@ -218,7 +218,7 @@ class IndependentExcitationFit(_SpectraModel):
             fit_weights = np.ones(self.photoreceptor_model_.pr_number)
         else:
             fit_weights = asarray(self.photoreceptor_fit_weights)
-            assert len(fit_weights) == self.photoreceptor_model_.pr_number
+            # assert len(fit_weights) == self.photoreceptor_model_.pr_number
 
         # separation of all negative or positive
         if is_listlike(self.hard_separation):
@@ -326,6 +326,7 @@ class IndependentExcitationFit(_SpectraModel):
             elif np.all(capture_x <= self.hard_sep_value):
                 bounds[1] = sep_bound
         if self.q1_ints is not None:
+            # if np.allclose(capture_x, 1)
             if np.all(capture_x == 1):
                 # TODO close to 1 should be sufficient
                 return OptimizeResult(
@@ -536,6 +537,7 @@ class TransformExcitationFit(IndependentExcitationFit):
         q1_ints=None,
         fit_only_uniques=False,
         ignore_bounds=False,
+        fit_to_transform=False,
         lsq_kwargs=None
     ):
         super().__init__(
@@ -554,6 +556,7 @@ class TransformExcitationFit(IndependentExcitationFit):
         )
         self.linear_transform = linear_transform
         self.inv_transform = inv_transform
+        self.fit_to_transform = fit_to_transform
 
     def fit(self, X, y=None):
         X = self._check_X(X)
@@ -592,6 +595,13 @@ class TransformExcitationFit(IndependentExcitationFit):
     def fitted_X(self):
         return self.fitted_transform_X_
 
+    def _objective(self, w, excite_x, fit_weights):
+        x_pred = self._get_x_pred(w)
+        if self.fit_to_transform:
+            excite_x = excite_x @ self.W_
+            x_pred = x_pred @ self.W_
+        return fit_weights * (excite_x - x_pred)
+
 
 class NonlinearTransformExcitationFit(IndependentExcitationFit):
     """
@@ -624,6 +634,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         q1_ints=None,
         fit_only_uniques=False,
         ignore_bounds=False,
+        fit_to_transform=False,
         lsq_kwargs=None
     ):
         super().__init__(
@@ -642,6 +653,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         )
         self.transform_func = transform_func
         self.inv_func = inv_func
+        self.fit_to_transform = fit_to_transform
 
     def fit(self, X, y=None):
         X = self._check_X(X)
@@ -680,6 +692,13 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
     @property
     def fitted_X(self):
         return self.fitted_transform_X_
+
+    def _objective(self, w, excite_x, fit_weights):
+        x_pred = self._get_x_pred(w)
+        if self.fit_to_transform:
+            excite_x = self.func_(excite_x)
+            x_pred = self.func_(x_pred)
+        return fit_weights * (excite_x - x_pred)
 
 
 @inherit_docstrings
