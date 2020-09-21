@@ -35,6 +35,8 @@ class SetStepMixin:
         """function to set values attribute to pandas DataFrame.
         """
 
+        index = None
+
         # convert values into pandas dataframe object
         if is_numeric(values):
             channel_names = asarray([0])
@@ -72,12 +74,24 @@ class SetStepMixin:
 
         else:
             channel_names = values.columns
+            index = values.index
             baseline_values = self._set_baseline_values(
                 baseline_values, channel_names)
 
-        return pd.DataFrame(
-            asarray(values).astype(float), columns=channel_names
-        ), baseline_values
+        df_values = pd.DataFrame(
+            asarray(values).astype(float), columns=channel_names,
+            index=index
+        )
+
+        if any([name is None for name in df_values.index.names]):
+            names = []
+            for idx, name in enumerate(df_values.index.names):
+                if name is None:
+                    name = f"values_index_{idx}"
+                names.append(name)
+            df_values.index.names = names
+
+        return df_values, baseline_values
 
 
 class SetRandomStepMixin:

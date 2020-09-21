@@ -133,7 +133,8 @@ class StepStimulusMixin(AbstractStepStimulus, SetStepMixin):
         # intialize event dataframe
         events = pd.DataFrame()
 
-        for index, row in self.values.iterrows():
+        # reset values index to contain within events dataframe
+        for index, row in self.values.reset_index().iterrows():
             for dur, pause in self.dur_iterable:
                 row[DUR_KEY] = dur - (dur % (1 / self.rate))
                 row[PAUSE_KEY] = pause - (pause % (1 / self.rate))
