@@ -179,7 +179,7 @@ class AbstractOutput(AbstractSender):
         name,
         max_intensity_bound,
         zero_intensity_bound,
-        units,
+        units=None,
         measured_spectrum=None,
         raw_data=None
     ):
