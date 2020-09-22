@@ -178,9 +178,9 @@ def irr2flux(irradiance, wavelengths, return_units=None):
         * ureg.N_A
     )
     if return_units:
-        return photonflux
+        return photonflux.to('E')
     else:
-        return get_value(photonflux)
+        return get_value(photonflux.to('E'))
 
 
 def flux2irr(photonflux, wavelengths, return_units=None):
@@ -223,6 +223,6 @@ def flux2irr(photonflux, wavelengths, return_units=None):
             * ureg.N_A)
     ) / wavelengths
     if return_units:
-        return irradiance
+        return irradiance.to('spectralirradiance')
     else:
-        return get_value(irradiance)
+        return get_value(irradiance.to('spectralirradiance'))
