@@ -377,6 +377,8 @@ class IndependentExcitationFit(_SpectraModel):
             # need to recalculate excitation if filterfunc defined
             x_pred = self.photoreceptor_model_.excitation(
                 # normalized_spectrum has domain_axis=0
+                # TODO write measured spectra function that interpolates
+                # to the given spectrum
                 Spectra(
                     self.normalized_spectra_.magnitude @ w,
                     units=self.measured_spectra_.units,

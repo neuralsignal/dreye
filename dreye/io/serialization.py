@@ -32,6 +32,7 @@ RECARRAY_PREFIX = "__RECARRAY__"
 DTYPE_PREFIX = "__DTYPE__"
 SERIES_PREFIX = "__SERIES__"
 DFRAME_PREFIX = "__FRAME__"
+DFRAME_PREFIX_PLUS = "__FRAMEPLUS__"
 PINT_PREFIX = "__PINT__"
 ANY_PREFIX = "__ANY__"
 QUANT_PREFIX = "__QUANT__"
@@ -175,9 +176,26 @@ def serializer(obj):
     elif isinstance(obj, np.ndarray):
         obj = {ARRAY_PREFIX: obj.tolist()}
     elif isinstance(obj, pd.Series):
-        obj = {SERIES_PREFIX: obj.to_dict()}
+        if isinstance(obj.index, pd.MultiIndex):
+            obj = {
+                PICKLED_PREFIX: codecs.encode(
+                    spickledumps(obj), "base64"
+                ).decode()
+            }
+        else:
+            obj = {SERIES_PREFIX: obj.to_dict()}
     elif isinstance(obj, pd.DataFrame):
-        obj = {DFRAME_PREFIX: obj.to_dict()}
+        if (
+            isinstance(obj.columns, pd.MultiIndex)
+            or isinstance(obj.index, pd.MultiIndex)
+        ):
+            obj = {
+                PICKLED_PREFIX: codecs.encode(
+                    spickledumps(obj), "base64"
+                ).decode()
+            }
+        else:
+            obj = {DFRAME_PREFIX: obj.to_dict()}
     elif isinstance(obj, np.dtype):
         obj = {DTYPE_PREFIX: str(obj)}
     elif isinstance(obj, ureg.Unit):

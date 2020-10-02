@@ -291,8 +291,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
         # residual across photoreceptors
         res = (X - X_pred)**2
-        tot = (X - X.mean(axis=-1, keepdims=True))**2
-        return 1 - res.sum(-1)/tot.sum(-1)
+        tot = (X - X.mean(axis=1, keepdims=True))**2
+        return 1 - res.sum(1)/tot.sum(1)
 
     def feature_scores(self, X=None):
         """

@@ -449,7 +449,12 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
 
         values = optional_to(values, self.intensity.units, *self.contexts)
-        assert values.ndim < 2, 'values must be 1 dimensional'
+
+        if values.ndim > 1:
+            shape = values.shape
+            values = values.flatten()
+        else:
+            shape = None
 
         # check intensity bound of values
         imin, imax = self.intensity_bounds
@@ -458,6 +463,9 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
         mapped_values = self._mapper_func(values)
         mapped_values = self._resolution_mapping(mapped_values)
+
+        if shape is not None:
+            mapped_values = mapped_values.reshape(shape)
 
         if return_units:
             return mapped_values * self.labels.units
@@ -482,8 +490,18 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
         # this is going to be two dimensional, since it is a Signals instance
         values = optional_to(values, self.labels.units, *self.contexts)
+
+        if values.ndim > 1:
+            shape = values.shape
+            values = values.flatten()
+        else:
+            shape = None
+
         values = self._resolution_mapping(values)
         intensity = self.regressor.transform(values)
+
+        if shape is not None:
+            intensity = intensity.reshape(shape)
 
         if return_units:
             return intensity * self.intensity.units
@@ -673,7 +691,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         """
 
         values = optional_to(values, units=self.intensities.units)
-        assert values.ndim < 3, 'values must be 1 or 2 dimensional'
+        # assert values.ndim < 3, 'values must be 1 or 2 dimensional'
         x = np.atleast_2d(values)
 
         y = np.empty(x.shape)
@@ -705,7 +723,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
             Mapped intensity values.
         """
         values = optional_to(values, units=self.labels_units)
-        assert values.ndim < 3, 'values must be 1 or 2 dimensional'
+        # assert values.ndim < 3, 'values must be 1 or 2 dimensional'
         x = np.atleast_2d(values)
 
         y = np.empty(x.shape)
@@ -740,7 +758,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         """
 
         values = optional_to(values, units=self.intensities.units)
-        assert values.ndim < 3, 'values must be 1 or 2 dimensional'
+        # assert values.ndim < 3, 'values must be 1 or 2 dimensional'
         x = np.atleast_2d(values)
 
         y = np.empty(x.shape)
@@ -774,7 +792,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
             R^2-score.
         """
         values = optional_to(values, units=self.intensities.units)
-        assert values.ndim < 3, 'values must be 1 or 2 dimensional'
+        # assert values.ndim < 3, 'values must be 1 or 2 dimensional'
         x = np.atleast_2d(values)
 
         scores = np.array([
