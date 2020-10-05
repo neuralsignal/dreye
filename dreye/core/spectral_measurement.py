@@ -679,7 +679,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         Parameters
         ----------
-        values : array-like
+        values : array-like (..., n_leds)
             2D samples in intensity-convertible units or no units.
         return_units : bool
             Whether to return mapped values with units.
@@ -696,7 +696,9 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         y = np.empty(x.shape)
         for idx, measured_spectrum in enumerate(self):
-            y[:, idx] = measured_spectrum.map(x[:, idx], return_units=False)
+            y[..., idx] = measured_spectrum.map(
+                x[..., idx], return_units=False
+            )
 
         if values.ndim == 1:
             y = y[0]
@@ -712,7 +714,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         Parameters
         ----------
-        values : array-like
+        values : array-like (..., n_leds)
             2D samples in output-convertible units or no units.
         return_units : bool
             Whether to return mapped values with units.
@@ -728,8 +730,8 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         y = np.empty(x.shape)
         for idx, measured_spectrum in enumerate(self):
-            y[:, idx] = measured_spectrum.inverse_map(
-                x[:, idx], return_units=False
+            y[..., idx] = measured_spectrum.inverse_map(
+                x[..., idx], return_units=False
             )
 
         if values.ndim == 1:
@@ -746,7 +748,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         Parameters
         ----------
-        values : array-like
+        values : array-like (..., n_leds)
             2D samples in intensity-convertible units or no units.
         return_units : bool
             Whether to return mapped values with units.
@@ -763,8 +765,8 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         y = np.empty(x.shape)
         for idx, measured_spectrum in enumerate(self):
-            y[:, idx] = measured_spectrum.get_residuals(
-                x[:, idx], return_units=False
+            y[..., idx] = measured_spectrum.get_residuals(
+                x[..., idx], return_units=False
             )
 
         if values.ndim == 1:
@@ -796,7 +798,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         x = np.atleast_2d(values)
 
         scores = np.array([
-            measured_spectrum.score(x[:, idx], **kwargs)
+            measured_spectrum.score(x[..., idx], **kwargs)
             for idx, measured_spectrum in enumerate(self)
         ])
 

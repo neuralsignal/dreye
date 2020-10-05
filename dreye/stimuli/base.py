@@ -83,7 +83,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
     """
 
     time_axis = 0
-    channel_axis = 1
+    channel_axis = -1
     _add_mean_to_events = True
 
     def __init__(
@@ -153,6 +153,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
         if self.estimator is None:
             self._stimulus = self.signal
         else:
+            # TODO addition of reshape estimator if necessary
             self._stimulus = self.estimator.fit_transform(self.signal)
 
         if (
@@ -1018,7 +1019,6 @@ class RandomizeChainedStimuli(ChainedStimuli):
             shuffle=False,
             attrs=data.get('attrs', None)
         )
-        # TODO is this necessary?
         self._events = data['events']
         self._stimulus = data['stimulus']
         return self

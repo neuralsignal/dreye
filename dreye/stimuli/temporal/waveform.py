@@ -35,9 +35,6 @@ class AbstractWaveformStimulus(BaseStimulus):
     """
     """
 
-    time_axis = 0
-    channel_axis = 1
-
     def __init__(
         self,
         rate,
