@@ -415,6 +415,36 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         pass
 
 
+class Reshaper(BaseEstimator, TransformerMixin):
+
+    def __init__(self, estimator):
+        self.estimator = estimator
+
+    def fit(self, X, y=None):
+        pass
+
+    def transform(self, X):
+        pass
+
+    def fit_transform(self, X, y=None):
+        pass
+
+    def inverse_transform(self, X):
+        pass
+
+    def score(self, X=None, y=None):
+        pass
+
+    # def to_dict(self):
+    #     pass
+    #
+    # def from_dict(self):
+    #     pass
+
+    def __getattr__(self, key):
+        pass
+    # if is callable with X as first argument, then reshape input
+
 # TODO class reshaper (base class?)
 # anything in _X_length with be reshaped
 # transform, and inv_transform need to return reshaped X or output

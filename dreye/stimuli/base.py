@@ -286,6 +286,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
         """
         List of names for each channel.
         """
+        if self.channel_axis is None:
+            return [0]
         return list(range(self.signal.shape[self.channel_axis]))
 
     @property
@@ -485,7 +487,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
         """
         Length of stimulus along `channel_axis`.
         """
-
+        if self.channel_axis is None:
+            return 1
         return self.stimulus.shape[self.channel_axis]
 
     @property
@@ -599,10 +602,15 @@ class BaseStimulus(ABC, StimPlottingMixin):
         # has to be an array
         signal = asarray(signal)
 
+        if self.channel_axis is None:
+            channel_len = 1
+        else:
+            channel_len = signal.shape[self.channel_axis]
+
         if labels is None:
             labels = [
                 f'{prefix}{idx}'
-                for idx in range(signal.shape[self.channel_axis])
+                for idx in range(channel_len)
             ]
         else:
             labels = [
@@ -618,7 +626,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
             raise DreyeError('Events Dataframe already contains columns'
                              f' for labels {labels}.')
         # assert sizes match
-        assert len(labels) == signal.shape[self.channel_axis]
+        assert len(labels) == channel_len
         # if signal high-dimensional then events columns need to be object type
         events_ = {}
         for channel in labels:
@@ -638,13 +646,21 @@ class BaseStimulus(ABC, StimPlottingMixin):
             # and average across time (and channel)
             for jdx, channel in enumerate(labels):
                 # taking a list ensures that the axis are still aligned!
-                value = np.take(_signal, [jdx], axis=self.channel_axis)
-                if self._add_mean_to_events:
-                    value = value.mean(
-                        axis=(self.time_axis, self.channel_axis)
-                    )
+                if self.channel_axis is None:
+                    if self._add_mean_to_events:
+                        value = _signal.mean(
+                            axis=(self.time_axis)
+                        )
+                    else:
+                        value = _signal
                 else:
-                    value = value.mean(axis=self.channel_axis)
+                    value = np.take(_signal, [jdx], axis=self.channel_axis)
+                    if self._add_mean_to_events:
+                        value = value.mean(
+                            axis=(self.time_axis, self.channel_axis)
+                        )
+                    else:
+                        value = value.mean(axis=self.channel_axis)
                 # assign entry
                 events_[channel].append(value)
 
