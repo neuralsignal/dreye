@@ -433,7 +433,6 @@ class NoiseStepStimulus(StepStimulusMixin):
             seed=seed,
             values_seed=values_seed,
             aligned_durations=aligned_durations,
-            separate_channels=False,
             func=func
         )
 

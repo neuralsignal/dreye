@@ -4,6 +4,7 @@
 from abc import ABC, abstractmethod
 import random
 import warnings
+import inspect
 
 import numpy as np
 import pandas as pd
@@ -552,8 +553,16 @@ class BaseStimulus(ABC, StimPlottingMixin):
         """
         Create stimulus class from dictionary.
         """
-
-        self = cls(**data['settings'])
+        # remove settings no longer required
+        try:
+            self = cls(**data['settings'])
+        except TypeError:
+            params = inspect.signature(cls.__init__).parameters
+            settings = {
+                k: v for k, v in data['settings'].items()
+                if k in params
+            }
+            self = cls(**settings)
         self._stimulus = data['stimulus']
         self._signal = data['signal']
         self._fitted_signal = data['fitted_signal']
