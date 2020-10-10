@@ -9,6 +9,8 @@ from dreye.core.spectrum import Spectra
 from dreye.constants import RELATIVE_ACCURACY
 from dreye.err import DreyeError
 from dreye.utilities.abstract import inherit_docstrings
+from dreye.utilities import is_numeric, optional_to
+from dreye.core.opsin_template import govardovskii2000_template
 
 
 # TODO if numeric type then use Govardoskii fit method
@@ -28,6 +30,9 @@ class Sensitivity(Spectra):
     ----------
     values : array-like, str, signal-type
         Two-dimensional array that contains the value of your signal.
+        If numeric, values is assumed to be the wavelength of max
+        absorbance. To obtain the absorbance spectrum a template will be
+        used.
     domain : `dreye.Domain` or array-like, optional
         The wavelength domain of the signal.
         This needs to be the same length as `values`.
@@ -78,7 +83,14 @@ class Sensitivity(Spectra):
     Spectra
     """
 
-    def __init__(self, values, domain=None, labels=None, **kwargs):
+    def __init__(
+        self, values, domain=None, labels=None,
+        template=govardovskii2000_template, **kwargs
+    ):
+        if is_numeric(values) and domain is not None:
+            wavelengths = optional_to(domain, 'nm')
+            values = govardovskii2000_template(wavelengths, values)
+
         super().__init__(values=values, domain=domain, labels=labels, **kwargs)
         self._set_sig_domain_bounds()
 

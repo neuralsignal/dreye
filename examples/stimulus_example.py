@@ -77,3 +77,5 @@ class RandomStimulus(BaseStimulus):
         self.metadata = {}
 
         return self
+
+# self.stimulus
