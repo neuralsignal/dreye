@@ -213,7 +213,7 @@ def serializer(obj):
         if module_name.split('.')[0] == 'dreye':
             obj = {
                 DREYE_PREFIX: {
-                    MODULE_PREFIX: module_name,
+                    DATA_PREFIX: obj.todict(),
                     **dictionary
                 }
             }
