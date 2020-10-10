@@ -11,6 +11,7 @@ nidaqmx>=0.5.7
 pytest>=6.1.0
 
 sphinx==3.0.3
+ipython
 recommonmark
 numpydoc
 nbsphinx
