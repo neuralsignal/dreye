@@ -101,7 +101,7 @@ def get_photoreceptor_model(
     )
 
 
-# todo convenience capture function
+# TODO convenience capture function
 
 
 class Photoreceptor(ABC):
@@ -125,6 +125,9 @@ class Photoreceptor(ABC):
     labels : array-like, optional
         The labels for each photoreceptor. The length of labels must
         correspond to the length of the columns in `sensitivity`.
+    capture_noise_level : None or float, optional
+        The relative capture noise level. This is used when calculating
+        relative capture values.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -152,12 +155,14 @@ class Photoreceptor(ABC):
 
     def __init__(
         self, sensitivity, wavelengths=None, filterfunc=None,
-        labels=None, **kwargs
+        labels=None, capture_noise_level=None, **kwargs
     ):
         if isinstance(sensitivity, Photoreceptor):
             sensitivity = sensitivity.sensitivity
             if filterfunc is None:
                 filterfunc = sensitivity.filterfunc
+            if capture_noise_level is None:
+                capture_noise_level = sensitivity.capture_noise_level
         if not isinstance(sensitivity, Sensitivity):
             sensitivity = Sensitivity(
                 sensitivity, domain=wavelengths, labels=labels,
@@ -178,6 +183,7 @@ class Photoreceptor(ABC):
 
         self._sensitivity = sensitivity
         self._filterfunc = filterfunc
+        self._capture_noise_level = capture_noise_level
 
     def __str__(self):
         """
@@ -192,7 +198,8 @@ class Photoreceptor(ABC):
         """
         return {
             "sensitivity": self.sensitivity,
-            "filterfunc": self.filterfunc
+            "filterfunc": self.filterfunc,
+            "capture_noise_level": self.capture_noise_level
         }
 
     @classmethod
@@ -242,6 +249,13 @@ class Photoreceptor(ABC):
         of spectral sensitivities of the `sensitivity` attribute.
         """
         return self.sensitivity.shape[1]
+
+    @property
+    def capture_noise_level(self):
+        """
+        Noise level for capture values
+        """
+        return self._capture_noise_level
 
     @property
     def wavelengths(self):
@@ -416,17 +430,38 @@ class Photoreceptor(ABC):
         # illuminant x opsin via integral
         q = np.trapz(sensitivity * illuminant, wls, axis=0)
 
+        if np.any(q < 0):
+            raise ValueError("Capture values calculated are below 0; "
+                             "Make sure illuminant, reflectance, background "
+                             "and sensitivities do not contain negative "
+                             "values.")
+
         if return_units:
             q = q * new_units
 
         if background is None:
             return q
-        else:
-            q_bg = self.capture(
-                background, return_units=return_units, wavelengths=wavelengths
-            )
-            # q_bg may have different units to q
-            return q / q_bg
+
+        # calculate relative capture
+        q_bg = self.capture(
+            background, return_units=return_units, wavelengths=wavelengths
+        )
+        # q_bg may have different units to q
+        q = q / q_bg
+        return self.limit_q_by_noise_level(q)
+
+    def limit_q_by_noise_level(self, q):
+        """
+        Return relative captures `q` after accounting for capture noise
+        levels.
+        """
+
+        if self.capture_noise_level is None:
+            return q
+
+        q = np.round(q/self.capture_noise_level, 0) * self.capture_noise_level
+        q[q < self.capture_noise_level] = self.capture_noise_level
+        return q
 
     # TODO def decomp_sensitivity(self):
     #     self.sensitivity.magnitude
@@ -454,6 +489,9 @@ class LinearPhotoreceptor(Photoreceptor):
     labels : array-like, optional
         The labels for each photoreceptor. The length of labels must
         correspond to the length of the columns in `sensitivity`.
+    capture_noise_level : None or float, optional
+        The relative capture noise level. This is used when calculating
+        relative capture values.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -512,6 +550,9 @@ class LogPhotoreceptor(Photoreceptor):
     labels : array-like, optional
         The labels for each photoreceptor. The length of labels must
         correspond to the length of the columns in `sensitivity`.
+    capture_noise_level : None or float, optional
+        The relative capture noise level. This is used when calculating
+        relative capture values.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -570,6 +611,9 @@ class HyperbolicPhotoreceptor(Photoreceptor):
     labels : array-like, optional
         The labels for each photoreceptor. The length of labels must
         correspond to the length of the columns in `sensitivity`.
+    capture_noise_level : None or float, optional
+        The relative capture noise level. This is used when calculating
+        relative capture values.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -629,6 +673,9 @@ class LinearContrastPhotoreceptor(Photoreceptor):
     labels : array-like, optional
         The labels for each photoreceptor. The length of labels must
         correspond to the length of the columns in `sensitivity`.
+    capture_noise_level : None or float, optional
+        The relative capture noise level. This is used when calculating
+        relative capture values.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.

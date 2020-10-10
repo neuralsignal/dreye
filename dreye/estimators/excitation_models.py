@@ -371,7 +371,11 @@ class IndependentExcitationFit(_SpectraModel):
 
     def _get_x_pred(self, w):
         if self.photoreceptor_model_.filterfunc is None:
-            x_pred = self.photoreceptor_model_.excitefunc(self.A_ @ w)
+            x_pred = self.photoreceptor_model_.excitefunc(
+                self.photoreceptor_model_.limit_q_by_noise_level(
+                    self.A_ @ w
+                )
+            )
         else:
             # returns opsin vector
             # need to recalculate excitation if filterfunc defined

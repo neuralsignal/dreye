@@ -163,6 +163,27 @@ def dump_json(obj):
     return json.dumps(obj, indent=4, default=serializer)
 
 
+def _dataframe_serializer(obj, is_series=False):
+    data = obj.to_dict('split')
+    data['index_names'] = list(obj.index.names)
+    data['columns_names'] = list(obj.columns.names)
+    data['index_multi'] = isinstance(obj.index, pd.MultiIndex)
+    data['columns_multi'] = isinstance(obj.columns, pd.MultiIndex)
+    data['is_series'] = is_series
+    return {
+        DFRAME_PREFIX_PLUS: data
+    }
+
+
+def _class_serializer(obj):
+    cls = type(obj)
+    module_name = inspect.getmodule(cls).__name__
+    return cls, module_name, {
+        MODULE_PREFIX: module_name,
+        CLASS_PREFIX: cls.__name__
+    }
+
+
 def serializer(obj):
     """
     Serializer of numpy, pandas objects and dreye objects etc.
@@ -172,47 +193,28 @@ def serializer(obj):
         # ATTENTION: https://stackoverflow.com/questions/24814595/
         #            is-there-any-way-to-determine-if-an
         #            -numpy-array-is-record-structure-array
-        obj = {RECARRAY_PREFIX: pd.DataFrame(obj).to_dict()}
+        obj = {
+            RECARRAY_PREFIX: _dataframe_serializer(pd.DataFrame(obj), False)
+        }
     elif isinstance(obj, np.ndarray):
         obj = {ARRAY_PREFIX: obj.tolist()}
     elif isinstance(obj, pd.Series):
-        if isinstance(obj.index, pd.MultiIndex):
-            obj = {
-                PICKLED_PREFIX: codecs.encode(
-                    spickledumps(obj), "base64"
-                ).decode()
-            }
-        else:
-            obj = {SERIES_PREFIX: obj.to_dict()}
+        obj = _dataframe_serializer(obj.to_frame(), True)
     elif isinstance(obj, pd.DataFrame):
-        if (
-            isinstance(obj.columns, pd.MultiIndex)
-            or isinstance(obj.index, pd.MultiIndex)
-        ):
-            obj = {
-                PICKLED_PREFIX: codecs.encode(
-                    spickledumps(obj), "base64"
-                ).decode()
-            }
-        else:
-            obj = {DFRAME_PREFIX: obj.to_dict()}
+        obj = _dataframe_serializer(obj, False)
     elif isinstance(obj, np.dtype):
         obj = {DTYPE_PREFIX: str(obj)}
     elif isinstance(obj, ureg.Unit):
         obj = {PINT_PREFIX: str(obj)}
     elif isinstance(obj, ureg.Quantity):
-        obj = {
-            QUANT_PREFIX: [obj.magnitude, obj.units]
-        }
+        obj = {QUANT_PREFIX: [obj.magnitude, obj.units]}
     elif hasattr(obj, 'to_dict') and hasattr(obj, 'from_dict'):
-        cls = type(obj)
-        module_name = inspect.getmodule(cls).__name__
+        cls, module_name, dictionary = _class_serializer(obj)
         if module_name.split('.')[0] == 'dreye':
             obj = {
                 DREYE_PREFIX: {
                     MODULE_PREFIX: module_name,
-                    CLASS_PREFIX: cls.__name__,
-                    DATA_PREFIX: obj.to_dict()
+                    **dictionary
                 }
             }
         else:
@@ -222,9 +224,8 @@ def serializer(obj):
                     PICKLED_PREFIX: codecs.encode(
                         spickledumps(cls), "base64"
                     ).decode(),
-                    MODULE_PREFIX: module_name,
-                    CLASS_PREFIX: cls.__name__,
-                    DATA_PREFIX: obj.to_dict()
+                    DATA_PREFIX: obj.to_dict(),
+                    **dictionary
                 }
             }
     # TODO saving functions separately?
@@ -239,6 +240,35 @@ def serializer(obj):
     return obj
 
 
+def _class_deserializer(ele):
+    return getattr(
+        importlib.import_module(ele[MODULE_PREFIX]),
+        ele[CLASS_PREFIX]
+    )
+
+
+def _deserialize_index(data, name='index'):
+    if data[f'{name}_multi']:
+        index = pd.MultiIndex.from_tuples(
+            data[name], names=data[f'{name}_names']
+        )
+    else:
+        index = pd.Index(
+            data[name], name=data[f'{name}_names'][0],
+            tupleize_cols=False
+        )
+    return index
+
+
+def _dataframe_deserializer(data):
+    index = _deserialize_index(data, name='index')
+    columns = _deserialize_index(data, name='columns')
+    df = pd.DataFrame(data['data'], index=index, columns=columns)
+    if data['is_series']:
+        return df.iloc[:, 0]
+    return df
+
+
 def deserializer(obj):
     """
     Deserializer of numpy, pandas objects and dreye objects etc.
@@ -248,7 +278,9 @@ def deserializer(obj):
         return obj
 
     for key, ele in obj.items():
-        if key == RECARRAY_PREFIX:
+        if key == DFRAME_PREFIX_PLUS:
+            return _dataframe_deserializer(ele)
+        elif key == RECARRAY_PREFIX:
             return pd.DataFrame(ele).to_records(index=False)
         elif key == ARRAY_PREFIX:
             return np.array(ele)
@@ -265,10 +297,7 @@ def deserializer(obj):
         elif key == QUANT_PREFIX:
             return ele[0] * ele[1]
         elif key == DREYE_PREFIX:
-            cls = getattr(
-                importlib.import_module(ele[MODULE_PREFIX]),
-                ele[CLASS_PREFIX]
-            )
+            cls = _class_deserializer(ele)
             return cls.from_dict(ele[DATA_PREFIX])
         elif key == DICTABLE_PREFIX:  # possibly custom classes
             cls = spickleloads(
