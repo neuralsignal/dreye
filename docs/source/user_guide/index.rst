@@ -33,6 +33,7 @@ The different tutorials are listed below:
 * `Saving and loading dreye objects <serialization.ipynb>`_.
 * `Photoreceptor models <photoreceptors.ipynb>`_.
 * `Estimating chromatic stimuli <estimators.ipynb>`_.
+* `Estimation with noise-limited photoreceptor model <estimators_noise.ipynb>`_.
 * `Building stimuli <stimuli.ipynb>`_.
 * `Comparing LED systems <led_systems.ipynb>`_.
 * `Using and Building hardware classes <hardware.ipynb>`_.
@@ -49,6 +50,7 @@ The different tutorials are listed below:
     Saving and loading dreye objects <serialization.nblink>
     Photoreceptor models <photoreceptors.nblink>
     Estimating chromatic stimuli <estimators.nblink>
+    Noise-limited photoreceptor models <estimators_noise.nblink>
     Building stimuli <stimuli.nblink>
     Comparing LED systems <led_systems.nblink>
     Using and Building hardware classes <hardware.nblink>

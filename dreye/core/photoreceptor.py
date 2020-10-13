@@ -303,6 +303,7 @@ class Photoreceptor(ABC):
         background=None,
         return_units=None,
         wavelengths=None,
+        apply_noise_threshold=True,
         **kwargs
     ):
         """
@@ -325,6 +326,8 @@ class Photoreceptor(ABC):
         wavelengths : array-like, optional
             If given and illuminant is not a `Signals` instance, this
             corresponds to its wavelength values.
+        apply_noise_threshold : bool, optional
+            Whether to apply noise thresholding or not. Defaults to True.
         kwargs : dict
             Keyword arguments passed to the `Photoreceptor.excitefunc`
             function.
@@ -340,7 +343,8 @@ class Photoreceptor(ABC):
                          reflectance=reflectance,
                          background=background,
                          return_units=return_units,
-                         wavelengths=wavelengths),
+                         wavelengths=wavelengths,
+                         apply_noise_threshold=apply_noise_threshold),
             **kwargs
         )
 
@@ -350,7 +354,8 @@ class Photoreceptor(ABC):
         reflectance=None,
         background=None,
         return_units=None,
-        wavelengths=None
+        wavelengths=None,
+        apply_noise_threshold=True
     ):
         """
         Calculate photoreceptor capture.
@@ -372,6 +377,8 @@ class Photoreceptor(ABC):
         wavelengths : array-like, optional
             If given and illuminant is not a `Signals` instance, this
             corresponds to its wavelength values.
+        apply_noise_threshold : bool, optional
+            Whether to apply noise thresholding or not. Defaults to True.
 
         Returns
         -------
@@ -448,7 +455,10 @@ class Photoreceptor(ABC):
         )
         # q_bg may have different units to q
         q = q / q_bg
-        return self.limit_q_by_noise_level(q)
+        if apply_noise_threshold:
+            return self.limit_q_by_noise_level(q)
+        else:
+            return q
 
     def limit_q_by_noise_level(self, q):
         """

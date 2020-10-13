@@ -117,6 +117,7 @@ class IndependentExcitationFit(_SpectraModel):
     _X_length = [
         'fitted_intensities_'
     ]
+    fit_to_transform = False
 
     def __init__(
         self,
@@ -210,7 +211,8 @@ class IndependentExcitationFit(_SpectraModel):
         self.A_ = self.photoreceptor_model_.capture(
             self.normalized_spectra_,
             background=self.background_,
-            return_units=False
+            return_units=False,
+            apply_noise_threshold=False
         ).T
 
         # weighting for each photoreceptor
@@ -219,6 +221,12 @@ class IndependentExcitationFit(_SpectraModel):
         else:
             fit_weights = asarray(self.photoreceptor_fit_weights)
             # assert len(fit_weights) == self.photoreceptor_model_.pr_number
+
+        # do weighted initial fitting in linear domain
+        self.weighted_init_fit_ = (
+            not self.fit_to_transform
+            and np.unique(fit_weights).size > 1
+        )
 
         # separation of all negative or positive
         if is_listlike(self.hard_separation):
@@ -280,7 +288,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.fitted_intensities_ = np.array(self.container_.x)
         # get fitted X
         self.fitted_excite_X_ = np.array([
-            self._get_x_pred(w)
+            self._get_x_pred_noise(w)
             for w in self.fitted_intensities_
         ])
         self.fitted_capture_X_ = self.photoreceptor_model_.inv_excitefunc(
@@ -344,7 +352,7 @@ class IndependentExcitationFit(_SpectraModel):
                     success=True
                 )
         # find initial w0 using linear least squares
-        w0 = self._init_sample(capture_x, bounds)
+        w0 = self._init_sample(capture_x, bounds, fit_weights)
         # fitted result
         result = least_squares(
             self._objective,
@@ -356,12 +364,20 @@ class IndependentExcitationFit(_SpectraModel):
         )
         return result
 
-    def _init_sample(self, capture_x, bounds):
-        result = lsq_linear(
-            self.A_, capture_x,
-            bounds=tuple(bounds),
-            max_iter=self.max_iter
-        )
+    def _init_sample(self, capture_x, bounds, fit_weights):
+        # weighted fit is better for substitution types of fits
+        if self.weighted_init_fit_:
+            result = lsq_linear(
+                fit_weights[:, None] * self.A_, fit_weights * capture_x,
+                bounds=tuple(bounds),
+                max_iter=self.max_iter
+            )
+        else:
+            result = lsq_linear(
+                self.A_, capture_x,
+                bounds=tuple(bounds),
+                max_iter=self.max_iter
+            )
         # return fitted intensity (w)
         return result.x
 
@@ -369,17 +385,12 @@ class IndependentExcitationFit(_SpectraModel):
         x_pred = self._get_x_pred(w)
         return fit_weights * (excite_x - x_pred)
 
-    def _get_x_pred(self, w):
+    def _get_x_capture(self, w):
         if self.photoreceptor_model_.filterfunc is None:
-            x_pred = self.photoreceptor_model_.excitefunc(
-                self.photoreceptor_model_.limit_q_by_noise_level(
-                    self.A_ @ w
-                )
-            )
+            # threshold by noise if necessary and apply nonlinearity
+            x_pred = self.A_ @ w
         else:
-            # returns opsin vector
-            # need to recalculate excitation if filterfunc defined
-            x_pred = self.photoreceptor_model_.excitation(
+            x_pred = self.photoreceptor_model_.capture(
                 # normalized_spectrum has domain_axis=0
                 # TODO write measured spectra function that interpolates
                 # to the given spectrum
@@ -389,11 +400,24 @@ class IndependentExcitationFit(_SpectraModel):
                     domain=self.normalized_spectra_.domain
                 ),
                 background=self.background_,
-                return_units=False
+                return_units=False,
+                apply_noise_level=False
             )
             # ensure vector form
             x_pred = np.atleast_1d(np.squeeze(x_pred))
         return x_pred
+
+    def _get_x_pred_noise(self, w):
+        return self.photoreceptor_model_.excitefunc(
+            self.photoreceptor_model_.limit_q_by_noise_level(
+                self._get_x_capture(w)
+            )
+        )
+
+    def _get_x_pred(self, w):
+        return self.photoreceptor_model_.excitefunc(
+            self._get_x_capture(w)
+        )
 
     def _process_X(self, X):
         """
@@ -407,7 +431,10 @@ class IndependentExcitationFit(_SpectraModel):
                              "of measured spectra in container.")
 
         # use inverse of excitation function
-        return self.photoreceptor_model_.inv_excitefunc(X), X
+        capture_X = self.photoreceptor_model_.inv_excitefunc(X)
+        capture_X = self.photoreceptor_model_.limit_q_by_noise_level(capture_X)
+        excite_X = self.photoreceptor_model_.excitefunc(capture_X)
+        return capture_X, excite_X
 
     @property
     def input_units(self):
