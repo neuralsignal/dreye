@@ -235,7 +235,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     @property
     @abstractmethod
-    def fitted_X(self):
+    def fitted_X_(self):
         """
         X after fitting.
         """

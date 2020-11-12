@@ -8,9 +8,9 @@ import pandas as pd
 from dreye.stimuli import BaseStimulus
 # static column names for events dataframe
 from dreye.stimuli.variables import DUR_KEY, PAUSE_KEY, DELAY_KEY
-# DUR_KEY: duration of an event
+# DUR_KEY: dur of an event
 # DELAY_KEY: start time of the event
-# PAUSE_KEY: pause duration after the event ends
+# PAUSE_KEY: pause dur after the event ends
 
 
 class RandomStimulus(BaseStimulus):
@@ -21,7 +21,7 @@ class RandomStimulus(BaseStimulus):
         self,
         rate=60,  # in Hz
         width=10, height=10,
-        duration=1,  # in seconds here
+        dur=1,  # in seconds here
         delay=1,  # in seconds here
         pause=1,  # in seconds here
         n_channels=1,  # number of channels (usually different LEDs, but can be number of opsins if estimator is passed)
@@ -30,7 +30,7 @@ class RandomStimulus(BaseStimulus):
     ):
         super().__init__(
             rate=rate, width=width,
-            height=height, duration=duration,
+            height=height, dur=dur,
             seed=seed,
             estimator=estimator,
             delay=delay, pause=pause,
@@ -41,8 +41,8 @@ class RandomStimulus(BaseStimulus):
         # create stimulus parts
         np.random.seed(self.seed)
 
-        n_frames = int(self.rate * self.duration)
-        duration = n_frames / self.rate  # actual accuracy
+        n_frames = int(self.rate * self.dur)
+        dur = n_frames / self.rate  # actual accuracy
         random_signal = np.random.random((
             n_frames, self.width, self.height, self.n_channels
         )) * 2 - 1  # values will be between -1 and 1
@@ -68,7 +68,7 @@ class RandomStimulus(BaseStimulus):
         # this can contain anything necessary to uniquely identify an event
         # and sometimes I put whole numpy arrays into single cells
         self.events = pd.DataFrame([[
-            duration, delay, pause, 'random_signal'
+            dur, delay, pause, 'random_signal'
         ]], columns=[
             DUR_KEY, DELAY_KEY, PAUSE_KEY, 'signal_type'
         ])

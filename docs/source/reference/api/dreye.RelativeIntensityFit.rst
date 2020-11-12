@@ -37,7 +37,7 @@ dreye.RelativeIntensityFit
    .. autosummary::
       :toctree:
       
-      RelativeIntensityFit.fitted_X
+      RelativeIntensityFit.fitted_X_
       RelativeIntensityFit.input_units
       RelativeIntensityFit.output_units
 

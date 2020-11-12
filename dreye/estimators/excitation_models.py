@@ -341,7 +341,7 @@ class IndependentExcitationFit(_SpectraModel):
                 bounds[1] = sep_bound
         if self.q1_ints is not None:
             # if np.allclose(capture_x, 1)
-            if np.allclose(capture_x == 1):
+            if np.allclose(capture_x, 1):
                 return OptimizeResult(
                     x=self.q1_ints,
                     cost=0.0,
@@ -450,7 +450,7 @@ class IndependentExcitationFit(_SpectraModel):
         return ureg(None).units
 
     @property
-    def fitted_X(self):
+    def fitted_X_(self):
         return self.fitted_excite_X_
 
 
@@ -634,7 +634,7 @@ class TransformExcitationFit(IndependentExcitationFit):
         return excite_X @ self.Winv_
 
     @property
-    def fitted_X(self):
+    def fitted_X_(self):
         return self.fitted_transform_X_
 
     def _objective(self, w, excite_x, fit_weights):
@@ -732,7 +732,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         return excite_X @ self.Winv_
 
     @property
-    def fitted_X(self):
+    def fitted_X_(self):
         return self.fitted_transform_X_
 
     def _objective(self, w, excite_x, fit_weights):

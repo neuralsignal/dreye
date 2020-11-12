@@ -109,7 +109,11 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         # directly set elements
         for key, ele in kwargs.items():
-            setattr(self, key, ele)
+            try:
+                setattr(self, key, ele)
+            except AttributeError:
+                raise DreyeError(f"key `{key}` is reserved; "
+                                 "change argument name.")
 
         self._stimulus = None
         self._signal = None
@@ -166,11 +170,11 @@ class BaseStimulus(ABC, StimPlottingMixin):
                 self._stimulus = self.estimator.fit_transform(self.signal)
 
         if (
-            hasattr(self.estimator, 'fitted_X')
+            hasattr(self.estimator, 'fitted_X_')
             and hasattr(self.estimator, 'current_X_')
         ):
             if self.estimator.current_X_.shape == self.signal.shape:
-                self._fitted_signal = self.estimator.fitted_X
+                self._fitted_signal = self.estimator.fitted_X_
             else:
                 self._fitted_signal = self.signal
         else:
@@ -454,7 +458,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
         the `estimator`.
 
         This only differs from `signal` if the `estimator` has
-        the property `fitted_X`.
+        the property `fitted_X_`.
         """
 
         if self._fitted_signal is None:

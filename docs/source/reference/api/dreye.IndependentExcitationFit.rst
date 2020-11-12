@@ -37,7 +37,7 @@ dreye.IndependentExcitationFit
    .. autosummary::
       :toctree:
       
-      IndependentExcitationFit.fitted_X
+      IndependentExcitationFit.fitted_X_
       IndependentExcitationFit.input_units
       IndependentExcitationFit.output_units
 
