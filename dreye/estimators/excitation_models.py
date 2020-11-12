@@ -215,6 +215,12 @@ class IndependentExcitationFit(_SpectraModel):
             apply_noise_threshold=False
         ).T
 
+        # whether domain between spectra and photoreceptor model equal
+        self._domain_equal_ = (
+            self.normalized_spectra_.domain
+            == self.photoreceptor_model_.sensitivity.domain
+        )
+
         # weighting for each photoreceptor
         if self.photoreceptor_fit_weights is None:
             fit_weights = np.ones(self.photoreceptor_model_.pr_number)
@@ -335,8 +341,7 @@ class IndependentExcitationFit(_SpectraModel):
                 bounds[1] = sep_bound
         if self.q1_ints is not None:
             # if np.allclose(capture_x, 1)
-            if np.all(capture_x == 1):
-                # TODO close to 1 should be sufficient
+            if np.allclose(capture_x == 1):
                 return OptimizeResult(
                     x=self.q1_ints,
                     cost=0.0,
@@ -390,15 +395,19 @@ class IndependentExcitationFit(_SpectraModel):
             # threshold by noise if necessary and apply nonlinearity
             x_pred = self.A_ @ w
         else:
+            if self._domain_equal_:
+                illuminant = self.normalized_spectra_.magnitude @ w
+            else:
+                illuminant = Spectra(
+                    self.normalized_spectra_.magnitude @ w,
+                    units=self.measured_spectra_.units,
+                    domain=self.normalized_spectra_.domain
+                )
             x_pred = self.photoreceptor_model_.capture(
                 # normalized_spectrum has domain_axis=0
                 # TODO write measured spectra function that interpolates
                 # to the given spectrum
-                Spectra(
-                    self.normalized_spectra_.magnitude @ w,
-                    units=self.measured_spectra_.units,
-                    domain=self.normalized_spectra_.domain
-                ),
+                illuminant,
                 background=self.background_,
                 return_units=False,
                 apply_noise_level=False

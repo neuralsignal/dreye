@@ -36,7 +36,7 @@ from dreye.core.spectral_sensitivity import Sensitivity
 from dreye.core.photoreceptor import (
     LinearPhotoreceptor, LogPhotoreceptor,
     get_photoreceptor_model, HyperbolicPhotoreceptor,
-    Photoreceptor
+    Photoreceptor, LinearContrastPhotoreceptor
 )
 from dreye.estimators.excitation_models import (
     IndependentExcitationFit, TransformExcitationFit,
@@ -91,6 +91,7 @@ __all__ = [
     # photoreceptor
     'Photoreceptor',
     'LinearPhotoreceptor',
+    'LinearContrastPhotoreceptor',
     'LogPhotoreceptor',
     'HyperbolicPhotoreceptor',
     'create_gaussian_spectrum',

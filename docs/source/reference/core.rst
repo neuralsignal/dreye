@@ -82,6 +82,7 @@ Photoreceptor models
 
    Photoreceptor
    LinearPhotoreceptor
+   LinearContrastPhotoreceptor
    LogPhotoreceptor
    HyperbolicPhotoreceptor
 

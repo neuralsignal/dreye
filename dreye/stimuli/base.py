@@ -24,7 +24,9 @@ def _check_events(df):
     Check that event dataframe contains columns DELAY_KEY and DUR_KEY
     """
 
-    if not isinstance(df, pd.DataFrame):
+    if df is None:
+        df = pd.DataFrame()
+    elif not isinstance(df, pd.DataFrame):
         raise DreyeError('Events frame must be dataframe.')
 
     elif len(df) == 0:
@@ -112,8 +114,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
         self._stimulus = None
         self._signal = None
         self._fitted_signal = None
-        self._metadata = {}
-        self._events = pd.DataFrame()
+        self._metadata = None
+        self._events = None
 
         # if settings already exists simply update dictionary
         settings = {
@@ -155,7 +157,13 @@ class BaseStimulus(ABC, StimPlottingMixin):
             self._stimulus = self.signal
         else:
             # TODO addition of reshape estimator if necessary
-            self._stimulus = self.estimator.fit_transform(self.signal)
+            if self.signal.ndim != 2:
+                raise ValueError(
+                    'Signal must be two-dimensional, '
+                    'but is {self.signal.ndim}.'
+                )
+            else:
+                self._stimulus = self.estimator.fit_transform(self.signal)
 
         if (
             hasattr(self.estimator, 'fitted_X')
@@ -261,8 +269,11 @@ class BaseStimulus(ABC, StimPlottingMixin):
         A dictionary of the metadata
         """
 
-        if self._signal is None:
-            self.create()
+        if self._stimulus is None:
+            self.transform()
+
+        if self._metadata is None:
+            return {}
 
         return self._metadata
 
@@ -274,11 +285,11 @@ class BaseStimulus(ABC, StimPlottingMixin):
         This can only be done once.
         """
 
-        if self._signal is not None:
-            warnings.warn('Metadata already set. Cannot reset')
+        if self._metadata is not None:
+            warnings.warn('`metadata` already set. Cannot reset')
             return
 
-        assert isinstance(value, dict)
+        assert isinstance(value, dict), "`metadata` must be dict."
 
         self._metadata = value
 
@@ -298,10 +309,26 @@ class BaseStimulus(ABC, StimPlottingMixin):
         each row represents a single event
         """
 
-        if self._signal is None:
+        if self._stimulus is None:
             self.transform()
 
         return self._events
+
+    @events.setter
+    def events(self, value):
+        """
+        Set events `pandas.DataFrame`.
+
+        This can only be done once.
+        """
+
+        if self._events is not None:
+            warnings.warn('Events already set. Cannot reset')
+            return
+
+        assert isinstance(value, pd.DataFrame)
+
+        self._events = value
 
     def subsample_events(self, n=None, frac=None, seed=None):
         """
@@ -382,22 +409,6 @@ class BaseStimulus(ABC, StimPlottingMixin):
         data['stimulus'] = stimulus
         data['fitted_signal'] = fitted_signal
         return type(self).from_dict(data)
-
-    @events.setter
-    def events(self, value):
-        """
-        Set events `pandas.DataFrame`.
-
-        This can only be done once.
-        """
-
-        if self._signal is not None:
-            warnings.warn('Events already set. Cannot reset')
-            return
-
-        assert isinstance(value, pd.DataFrame)
-
-        self._events = value
 
     def time2frame(self, key=DELAY_KEY):
         """
