@@ -37,7 +37,7 @@ dreye.IntensityFit
    .. autosummary::
       :toctree:
       
-      IntensityFit.fitted_X
+      IntensityFit.fitted_X_
       IntensityFit.input_units
       IntensityFit.output_units
 

@@ -10,6 +10,7 @@ import numpy as np
 from dreye.core.signal import _SignalMixin, _Signal2DMixin, Signals
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.core.spectral_sensitivity import Sensitivity
+from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.utilities import (
     is_callable, has_units, asarray, is_integer
@@ -303,6 +304,7 @@ class Photoreceptor(ABC):
         background=None,
         return_units=None,
         wavelengths=None,
+        apply_noise_threshold=True,
         **kwargs
     ):
         """
@@ -325,6 +327,8 @@ class Photoreceptor(ABC):
         wavelengths : array-like, optional
             If given and illuminant is not a `Signals` instance, this
             corresponds to its wavelength values.
+        apply_noise_threshold : bool, optional
+            Whether to apply noise thresholding or not. Defaults to True.
         kwargs : dict
             Keyword arguments passed to the `Photoreceptor.excitefunc`
             function.
@@ -340,7 +344,8 @@ class Photoreceptor(ABC):
                          reflectance=reflectance,
                          background=background,
                          return_units=return_units,
-                         wavelengths=wavelengths),
+                         wavelengths=wavelengths,
+                         apply_noise_threshold=apply_noise_threshold),
             **kwargs
         )
 
@@ -350,7 +355,8 @@ class Photoreceptor(ABC):
         reflectance=None,
         background=None,
         return_units=None,
-        wavelengths=None
+        wavelengths=None,
+        apply_noise_threshold=True
     ):
         """
         Calculate photoreceptor capture.
@@ -372,6 +378,8 @@ class Photoreceptor(ABC):
         wavelengths : array-like, optional
             If given and illuminant is not a `Signals` instance, this
             corresponds to its wavelength values.
+        apply_noise_threshold : bool, optional
+            Whether to apply noise thresholding or not. Defaults to True.
 
         Returns
         -------
@@ -382,33 +390,40 @@ class Photoreceptor(ABC):
         if return_units is None:
             return_units = has_units(illuminant)
 
-        if (
-            not isinstance(illuminant, _Signal2DMixin)
-            and asarray(illuminant).ndim <= 2
-        ):
-            # Not assuming any units
-            illuminant = Signals(
-                illuminant,
-                domain=(
-                    self.wavelengths
-                    if wavelengths is None
-                    else wavelengths
-                )
-            )
-            # set domain axis
-            illuminant.domain_axis = 0
-        elif asarray(illuminant).ndim > 2:
+        if illuminant.ndim > 2:
             raise ValueError("Illuminant must be 1- or 2-dimensional.")
-        elif illuminant.domain_axis != 0:
-            illuminant = illuminant.copy()
-            illuminant.domain_axis = 0
 
-        if reflectance is not None:
-            illuminant = illuminant * reflectance
+        if (
+            hasattr(illuminant, 'equalize_domains')
+            and hasattr(illuminant, 'domain_axis')
+        ):
+            if illuminant.ndim == 1:
+                illuminant = Signals(illuminant)
+                # set domain axis
+                illuminant.domain_axis = 0
 
-        sensitivity, illuminant = self.sensitivity.equalize_domains(
-            illuminant
-        )
+            if illuminant.domain_axis != 0:
+                illuminant = illuminant.copy()
+                illuminant.domain_axis = 0
+
+            if reflectance is not None:
+                illuminant = illuminant * reflectance
+
+            sensitivity, illuminant = self.sensitivity.equalize_domains(
+                illuminant
+            )
+        else:
+            if reflectance is not None:
+                illuminant = illuminant * reflectance
+
+            if illuminant.ndim == 1:
+                illuminant = illuminant[:, None]
+
+            if not has_units(illuminant):
+                illuminant = illuminant * ureg(None)
+
+            sensitivity = self.sensitivity
+
         wls = sensitivity.domain
 
         new_units = illuminant.units * sensitivity.units * wls.units
@@ -448,7 +463,10 @@ class Photoreceptor(ABC):
         )
         # q_bg may have different units to q
         q = q / q_bg
-        return self.limit_q_by_noise_level(q)
+        if apply_noise_threshold:
+            return self.limit_q_by_noise_level(q)
+        else:
+            return q
 
     def limit_q_by_noise_level(self, q):
         """

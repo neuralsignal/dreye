@@ -37,7 +37,7 @@ dreye.ReflectanceExcitationFit
    .. autosummary::
       :toctree:
       
-      ReflectanceExcitationFit.fitted_X
+      ReflectanceExcitationFit.fitted_X_
       ReflectanceExcitationFit.input_units
       ReflectanceExcitationFit.output_units
 

@@ -1,16 +1,21 @@
 """
-Example Stimulus
+Test stimuli
 """
 
+from . import context
+from .context import test_datapath
+
+import os
 import numpy as np
 import pandas as pd
+from pytest import raises
 
 from dreye.stimuli import BaseStimulus
 # static column names for events dataframe
 from dreye.stimuli.variables import DUR_KEY, PAUSE_KEY, DELAY_KEY
-# DUR_KEY: dur of an event
+# DUR_KEY: duration of an event
 # DELAY_KEY: start time of the event
-# PAUSE_KEY: pause dur after the event ends
+# PAUSE_KEY: pause duration after the event ends
 
 
 class RandomStimulus(BaseStimulus):
@@ -78,4 +83,17 @@ class RandomStimulus(BaseStimulus):
 
         return self
 
-# self.stimulus
+
+class TestStimulus:
+
+    def test_init(self):
+        self.stim = RandomStimulus()
+        self.stim2 = RandomStimulus(dur=10)
+        assert not np.array_equal(self.stim.stimulus, self.stim2.stimulus)
+
+    def test_io(self):
+        self.test_init()
+        filename = os.path.join(test_datapath, 'test_stim.json.gz')
+        self.stim.save(filename)
+        new_stim = self.stim.load(filename)
+        assert np.allclose(new_stim.stimulus, self.stim.stimulus)

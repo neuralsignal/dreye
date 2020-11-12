@@ -37,7 +37,7 @@ dreye.TransformExcitationFit
    .. autosummary::
       :toctree:
       
-      TransformExcitationFit.fitted_X
+      TransformExcitationFit.fitted_X_
       TransformExcitationFit.input_units
       TransformExcitationFit.output_units
 

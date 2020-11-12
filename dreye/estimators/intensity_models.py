@@ -93,7 +93,7 @@ class IntensityFit(_SpectraModel):
         return self.measured_spectra_.intensities.units
 
     @property
-    def fitted_X(self):
+    def fitted_X_(self):
         return self.fitted_intensities_
 
 
@@ -240,7 +240,7 @@ class RelativeIntensityFit(_SpectraModel):
         return ureg(None).units
 
     @property
-    def fitted_X(self):
+    def fitted_X_(self):
         return self.fitted_relative_intensities_
 
 #
