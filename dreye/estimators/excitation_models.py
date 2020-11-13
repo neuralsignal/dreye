@@ -35,7 +35,7 @@ class IndependentExcitationFit(_SpectraModel):
         `excitefunc` and `inv_excitefunc` methods. If None,
         a fake photoreceptor model will be created with three different
         photoreceptor types.
-    photoreceptor_fit_weights : array-like, optional
+    fit_weights : array-like, optional
         Weighting of the importance of each photoreceptor type in the model.
         If None, weighting will be equal between all photoreceptor types.
         Must be same length as the number of photoreceptor types
@@ -123,7 +123,7 @@ class IndependentExcitationFit(_SpectraModel):
         self,
         *,
         photoreceptor_model=None,  # dict or Photoreceptor class
-        photoreceptor_fit_weights=None,
+        fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         smoothing_window=None,  # float
@@ -142,7 +142,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.max_iter = max_iter
         self.hard_separation = hard_separation
         self.hard_sep_value = hard_sep_value
-        self.photoreceptor_fit_weights = photoreceptor_fit_weights
+        self.fit_weights = fit_weights
         self.fit_only_uniques = fit_only_uniques
         self.lsq_kwargs = lsq_kwargs
         self.ignore_bounds = ignore_bounds
@@ -222,10 +222,10 @@ class IndependentExcitationFit(_SpectraModel):
         )
 
         # weighting for each photoreceptor
-        if self.photoreceptor_fit_weights is None:
+        if self.fit_weights is None:
             fit_weights = np.ones(self.photoreceptor_model_.pr_number)
         else:
-            fit_weights = asarray(self.photoreceptor_fit_weights)
+            fit_weights = asarray(self.fit_weights)
             # assert len(fit_weights) == self.photoreceptor_model_.pr_number
 
         # do weighted initial fitting in linear domain
@@ -473,7 +473,7 @@ class TransformExcitationFit(IndependentExcitationFit):
         `excitefunc` and `inv_excitefunc` methods. If None,
         a fake photoreceptor model will be created with three different
         photoreceptor types.
-    photoreceptor_fit_weights : array-like, optional
+    fit_weights : array-like, optional
         Weighting of the importance of each photoreceptor type in the model.
         If None, weighting will be equal between all photoreceptor types.
         Must be same length as the number of photoreceptor types
@@ -569,7 +569,7 @@ class TransformExcitationFit(IndependentExcitationFit):
         linear_transform=None,  # array
         inv_transform=None,  # array
         photoreceptor_model=None,  # dict or Photoreceptor class
-        photoreceptor_fit_weights=None,
+        fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         smoothing_window=None,  # float
@@ -590,7 +590,7 @@ class TransformExcitationFit(IndependentExcitationFit):
             max_iter=max_iter,
             hard_separation=hard_separation,
             hard_sep_value=hard_sep_value,
-            photoreceptor_fit_weights=photoreceptor_fit_weights,
+            fit_weights=fit_weights,
             fit_only_uniques=fit_only_uniques,
             lsq_kwargs=lsq_kwargs,
             ignore_bounds=ignore_bounds,
@@ -666,7 +666,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         transform_func=None,  # array
         inv_func=None,  # array
         photoreceptor_model=None,  # dict or Photoreceptor class
-        photoreceptor_fit_weights=None,
+        fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         smoothing_window=None,  # float
@@ -687,7 +687,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
             max_iter=max_iter,
             hard_separation=hard_separation,
             hard_sep_value=hard_sep_value,
-            photoreceptor_fit_weights=photoreceptor_fit_weights,
+            fit_weights=fit_weights,
             fit_only_uniques=fit_only_uniques,
             lsq_kwargs=lsq_kwargs,
             ignore_bounds=ignore_bounds,
@@ -769,7 +769,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         `excitefunc` and `inv_excitefunc` methods. If None,
         a fake photoreceptor model will be created with three different
         photoreceptor types.
-    photoreceptor_fit_weights : array-like, optional
+    fit_weights : array-like, optional
         Weighting of the importance of each photoreceptor type in the model.
         If None, weighting will be equal between all photoreceptor types.
         Must be same length as the number of photoreceptor types
@@ -864,7 +864,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         *,
         reflectances=None,
         photoreceptor_model=None,  # dict or Photoreceptor class
-        photoreceptor_fit_weights=None,
+        fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         smoothing_window=None,  # float
@@ -888,7 +888,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         self.hard_separation = hard_separation
         self.hard_sep_value = hard_sep_value
         self.q1_ints = q1_ints
-        self.photoreceptor_fit_weights = photoreceptor_fit_weights
+        self.fit_weights = fit_weights
         self.fit_only_uniques = fit_only_uniques
         self.lsq_kwargs = lsq_kwargs
         self.add_background = add_background
