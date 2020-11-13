@@ -646,7 +646,7 @@ class HyperbolicPhotoreceptor(Photoreceptor):
     -----
     In the hyperbolic photoreceptor model, the photoreceptor excitations
     correspond to the hyperbolic transform of the photon captures:
-    :math:`q/(1+q)`.
+    :math:`(q-1)/q`.
 
     It is usually not necessary to supply a `filterfunc` argument, unless the
     photoreceptor model contains a filter that varies with the intensity and
@@ -657,16 +657,16 @@ class HyperbolicPhotoreceptor(Photoreceptor):
     @staticmethod
     def excitefunc(arr):
         """
-        Returns the  `arr`/(1+`arr`).
+        Returns the  `(arr - 1)/arr`.
         """
-        return arr / (1 + arr)
+        return (arr - 1) / arr
 
     @staticmethod
     def inv_excitefunc(arr):
         """
-        Returns the `arr`/(1 - `arr`).
+        Returns the `1/(1-arr)`.
         """
-        return arr / (1 - arr)
+        return 1 / (1-arr)
 
 
 @inherit_docstrings
