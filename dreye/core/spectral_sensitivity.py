@@ -9,7 +9,7 @@ from dreye.core.spectrum import Spectra
 from dreye.constants import RELATIVE_ACCURACY
 from dreye.err import DreyeError
 from dreye.utilities.abstract import inherit_docstrings
-from dreye.utilities import is_numeric, optional_to
+from dreye.utilities import is_numeric, optional_to, asarray
 from dreye.core.opsin_template import govardovskii2000_template
 
 
@@ -85,11 +85,20 @@ class Sensitivity(Spectra):
 
     def __init__(
         self, values, domain=None, labels=None,
+        from_template=False,
         template=govardovskii2000_template, **kwargs
     ):
-        if is_numeric(values) and domain is not None:
+        if (
+            domain is not None
+            and (
+                is_numeric(values)
+                or from_template
+            )
+        ):
             wavelengths = optional_to(domain, 'nm')
-            values = govardovskii2000_template(wavelengths, values)
+            values = govardovskii2000_template(
+                wavelengths, np.atleast_2d(asarray(values))
+            )
 
         super().__init__(values=values, domain=domain, labels=labels, **kwargs)
         self._set_sig_domain_bounds()

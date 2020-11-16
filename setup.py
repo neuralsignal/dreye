@@ -10,12 +10,10 @@ with open(os.path.join(path, 'requirements.txt')) as f:
 
 setuptools.setup(
     name='dreye',
-    version='0.0.5',
+    version='0.0.6',
     description='Dreye: Color models and stimuli for all model organisms',
     author='Matthias Christenson',
     author_email='gucky@gucky.eu',
-    # install_requires=['requirements.txt'],
-    # TODO requirement file
     packages=setuptools.find_packages(exclude=['tests', 'docs']),
     install_requires=requirements
 )
