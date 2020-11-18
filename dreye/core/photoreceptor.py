@@ -474,7 +474,10 @@ class Photoreceptor(ABC):
         levels.
         """
 
-        if self.capture_noise_level is None:
+        if (
+            self.capture_noise_level is None
+            or np.isnan(self.capture_noise_level)
+        ):
             return q
 
         q = np.round(q/self.capture_noise_level, 0) * self.capture_noise_level
