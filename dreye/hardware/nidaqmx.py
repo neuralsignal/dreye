@@ -268,11 +268,7 @@ class NiDaqMxSystem(AbstractSystem):
         self.tasks = None
         self.trigger = None
 
-    def send(
-        self, values, rate=None, return_value=None,
-        trigger=None, trigger_rate=1, verbose=False
-    ):
-
+    def _set_trigger(self, trigger, trigger_rate=1):
         if trigger is not None:
             if isinstance(trigger, NiDaqMxOutput):
                 self.trigger = trigger
@@ -283,6 +279,12 @@ class NiDaqMxSystem(AbstractSystem):
                     zero_intensity_bound=0, units='V',
                 )
             self.trigger.rate = trigger_rate
+
+    def send(
+        self, values, rate=None, return_value=None,
+        trigger=None, trigger_rate=1, verbose=False
+    ):
+        self._set_trigger(trigger, trigger_rate)
 
         self.open()
 

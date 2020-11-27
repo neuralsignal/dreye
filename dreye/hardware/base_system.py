@@ -282,17 +282,17 @@ class AbstractOutput(AbstractSender):
         """
         return self._measured_spectrum
 
+    @measured_spectrum.setter
+    def measured_spectrum(self, value):
+        assert isinstance(value, MeasuredSpectrum)
+        self._measured_spectrum = value
+
     @property
     def raw_data(self):
         """
         Dictionary of raw measurement data.
         """
         return self._raw_data
-
-    @measured_spectrum.setter
-    def measured_spectrum(self, value):
-        assert isinstance(value, MeasuredSpectrum)
-        self._measured_spectrum = value
 
     def assign_measured_spectrum(
         self, values, wavelengths, output, units=None
