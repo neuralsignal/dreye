@@ -117,6 +117,7 @@ class IndependentExcitationFit(_SpectraModel):
     _X_length = [
         'fitted_intensities_'
     ]
+    _deprecated_kws = {"photoreceptor_fit_weights": "fit_weights"}
     fit_to_transform = False
 
     def __init__(
