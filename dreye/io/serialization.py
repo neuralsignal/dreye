@@ -298,6 +298,14 @@ def deserializer(obj):
             return ele[0] * ele[1]
         elif key == DREYE_PREFIX:
             cls = _class_deserializer(ele)
+            data = ele[DATA_PREFIX]
+            if hasattr(cls, "_deprecated_kws"):
+                for key_old, key_new in cls._deprecated_kws.items():
+                    if key_old in data:
+                        if key_new is None:
+                            data.pop(key_old)
+                        else:
+                            data[key_new] = data.pop(key_old)
             return cls.from_dict(ele[DATA_PREFIX])
         elif key == DICTABLE_PREFIX:  # possibly custom classes
             cls = spickleloads(
