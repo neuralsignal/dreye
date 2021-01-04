@@ -143,7 +143,7 @@ class OceanSpectrometer(AbstractSpectrometer):
     """
 
     def __init__(
-        self, calibration, sb_device=None, integration_time=1.0,
+        self, calibration=None, sb_device=None, integration_time=1.0,
         correct_dark_counts=True, correct_nonlinearity=False,
         min_it=np.nan, max_it=np.nan
     ):
@@ -166,7 +166,9 @@ class OceanSpectrometer(AbstractSpectrometer):
                 f"is closed. Error message: {e}"
             )
 
-        if isinstance(calibration, CalibrationSpectrum):
+        if calibration is None:
+            self._calibration = None
+        elif isinstance(calibration, CalibrationSpectrum):
             self._calibration = calibration
         else:
             self._calibration = read_calibration_file(calibration)
