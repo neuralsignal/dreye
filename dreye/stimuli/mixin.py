@@ -7,6 +7,8 @@ import pandas as pd
 
 from dreye.utilities import is_numeric, asarray
 
+# TODO handling baseline_values and set actual properties here
+
 
 class SetBaselineMixin:
 
@@ -22,6 +24,7 @@ class SetBaselineMixin:
             baseline_values = asarray(
                 [baseline_values] * len(channel_names)
             )
+        # TODO dict
         else:
             baseline_values = asarray(baseline_values)
             assert len(channel_names) == len(baseline_values)
@@ -120,7 +123,7 @@ class SetRandomStepMixin:
 
                 # check values probs array
                 if values_probs.get(key, None) is None:
-                    values_probs[key] = np.ones(len(ele))/len(ele)
+                    values_probs[key] = np.ones(len(ele)) / len(ele)
                 else:
                     values_prob = asarray(values_probs[key])
                     values_prob = values_prob / np.sum(values_prob)

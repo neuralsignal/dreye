@@ -80,8 +80,7 @@ class BackgroundStimulus(AbstractStepStimulus):
             not isinstance(baseline_values, pd.Series)
             and channel_names is None
         ):
-            raise ValueError("If `baseline_values` is not a Series, "
-                             "you need to provide `channel_names`.")
+            self.channel_names = np.arange(len(baseline_values)).tolist()
         elif channel_names is None:
             self.channel_names = list(baseline_values.index)
         else:
@@ -149,7 +148,7 @@ class StepStimulusMixin(AbstractStepStimulus, SetStepMixin):
 
         events['iter'] = 0
         # add copies of events dataframe to events dataframe (iterations)
-        for n in range(self.iterations-1):
+        for n in range(self.iterations - 1):
             _events = events.copy()
             # keep track of iteration number in copied dataframe
             _events['iter'] = n + 1
@@ -197,9 +196,11 @@ class StepStimulusMixin(AbstractStepStimulus, SetStepMixin):
             if self.func is None:
                 signal[tbool] = asarray(row[self.values.columns])[None, :]
             else:
+                size = int(np.sum(tbool))
                 signal[tbool] = self.func(
-                    np.arange(tbool.size) / self.rate,
-                    asarray(row[self.values.columns])
+                    np.arange(size) / self.rate,
+                    asarray(row[self.values.columns]),
+                    self.baseline_values
                 )
 
         return signal
@@ -267,7 +268,8 @@ class StepStimulus(StepStimulusMixin):
     baseline_values : float or array-like or dict
         Baseline values when no stimulus is being presented. Defaults to 0.
     func : callable
-        Funtion applied to each step: f(t, values) = output <- (t x values).
+        Funtion applied to each step:
+        f(t, values, baseline) = output <- (t x values).
         Defaults to None.
     """
 
@@ -312,6 +314,7 @@ class StepStimulus(StepStimulusMixin):
             func=func
         )
 
+        # channel_names parameter?
         # sets values and baseline values attribute correctly
         self.values, self.baseline_values = self._set_values(
             values=values, baseline_values=baseline_values,
@@ -381,7 +384,8 @@ class NoiseStepStimulus(StepStimulusMixin):
     baseline_values : float or array-like or dict
         Baseline values when no stimulus is being presented. Defaults to 0.
     func : callable
-        Funtion applied to each step: f(t, values) = output <- (t x values).
+        Funtion applied to each step:
+        f(t, values, baseline) = output <- (t x values).
         Defaults to None.
     """
 
@@ -538,6 +542,10 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
         seed for randomization.
     baseline_values : float or array-like or dict
         Baseline values when no stimulus is being presented. Defaults to 0.
+    func : callable
+        Funtion applied to each step:
+        f(t, values, baseline) = output <- (t x values).
+        Defaults to None.
     """
 
     def __init__(
@@ -712,9 +720,11 @@ class RandomSwitchStimulus(AbstractStepStimulus, SetRandomStepMixin):
             if self.func is None:
                 signal[tbool, idx] = row['value']
             else:
+                size = int(np.sum(tbool))
                 signal[tbool, idx] = self.func(
-                    np.arange(tbool.size) / self.rate,
-                    row['value']
+                    np.arange(size) / self.rate,
+                    row['value'],
+                    self.baseline_values
                 )
 
         return signal

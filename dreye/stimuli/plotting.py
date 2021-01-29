@@ -206,7 +206,7 @@ class StimPlottingMixin:
                             # get delay and duration of event
                             delay = row[DELAY_KEY]
                             dur = row[DUR_KEY]
-                            xpos = delay + dur/2
+                            xpos = delay + dur / 2
                             # calculate root mean squared residual
                             score = np.sqrt(np.mean((orig - fitted) ** 2))
                             # calculate correlation coefficient
