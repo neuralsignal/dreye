@@ -358,8 +358,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
         # get events dataframe and sort by delay key
         events = pd.DataFrame(data.pop('events')).sort_values(DELAY_KEY)
         stimulus = data.pop('stimulus')
-        signal = data.pop('signal')
-        fitted_signal = data.pop('fitted_signal')
+        signal = data.pop('signal', stimulus)
+        fitted_signal = data.pop('fitted_signal', signal)
         # get number of events to remove
         n = (1 if ((n is None) and (frac is None)) else n)
         if n is None:
@@ -552,16 +552,20 @@ class BaseStimulus(ABC, StimPlottingMixin):
         Dictionary format of stimulus class
         """
 
-        return {
+        dictionary = {
             'stimulus': self.stimulus,
-            'signal': self.signal,
-            'fitted_signal': self.fitted_signal,
             'metadata': self.metadata,
             'events': self.events.to_dict('list'),
             'settings': self.settings,
             '_attrs_to_event_labels_mapping':
                 self._attrs_to_event_labels_mapping
         }
+        if self.estimator is not None:
+            dictionary['signal'] = self.signal
+            if not np.allclose(self.signal, self.fitted_signal):
+                dictionary['fitted_signal'] = self.fitted_signal
+
+        return dictionary
 
     @classmethod
     def from_dict(cls, data):
@@ -579,8 +583,8 @@ class BaseStimulus(ABC, StimPlottingMixin):
             }
             self = cls(**settings)
         self._stimulus = data['stimulus']
-        self._signal = data['signal']
-        self._fitted_signal = data['fitted_signal']
+        self._signal = data.get('signal', self._stimulus)
+        self._fitted_signal = data.get('fitted_signal', self._signal)
         self._metadata = data['metadata']
         self._events = pd.DataFrame(data['events'])
         self._attrs_to_event_labels_mapping = data.get(

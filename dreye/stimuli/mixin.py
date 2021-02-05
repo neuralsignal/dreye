@@ -4,8 +4,57 @@
 from itertools import product
 import numpy as np
 import pandas as pd
+from scipy import stats
 
-from dreye.utilities import is_numeric, asarray
+from dreye.utilities import is_numeric, asarray, convert_truncnorm_clip
+
+# TODO handling baseline_values and set actual properties here
+
+
+class SetTruncGaussianValues:
+
+    def _set_trunc_gaussian_values(self):
+
+        self.mean = asarray(self.mean)
+        self.var = asarray(self.var)
+
+        if self.n_channels is None and self.channel_names is None:
+            self.n_channels = max([self.mean.size, self.var.size])
+        elif self.n_channels is None:
+            self.n_channels = len(self.channel_names)
+
+        if self.channel_names is None:
+            self.channel_names = list(range(self.n_channels))
+        else:
+            self.channel_names = list(self.channel_names)
+            assert len(self.channel_names) == self.n_channels
+
+        if self.minimum is None:
+            self.minimum = self.mean - 5 * self.var
+        else:
+            self.minimum = asarray(self.minimum)
+        if self.maximum is None:
+            self.maximum = self.mean + 5 * self.var
+        else:
+            self.maximum = asarray(self.maximum)
+
+        if np.all(self.maximum == self.minimum):
+            self.maximum += 10**-5
+            self.minimum -= 10**-5
+
+        assert np.all(self.minimum < self.maximum)
+
+    def _get_distribution(self):
+        a, b = convert_truncnorm_clip(
+            self.minimum, self.maximum, self.mean, self.var)
+
+        distribution = stats.truncnorm(
+            a=a,
+            b=b,
+            loc=self.mean,
+            scale=self.var
+        )
+        return distribution
 
 
 class SetBaselineMixin:
@@ -22,6 +71,7 @@ class SetBaselineMixin:
             baseline_values = asarray(
                 [baseline_values] * len(channel_names)
             )
+        # TODO dict
         else:
             baseline_values = asarray(baseline_values)
             assert len(channel_names) == len(baseline_values)
@@ -55,7 +105,7 @@ class SetStepMixin:
                     if ele is None or len(ele) == 0:
                         continue
                     __values = asarray(
-                        [baseline_values]*len(ele)
+                        [baseline_values] * len(ele)
                     ).astype(float)
                     __values[:, index] = asarray(ele).astype(float)
                     _values.extend(__values.tolist())
@@ -120,7 +170,7 @@ class SetRandomStepMixin:
 
                 # check values probs array
                 if values_probs.get(key, None) is None:
-                    values_probs[key] = np.ones(len(ele))/len(ele)
+                    values_probs[key] = np.ones(len(ele)) / len(ele)
                 else:
                     values_prob = asarray(values_probs[key])
                     values_prob = values_prob / np.sum(values_prob)
@@ -136,7 +186,7 @@ class SetRandomStepMixin:
                 'if array-like values must be one-dimensional'
 
             if values_probs is None:
-                values_probs = np.ones(len(values))/len(values)
+                values_probs = np.ones(len(values)) / len(values)
             else:
                 values_probs = asarray(values_probs) / np.sum(values_probs)
                 assert len(values_probs) == len(values), \
