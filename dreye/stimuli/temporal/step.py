@@ -8,7 +8,7 @@ from scipy import stats
 
 from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY, PAUSE_KEY
 from dreye.stimuli.mixin import (
-    SetBaselineMixin, SetStepMixin, SetRandomStepMixin
+    SetBaselineMixin, SetStepMixin, SetRandomStepMixin, SetTruncGaussianValues
 )
 from dreye.utilities import is_numeric, convert_truncnorm_clip, asarray
 from dreye.utilities.abstract import inherit_docstrings
@@ -336,7 +336,7 @@ class StepStimulus(StepStimulusMixin):
 
 
 @inherit_docstrings
-class NoiseStepStimulus(StepStimulusMixin):
+class NoiseStepStimulus(StepStimulusMixin, SetTruncGaussianValues):
     """
     Step stimulus by choosing values from a truncated Gaussian.
 
@@ -441,45 +441,9 @@ class NoiseStepStimulus(StepStimulusMixin):
         )
 
         # TODO copy from whitenoise (make convenience function?)
+        self._set_trunc_gaussian_values()
 
-        self.mean = asarray(self.mean)
-        self.var = asarray(self.var)
-
-        if n_channels is None and channel_names is None:
-            self.n_channels = max([self.mean.size, self.var.size])
-        elif n_channels is None:
-            self.n_channels = len(self.channel_names)
-
-        if channel_names is None:
-            self.channel_names = list(range(self.n_channels))
-        else:
-            self.channel_names = list(channel_names)
-            assert len(self.channel_names) == self.n_channels
-
-        if minimum is None:
-            self.minimum = self.mean - 5 * self.var
-        else:
-            self.minimum = asarray(self.minimum)
-        if maximum is None:
-            self.maximum = self.mean + 5 * self.var
-        else:
-            self.maximum = asarray(self.maximum)
-
-        if np.all(self.maximum == self.minimum):
-            self.maximum += 10**-5
-            self.minimum -= 10**-5
-
-        assert np.all(self.minimum < self.maximum)
-
-        a, b = convert_truncnorm_clip(
-            self.minimum, self.maximum, self.mean, self.var)
-
-        distribution = stats.truncnorm(
-            a=a,
-            b=b,
-            loc=self.mean,
-            scale=self.var
-        )
+        distribution = self._get_distribution()
 
         values = distribution.rvs(
             size=(n_samples, self.n_channels),
@@ -489,7 +453,7 @@ class NoiseStepStimulus(StepStimulusMixin):
             rng = np.random.default_rng(self.seed)
             values = rng.choice(
                 values,
-                size=int(values.shape[0]*self.subsample),
+                size=int(values.shape[0] * self.subsample),
                 replace=False,
                 axis=0
             )

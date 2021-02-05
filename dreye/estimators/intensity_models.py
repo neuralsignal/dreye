@@ -117,9 +117,13 @@ class RelativeIntensityFit(_SpectraModel):
     rtype : str {'fechner', 'log', 'weber', None}, optional
         Relative intensity measure to use:
 
-        * None - :math:`I/I_{bg}`
         * `log` or `fechner` -  :math:`log(I/I_{bg})`
         * `weber` - :math:`(I-I_{bg})/I_{bg}`
+        * `total_weber` - :math:`(I-I_{bg})/Sum(I_{bg})`
+        * `diff` - :math:`(I-I_{bg})`
+        * `absolute` - :math:`I`
+        * None - :math: `I/I_{bg}`
+        * `ratio` or `linear` - :math: `I/I_{bg}`
 
 
     Attributes
@@ -196,28 +200,42 @@ class RelativeIntensityFit(_SpectraModel):
         return self
 
     def _to_absolute_intensity(self, X):
+        if self.rtype == 'absolute':
+            return X
+        elif self.rtype == 'diff':
+            return X + self.bg_ints_[None]
         # convert to intensity
         if self.rtype in {'fechner', 'log'}:
             X = np.exp(X)
-        elif self.rtype != 'weber':
+        elif self.rtype not in {'weber', 'total_weber'}:
             assert np.all(X >= 0), 'If not log, X must be positive.'
 
-        X = X * self.bg_ints_[None]
-        if self.rtype == 'weber':
+        if self.rtype.startswith('total'):
+            X = X * np.sum(self.bg_ints_)
+        else:
+            X = X * self.bg_ints_[None]
+        if self.rtype in {'weber', 'total_weber'}:
             X = X + self.bg_ints_[None]
         return X
 
     def _to_relative_intensity(self, X):
+        if self.rtype == 'absolute':
+            return X
+        elif self.rtype == 'diff':
+            return X - self.bg_ints_[None]
         # convert to relative intensity
-        if self.rtype == 'weber':
+        if self.rtype in {'weber', 'total_weber'}:
             X = X - self.bg_ints_[None]
 
-        X = X / self.bg_ints_[None]
+        if self.rtype.startswith('total'):
+            X = X / np.sum(self.bg_ints_)
+        else:
+            X = X / self.bg_ints_[None]
 
         if self.rtype in {'fechner', 'log'}:
             assert np.all(X > 0), 'If log, X cannot be zero or lower.'
             X = np.log(X)
-        elif self.rtype != 'weber':
+        elif self.rtype not in {'weber', 'total_weber'}:
             assert np.all(X >= 0), 'If not log, X must be positive.'
 
         return X
@@ -237,6 +255,8 @@ class RelativeIntensityFit(_SpectraModel):
 
     @property
     def input_units(self):
+        if self.rtype in ['absolute', 'diff']:
+            return self.measured_spectra_.intensities.units
         return ureg(None).units
 
     @property

@@ -10,13 +10,12 @@ Brown noise
 
 import pandas as pd
 import numpy as np
-from scipy import stats
 import scipy.signal
 
 from dreye.stimuli.base import BaseStimulus, DUR_KEY, DELAY_KEY, PAUSE_KEY
-from dreye.utilities import convert_truncnorm_clip, asarray
 from dreye.utilities import Filter1D
 from dreye.utilities.abstract import inherit_docstrings
+from dreye.stimuli.mixin import SetTruncGaussianValues
 
 
 @inherit_docstrings
@@ -133,7 +132,7 @@ class AbstractNoiseStimulus(BaseStimulus):
 
 
 @inherit_docstrings
-class WhiteNoiseStimulus(AbstractNoiseStimulus):
+class WhiteNoiseStimulus(AbstractNoiseStimulus, SetTruncGaussianValues):
     """
     White noise stimulus with truncated Gaussian.
 
@@ -215,7 +214,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         super().__init__(
             estimator=estimator,
             rate=rate,
-            subsample=subsample, 
+            subsample=subsample,
             stim_dur=stim_dur,
             mean=mean,
             var=var,
@@ -235,32 +234,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
             extra_kwargs=extra_kwargs,
         )
 
-        self.mean = asarray(self.mean)
-        self.var = asarray(self.var)
-
-        if n_channels is None and channel_names is None:
-            self.n_channels = max([self.mean.size, self.var.size])
-        elif n_channels is None:
-            self.n_channels = len(self.channel_names)
-
-        if channel_names is None:
-            self.channel_names = list(range(self.n_channels))
-        else:
-            self.channel_names = list(channel_names)
-            assert len(self.channel_names) == self.n_channels
-
-        if minimum is None:
-            self.minimum = self.mean - 5 * self.var
-        else:
-            self.minimum = asarray(self.minimum)
-        if maximum is None:
-            self.maximum = self.mean + 5 * self.var
-        else:
-            self.maximum = asarray(self.maximum)
-
-        if np.all(self.maximum == self.minimum):
-            self.maximum += 10**-5
-            self.minimum -= 10**-5
+        self._set_trunc_gaussian_values()
 
     @property
     def ch_names(self):
@@ -271,15 +245,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         Create a truncated white noise signal.
         """
 
-        a, b = convert_truncnorm_clip(
-            self.minimum, self.maximum, self.mean, self.var)
-
-        distribution = stats.truncnorm(
-            a=a,
-            b=b,
-            loc=self.mean,
-            scale=self.var
-        )
+        distribution = self._get_distribution()
 
         total_frames = int(self.rate * self.stim_dur)
 
@@ -311,7 +277,7 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
         )
         random_signal = self.filter_signal(random_signal)
         random_signal = random_signal[
-            len(stim_dur_signal):len(random_signal)-len(stim_dur_signal)
+            len(stim_dur_signal):len(random_signal) - len(stim_dur_signal)
         ]
 
         # initialize metadata
@@ -336,12 +302,12 @@ class WhiteNoiseStimulus(AbstractNoiseStimulus):
             'name': self.name
         }]
 
-        for n in range(self.iterations-1):
+        for n in range(self.iterations - 1):
             events.append({
                 DELAY_KEY: (len(signal) + len(pause_signal)) / self.rate,
                 DUR_KEY: random_dur,
                 PAUSE_KEY: len(pause_signal) / self.rate,
-                'iter': n+1,
+                'iter': n + 1,
                 'name': self.name
             })
 
