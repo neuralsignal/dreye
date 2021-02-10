@@ -10,7 +10,7 @@ observers.
 
 __author__ = """gucky92"""
 __email__ = 'gucky@gucky.eu'
-__version__ = '0.0.12'
+__version__ = '0.0.13'
 
 # import all core elements and constants
 from dreye.constants.units import ureg

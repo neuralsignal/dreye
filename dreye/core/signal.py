@@ -677,8 +677,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     def _abstract_call(
         self, interp_function, self_domain, domain,
         domain_min, domain_max,
-        domain_class, assign_to_name
-
+        domain_class, assign_to_name,
+        check_bounds=True
     ):
         """
         Method used for `domain_interp`.
@@ -698,11 +698,12 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
         # check domain min and max (must be bigger than this range)
         # staticmethod so can be used as is
-        self._check_domain_bounds(
-            domain_values,
-            domain_min=domain_min.magnitude,
-            domain_max=domain_max.magnitude
-        )
+        if check_bounds:
+            self._check_domain_bounds(
+                domain_values,
+                domain_min=domain_min.magnitude,
+                domain_max=domain_max.magnitude
+            )
 
         # usually self._interp_function
         values, smin, smax = interp_function(domain_values)
@@ -725,7 +726,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             )
             return new
 
-    def __call__(self, domain):
+    def __call__(self, domain, check_bounds=True):
         """
         Interpolate to signal to new domain values.
 
@@ -743,9 +744,9 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         domain_interp
         """
 
-        return self.domain_interp(domain)
+        return self.domain_interp(domain, check_bounds=check_bounds)
 
-    def domain_interp(self, domain):
+    def domain_interp(self, domain, check_bounds=True):
         """
         Interpolate to signal to new domain values.
 
@@ -764,7 +765,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         return self._abstract_call(
             self._interp_function, self.domain, domain,
             self.domain_min, self.domain_max,
-            self._domain_class, '_domain'
+            self._domain_class, '_domain',
+            check_bounds=check_bounds
         )
 
     @staticmethod
@@ -1904,7 +1906,7 @@ class _SignalDomainLabels(_Signal2DMixin):
 
         return self._labels_interpolate
 
-    def labels_interp(self, domain):
+    def labels_interp(self, domain, check_bounds=True):
         """
         Interpolate to new labels.
 
@@ -1924,7 +1926,8 @@ class _SignalDomainLabels(_Signal2DMixin):
         return self._abstract_call(
             self._labels_interp_function, self.labels, domain,
             self.labels_min, self.labels_max,
-            self._domain_labels_class, '_labels'
+            self._domain_labels_class, '_labels',
+            check_bounds=check_bounds
         )
 
     # TODO without switch (i.e. no reinstantiation)
