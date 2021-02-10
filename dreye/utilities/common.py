@@ -203,7 +203,7 @@ def flux2irr(photonflux, wavelengths, return_units=None, prefix=None):
         If None, the function will return a `pint.Quantity` if `photonflux`
         have units.
     prefix : str, optional
-        Unit prefix for photonflux (e.g. `micro`).
+        Unit prefix for irradiance (e.g. `micro`).
 
     Returns
     -------
