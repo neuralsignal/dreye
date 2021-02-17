@@ -12,7 +12,7 @@ def stavenga1993_band_calculation(
 ):
     return np.exp(
         -a * x ** 2 * (
-            1 + b * x + 3/8 * (b * x) ** 2
+            1 + b * x + 3 / 8 * (b * x) ** 2
         )
     )
 
@@ -32,7 +32,7 @@ def stavenga1993_template(
     """
     wavelengths = optional_to(wavelengths, units='nm')
 
-    x_alpha = np.log10(wavelengths/alpha_max)
+    x_alpha = np.log10(wavelengths / alpha_max)
     alpha_band = stavenga1993_band_calculation(x_alpha, a_alpha, b_alpha)
 
     beta_band = stavenga1993_beta_band_template(
@@ -47,7 +47,7 @@ def stavenga1993_beta_band_template(
     a_beta=247,
     b_beta=3.59,
 ):
-    x_beta = np.log10(wavelengths/beta_max)
+    x_beta = np.log10(wavelengths / beta_max)
     beta_band = stavenga1993_band_calculation(x_beta, a_beta, b_beta)
     return beta_band
 
@@ -74,10 +74,11 @@ def govardovskii2000_template(
     """
     Calculate Opsin template according to Govardovskii et al (2000).
     """
+    # TODO handling alpha_max as array
     wavelengths = optional_to(wavelengths, units='nm')
 
     x_alpha = (wavelengths / alpha_max) ** -1
-    a_alpha = a_alpha1 + a_alpha2 * np.exp(-(alpha_max-a_alpha3)**2/a_alpha4)
+    a_alpha = a_alpha1 + a_alpha2 * np.exp(-(alpha_max - a_alpha3)**2 / a_alpha4)
 
     alpha_band = (
         np.exp(

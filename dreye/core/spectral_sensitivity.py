@@ -96,6 +96,8 @@ class Sensitivity(Spectra):
             )
         ):
             wavelengths = optional_to(domain, 'nm')
+            if not kwargs.get('domain_axis', 0):
+                wavelengths = wavelengths[:, None]
             values = govardovskii2000_template(
                 wavelengths, np.atleast_2d(asarray(values))
             )
