@@ -159,11 +159,11 @@ class Photoreceptor(ABC):
         labels=None, capture_noise_level=None, **kwargs
     ):
         if isinstance(sensitivity, Photoreceptor):
-            sensitivity = sensitivity.sensitivity
             if filterfunc is None:
                 filterfunc = sensitivity.filterfunc
             if capture_noise_level is None:
                 capture_noise_level = sensitivity.capture_noise_level
+            sensitivity = sensitivity.sensitivity
         if not isinstance(sensitivity, Sensitivity):
             sensitivity = Sensitivity(
                 sensitivity, domain=wavelengths, labels=labels,
