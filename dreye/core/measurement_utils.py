@@ -338,11 +338,12 @@ def get_led_spectra_container(
         if output_units is None:
             output_units = intensity_units
         output = intensities.copy()
-    elif transform_func is not None:
-        output = transform_func(intensities)
     else:
-        output = np.linspace(*output_bounds, steps)
-    output = np.broadcast_to(output.T, (led_spectra.shape[1], steps))
+        if transform_func is not None:
+            output = transform_func(intensities)
+        else:
+            output = np.linspace(*output_bounds, steps)
+        output = np.broadcast_to(output.T, (led_spectra.shape[1], steps))
 
     measured_spectra = []
     for idx, led_spectrum in enumerate(led_spectra.T):
