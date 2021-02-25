@@ -5,11 +5,12 @@ LED Estimators for intensities and spectra
 from abc import abstractmethod
 
 from scipy.optimize import OptimizeResult
+import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from dreye.utilities import (
-    is_dictlike, optional_to, is_listlike, is_string
+    is_dictlike, optional_to, is_listlike, is_string, is_dictlike
 )
 from dreye.utilities.abstract import _AbstractContainer
 from dreye.constants import ureg
@@ -149,6 +150,28 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
                 f"is of type {type(background)}."
             )
         return background
+
+    @staticmethod
+    def _get_bg_ints(bg_ints, measured_spectra, skip=True):
+        """
+        Set background intensity values
+        """
+        if skip and bg_ints is None:
+            return
+        # set background intensities to default
+        if bg_ints is None:
+            bg_ints = np.ones(len(measured_spectra))
+        else:
+            if is_dictlike(bg_ints):
+                names = measured_spectra.names
+                bg_ints = [bg_ints.get(name, 1) for name in names]
+            bg_ints = optional_to(
+                bg_ints,
+                measured_spectra.intensities.units
+            )
+            assert len(bg_ints) == len(measured_spectra)
+            assert np.all(bg_ints >= 0)
+        return bg_ints
 
     @staticmethod
     def _check_reflectances(
@@ -292,7 +315,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         # residual across photoreceptors
         res = (X - X_pred)**2
         tot = (X - X.mean(axis=1, keepdims=True))**2
-        return 1 - res.sum(1)/tot.sum(1)
+        return 1 - res.sum(1) / tot.sum(1)
 
     def feature_scores(self, X=None):
         """
@@ -315,7 +338,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         # residual across samples
         res = (X - X_pred)**2
         tot = (X - X.mean(axis=0, keepdims=True))**2
-        return 1 - res.sum(0)/tot.sum(0)
+        return 1 - res.sum(0) / tot.sum(0)
 
     def score(self, X=None, y=None):
         """
@@ -413,3 +436,51 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         fit_transform
         """
         pass
+
+
+class _RelativeMixin:
+
+    def _to_absolute_intensity(self, X, bg_ints=None):
+        if bg_ints is None:
+            bg_ints = self.bg_ints_
+        if self.rtype == 'absolute':
+            return X
+        elif self.rtype == 'diff':
+            return X + bg_ints
+        # convert to intensity
+        if self.rtype in {'fechner', 'log'}:
+            X = np.exp(X)
+        elif self.rtype not in {'weber', 'total_weber'}:
+            assert np.all(X >= 0), 'If not log, X must be positive.'
+
+        if self.rtype.startswith('total'):
+            X = X * np.sum(self.bg_ints_)
+        else:
+            X = X * bg_ints
+        if self.rtype in {'weber', 'total_weber'}:
+            X = X + bg_ints
+        return X
+
+    def _to_relative_intensity(self, X, bg_ints=None):
+        if bg_ints is None:
+            bg_ints = self.bg_ints_
+        if self.rtype == 'absolute':
+            return X
+        elif self.rtype == 'diff':
+            return X - bg_ints
+        # convert to relative intensity
+        if self.rtype in {'weber', 'total_weber'}:
+            X = X - bg_ints
+
+        if self.rtype.startswith('total'):
+            X = X / np.sum(self.bg_ints_)
+        else:
+            X = X / bg_ints
+
+        if self.rtype in {'fechner', 'log'}:
+            assert np.all(X > 0), 'If log, X cannot be zero or lower.'
+            X = np.log(X)
+        elif self.rtype not in {'weber', 'total_weber'}:
+            assert np.all(X >= 0), 'If not log, X must be positive.'
+
+        return X

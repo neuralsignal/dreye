@@ -431,6 +431,30 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             return np.squeeze(new_values)
         return new_values
 
+    def int2spectrum(self, values, return_signal=True, return_units=True):
+        """
+        Map Intensity values to a completely interpolated spectrum
+
+        Parameters
+        ----------
+        values : array-like
+            samples in intensity-convertible units or no units.
+        return_signal : bool
+            Whether to return a `Signal` instance.
+
+        Returns
+        -------
+        output : signal-type, `numpy.ndarray`, or `pint.Quantity`
+            Mapped output values.
+        """
+        values = self.labels_interp(self.map(values))
+        if return_signal and return_units:
+            return values
+        elif return_units:
+            return values.values
+        else:
+            return values.magnitude
+
     def map(self, values, return_units=True):
         """
         Map Intensity values to output values.
@@ -450,7 +474,9 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
         values = optional_to(values, self.intensity.units, *self.contexts)
 
-        if values.ndim > 1:
+        if is_numeric(values):
+            shape = None
+        elif values.ndim > 1:
             shape = values.shape
             values = values.flatten()
         else:
@@ -491,7 +517,9 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         # this is going to be two dimensional, since it is a Signals instance
         values = optional_to(values, self.labels.units, *self.contexts)
 
-        if values.ndim > 1:
+        if is_numeric(values):
+            shape = None
+        elif values.ndim > 1:
             shape = values.shape
             values = values.flatten()
         else:
@@ -557,8 +585,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         fit_values = self.inverse_map(mapped_values, return_units=False)
         res = (values - fit_values) ** 2
         tot = (values - values.mean()) ** 2
-        return 1 - res.sum()/tot.sum()
-        # return self.regressor.score(mapped_values, values, **kwargs)
+        return 1 - res.sum() / tot.sum()
 
     def _mapper_func(self, *args, **kwargs):
         """mapping using isotonic regression

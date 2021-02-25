@@ -27,6 +27,53 @@ from dreye.core.numpy_mixin import _NumpyMixin
 
 # TODO concat general method?
 
+def labels_concat(objs, left=False):
+    """
+    Concatenate multiple Signal objects together along the labels dimension.
+
+    Parameters
+    ----------
+    objs : list of signal-type
+        A list of signal-type instances to concatenate
+    left : bool, optional
+        Wheter to do a left side concatenation or not
+
+    Returns
+    -------
+    obj : signal-type
+        A concatenated signal-type instance.
+    """
+    assert is_listlike(objs)
+    assert len(objs) > 0
+    obj = objs[0]
+    for obj_ in objs[1:]:
+        obj = obj.labels_concat(obj_, left=left)
+    return obj
+
+
+def domain_concat(objs, left=False):
+    """
+    Concatenate multiple Signal objects together along the domain dimension.
+
+    Parameters
+    ----------
+    objs : list of signal-type
+        A list of signal-type instances to concatenate
+    left : bool, optional
+        Wheter to do a left side concatenation or not
+
+    Returns
+    -------
+    obj : signal-type
+        A concatenated signal-type instance.
+    """
+    assert is_listlike(objs)
+    assert len(objs) > 0
+    obj = objs[0]
+    for obj_ in objs[1:]:
+        obj = obj.domain_concat(obj_, left=left)
+    return obj
+
 
 @inherit_docstrings
 class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
@@ -694,8 +741,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         else:
             domain_values = asarray(domain)
 
-        assert domain_values.ndim == 1
-
+        # assert domain_values.ndim <= 1
         # check domain min and max (must be bigger than this range)
         # staticmethod so can be used as is
         if check_bounds:
@@ -709,7 +755,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         values, smin, smax = interp_function(domain_values)
 
         # for single value simply return quantity instance
-        if values.ndim != self.ndim:
+        if not hasattr(values, 'ndim') or (values.ndim != self.ndim):
             return values * self.units
         else:
             new = self.copy()
@@ -1688,7 +1734,7 @@ class _SignalIndexLabels(_Signal2DMixin):
         elif is_listlike(labels):
             labels = pd.Index(labels)
         elif is_hashable(labels):
-            labels = pd.Index([labels]*values.shape[self.labels_axis])
+            labels = pd.Index([labels] * values.shape[self.labels_axis])
         else:
             raise DreyeError(f"Labels wrong type: '{type(labels)}'")
 
@@ -1881,7 +1927,7 @@ class _SignalDomainLabels(_Signal2DMixin):
                     labels_max=self.domain_max,
                     signal_min=self.signal_min,
                     signal_max=self.signal_max,
-                    domain_axis=self.domain_axis-1,
+                    domain_axis=self.domain_axis - 1,
                 )
             }
         )
@@ -1923,12 +1969,19 @@ class _SignalDomainLabels(_Signal2DMixin):
         domain_interp
         """
 
-        return self._abstract_call(
+        values = self._abstract_call(
             self._labels_interp_function, self.labels, domain,
             self.labels_min, self.labels_max,
             self._domain_labels_class, '_labels',
             check_bounds=check_bounds
         )
+        if values.ndim == 1:
+            values = self._1d_signal_class(
+                values,
+                domain=self.domain,
+                name=domain
+            )
+        return values
 
     # TODO without switch (i.e. no reinstantiation)
     def labels_concat(self, other, left=False):
@@ -2292,6 +2345,10 @@ class DomainSignal(_SignalDomainLabels):
     @property
     def _class_new_instance(self):
         return DomainSignal
+
+    @property
+    def _1d_signal_class(self):
+        return Signal
 
     def __init__(
         self,

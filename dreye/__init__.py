@@ -10,11 +10,13 @@ observers.
 
 __author__ = """gucky92"""
 __email__ = 'gucky@gucky.eu'
-__version__ = '0.0.13dev1'
+__version__ = '0.0.13dev2'
 
 # import all core elements and constants
 from dreye.constants.units import ureg
-from dreye.core.signal import Signals, DomainSignal, Signal
+from dreye.core.signal import (
+    Signals, DomainSignal, Signal, domain_concat, labels_concat
+)
 from dreye.core.signal_container import (
     SignalsContainer, DomainSignalContainer
 )
@@ -42,6 +44,7 @@ from dreye.estimators.excitation_models import (
     IndependentExcitationFit, TransformExcitationFit,
     ReflectanceExcitationFit
 )
+from dreye.estimators.led_substitution import LedSubstitution
 
 from dreye.estimators.intensity_models import (
     IntensityFit, RelativeIntensityFit
@@ -73,6 +76,9 @@ __all__ = [
     'DomainSignal',
     'SignalsContainer',
     'DomainSignalContainer',
+    'labels_concat',
+    'domain_concat',
+    'LedSubstitution',
     # spectrum
     'DomainSpectrum',
     'Spectra',

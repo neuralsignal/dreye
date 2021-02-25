@@ -8,7 +8,7 @@ from dreye.utilities import (
     optional_to, asarray
 )
 from dreye.constants import ureg
-from dreye.estimators.base import _SpectraModel
+from dreye.estimators.base import _SpectraModel, _RelativeMixin
 from dreye.utilities.abstract import inherit_docstrings
 
 
@@ -98,7 +98,7 @@ class IntensityFit(_SpectraModel):
 
 
 @inherit_docstrings
-class RelativeIntensityFit(_SpectraModel):
+class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
     """
     Fit relative intensity values to a given LED system.
 
@@ -108,9 +108,43 @@ class RelativeIntensityFit(_SpectraModel):
         Container with all available LEDs and their measured spectra. If
         None, a fake LED measurement will be created with intensities
         ranging from 0 to 100 microphotonflux.
-    bg_ints : array-like
-        Background intensities of LEDs in units of the
-        `measured_spectra.intensities`.
+    background : dreye.Signal, optional
+        The spectral distribution of the background illuminant.
+    measured_spectra : dreye.MeasuredSpectraContainer, optional
+        Container with all available LEDs and their measured spectra. If
+        None, a fake LED measurement will be created with intensities
+        ranging from 0 to 100 microphotonflux.
+    smoothing_window : numeric, optional
+        The smoothing window size to use to smooth over the measurements
+        in the container.
+    max_iter : int, optional
+        The number of maximum iterations. This is passed directly to
+        `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
+    hard_separation : bool or list-like, optional
+        An array of LED intensities.
+        If given and all capture values are below or above `hard_sep_value`,
+        then do not allow the LED intensities to go above or below
+        these intensities. If True, first estimate the optimal LED
+        intensities that correspond to the relative capture
+        of `hard_sep_value`.
+    hard_sep_value : numeric or array-like, optional
+        The capture value for `hard_separation`. Defaults to 1, which
+        corresponds to the relative capture when the illuminant equals
+        the background.
+    bg_ints : array-like, optional
+        The intensity values for each LED, when the relative capture of each
+        photoreceptor equals one (i.e. background intensity).
+        This will prevent fitting of the
+        LED intensities if the background LED intensities
+        are preset and the relative capture is 1.
+    fit_only_uniques : bool, optional
+        If True, use `numpy.unique` to select only the unique samples
+        for fitting before transforming X back to the full array.
+    ignore_bounds : bool, optional
+        If True, ignore the bounds of the LED intensities. Howerver, a zero
+        LED intensity bound will always exist.
+    lsq_kwargs : dict, optional
+        Keyword arguments passed directly to `scipy.optimize.least_squares`.
     smoothing_window : numeric, optional
         The smoothing window size to use to smooth over the measurements
         in the container.
@@ -166,15 +200,9 @@ class RelativeIntensityFit(_SpectraModel):
             asarray(X).shape[1],
             change_dimensionality=False
         )
-        if self.bg_ints is None:
-            self.bg_ints_ = np.ones(len(self.measured_spectra_))
-        else:
-            self.bg_ints_ = optional_to(
-                self.bg_ints,
-                self.measured_spectra_.intensities.units
-            )
-            assert len(self.bg_ints_) == len(self.measured_spectra_)
-            assert np.all(self.bg_ints_ > 0)
+        self.bg_ints_ = self._get_bg_ints(
+            self.bg_ints, self.measured_spectra_, skip=False
+        )
         # check X
         X = self._check_X(X)
         self.current_X_ = X
@@ -198,47 +226,6 @@ class RelativeIntensityFit(_SpectraModel):
         )
 
         return self
-
-    def _to_absolute_intensity(self, X):
-        if self.rtype == 'absolute':
-            return X
-        elif self.rtype == 'diff':
-            return X + self.bg_ints_[None]
-        # convert to intensity
-        if self.rtype in {'fechner', 'log'}:
-            X = np.exp(X)
-        elif self.rtype not in {'weber', 'total_weber'}:
-            assert np.all(X >= 0), 'If not log, X must be positive.'
-
-        if self.rtype.startswith('total'):
-            X = X * np.sum(self.bg_ints_)
-        else:
-            X = X * self.bg_ints_[None]
-        if self.rtype in {'weber', 'total_weber'}:
-            X = X + self.bg_ints_[None]
-        return X
-
-    def _to_relative_intensity(self, X):
-        if self.rtype == 'absolute':
-            return X
-        elif self.rtype == 'diff':
-            return X - self.bg_ints_[None]
-        # convert to relative intensity
-        if self.rtype in {'weber', 'total_weber'}:
-            X = X - self.bg_ints_[None]
-
-        if self.rtype.startswith('total'):
-            X = X / np.sum(self.bg_ints_)
-        else:
-            X = X / self.bg_ints_[None]
-
-        if self.rtype in {'fechner', 'log'}:
-            assert np.all(X > 0), 'If log, X cannot be zero or lower.'
-            X = np.log(X)
-        elif self.rtype not in {'weber', 'total_weber'}:
-            assert np.all(X >= 0), 'If not log, X must be positive.'
-
-        return X
 
     def inverse_transform(self, X):
         # check is fitted
