@@ -217,6 +217,7 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
             raise ValueError("Shape of input is different from number"
                              "of measured spectra in container.")
 
+        # TODO ignore bounds option
         self.fitted_intensities_ = np.clip(
             self._to_absolute_intensity(X),
             *self.measured_spectra_.intensity_bounds

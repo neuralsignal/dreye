@@ -2,6 +2,8 @@
 LED substitution experiments
 """
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from scipy.optimize import lsq_linear, least_squares
@@ -125,13 +127,19 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         for led_idx, led_bound, led_simulate_max in zip(
             led_idcs, led_abs_bounds, led_simulate_maxs
         ):
+            w_solo = self._get_w_solo(led_idx, led_bound)
+            if np.any(w_solo > self.bounds_[1]):
+                warnings.warn(
+                    "Absolute intensity goes beyond measurment bounds! - "
+                    "Change target intensity values."
+                )
+            # keep proportions or not
             if (
                 self.keep_proportions
                 and (led_idx in already_fitted)
                 # TODO test with other rtypes
                 and (self.rtype in {'diff', 'weber', 'total_weber'})
             ):
-                w_solo = self._get_w_solo(led_idx, led_bound)
                 old_w, old_w_solo = already_fitted[led_idx]
 
                 old_rel_w = self._to_relative_intensity(
@@ -154,8 +162,17 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
                     new_rel_w,
                     self.bg_ints_,
                 )
+
+                if np.any(w > self.bounds_[1]):
+                    warnings.warn(
+                        "Proportions go beyond measurement bounds! - "
+                        "Turn off `keep_proportions` to avoid this error or "
+                        "switch the order of the first sample fitted to be "
+                        "the maximum intensity."
+                    )
             else:
                 w, w_solo = self._fit_sample(
+                    w_solo,
                     led_idx,
                     led_bound,
                     led_simulate_max,
@@ -187,15 +204,20 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
             })
 
         fitted_intensities = np.array(fitted_intensities)
-        fitted_excitations = self._get_x_pred_noise(
-            fitted_intensities.T,
-            self.photoreceptor_model_,
-            self.A_
-        ).T
+        fitted_excitations = self.fitted_excite_X_ = np.array([
+            self._get_x_pred_noise(w)
+            for w in fitted_intensities
+        ])
 
         # pass
         self.fitted_intensities_ = fitted_intensities[::2]
         self.fitted_solo_intensities_ = fitted_intensities[1::2]
+        self.fitted_relative_intensities_ = self._to_relative_intensity(
+            self.fitted_intensities_
+        )
+        self.fitted_solo_relative_intensities_ = self._to_relative_intensity(
+            self.fitted_solo_intensities_
+        )
         self.fitted_excite_X_ = fitted_excitations[::2]
         self.fitted_solo_excite_X_ = fitted_excitations[1::2]
         self.current_X_ = self.fitted_solo_excite_X_
@@ -225,6 +247,7 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
 
     def _fit_sample(
         self,
+        w_solo,
         led_idx,
         led_bound,
         led_simulate_max,
@@ -232,10 +255,7 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         weighted_init_fit,
     ):
         # adjust A matrix
-        w_solo = self._get_w_solo(led_idx, led_bound)
         target_capture_x = self._get_x_capture(w_solo)
-
-        # target_capture_x = get_x_pred(w_solo, photoreceptor_model, A)
 
         # check if simulating max and adjust bounds
         if led_simulate_max:
@@ -353,16 +373,8 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         w_solo[led_idx] = w[led_idx]
         w = w.copy()
         w[led_idx] = self.bg_ints_[led_idx]
-        x_pred = self._get_x_pred(
-            w,
-            self.photoreceptor_model_,
-            self.A_
-        )
-        excite_x = self._get_x_pred(
-            w_solo,
-            self.photoreceptor_model_,
-            self.A_
-        )
+        x_pred = self._get_x_pred(w)
+        excite_x = self._get_x_pred(w_solo)
         return fit_weights * (excite_x - x_pred)
 
 

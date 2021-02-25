@@ -332,6 +332,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             Returns the r2-value for each feature individually.
         """
         # apply transformation and compare to checked_X
+        # TODO ignore bounds option
         X_pred = self.inverse_transform(self.transform(X))
         X = self.current_X_
 
@@ -389,6 +390,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             # refit if X is given
             self.fit(X)
         # map fitted_intensities
+        # TODO ignore bounds option
         return self.measured_spectra_.map(
             self.fitted_intensities_, return_units=False)
 

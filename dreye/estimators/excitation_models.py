@@ -186,7 +186,7 @@ class IndependentExcitationFit(_SpectraModel):
             )
             self.bg_ints_ = self._get_bg_ints(
                 self.q1_ints, self.measured_spectra_,
-                skip=True  # skip if bg_ints is None
+                skip=self._skip_bg_ints  # skip if bg_ints is None
             )
 
         # measured_spectra attributes
@@ -207,7 +207,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.background_ = self._check_background(
             self.background, self.measured_spectra_
         )
-        if self.background_ is None and self.bg_ints_ is not None:
+        if self.background is None and self.bg_ints_ is not None:
             # will integrate with normalized spectra
             self.background_ = self._check_background(
                 self.bg_ints_, self.measured_spectra_
