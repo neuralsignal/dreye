@@ -40,7 +40,9 @@ class IndependentExcitationFit(_SpectraModel):
         If None, weighting will be equal between all photoreceptor types.
         Must be same length as the number of photoreceptor types
     background : dreye.Signal, optional
-        The spectral distribution of the background illuminant.
+        The spectral distribution of the background illuminant. Assumes
+        that it contains the whole added spectrum including the LED intensities,
+        if they are non-zero.
     measured_spectra : dreye.MeasuredSpectraContainer, optional
         Container with all available LEDs and their measured spectra. If
         None, a fake LED measurement will be created with intensities
@@ -136,13 +138,14 @@ class IndependentExcitationFit(_SpectraModel):
         smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
-        hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        hard_sep_value=None,  # float in capture units (1 relative capture)
         q1_ints=None,
         bg_ints=None,
         fit_only_uniques=False,
         ignore_bounds=False,
         lsq_kwargs=None,
-        ignore_capture_units=False
+        ignore_capture_units=True,
+        background_only_external=False
     ):
         self.photoreceptor_model = photoreceptor_model
         self.measured_spectra = measured_spectra
@@ -158,6 +161,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.q1_ints = q1_ints
         self.bg_ints = bg_ints
         self.ignore_capture_units = ignore_capture_units
+        self.background_only_external = background_only_external
 
     def _set_required_objects(self, size=None):
         # create photoreceptor model
@@ -176,7 +180,8 @@ class IndependentExcitationFit(_SpectraModel):
         # set background intensities if exist
         self.bg_ints_ = self._get_bg_ints(
             self.bg_ints, self.measured_spectra_,
-            skip=self._skip_bg_ints  # skip if bg_ints is None
+            skip=self._skip_bg_ints,  # skip if bg_ints is None
+            rtype=getattr(self, 'rtype', None)
         )
 
         if self.q1_ints is not None and self.bg_ints_ is None:
@@ -186,7 +191,8 @@ class IndependentExcitationFit(_SpectraModel):
             )
             self.bg_ints_ = self._get_bg_ints(
                 self.q1_ints, self.measured_spectra_,
-                skip=self._skip_bg_ints  # skip if bg_ints is None
+                skip=self._skip_bg_ints,  # skip if bg_ints is None
+                rtype=getattr(self, 'rtype', None)
             )
 
         # measured_spectra attributes
@@ -207,9 +213,41 @@ class IndependentExcitationFit(_SpectraModel):
         self.background_ = self._check_background(
             self.background, self.measured_spectra_
         )
-        if self.background is None and self.bg_ints_ is not None:
+
+        self.is_measurement_background_ = True
+        if self.background_ is not None and self.bg_ints_ is not None:
+            background_ = self._get_background_from_bg_ints(
+                self.bg_ints_, self.measured_spectra_, skip_zero=False
+            )
+            if self.background_only_external:
+                self.background_ = self.background_ + background_
+            if not np.allclose(self.background_.magnitude, background_.magnitude):
+                if not self.background_only_external:
+                    warnings.warn(
+                        "`background` differs from `bg_ints`. "
+                        "Assuming background is the sum of "
+                        "an external source and `bg_ints`."
+                    )
+                self.is_measurement_background_ = False
+                self.bg_ints_background_ = background_
+
+                assert np.all(
+                    background_.magnitude < self.background_.magnitude
+                ), "`background` spectrum does not add up with `bg_ints`."
+        elif self.background_ is not None and self.bg_ints_ is None:
+            if self.background_only_external:
+                warnings.warn(
+                    "Assuming `bg_ints` are all zero."
+                )
+                self.bg_ints_ = np.zeros(len(self.measured_spectra_))
+            else:
+                warnings.warn(
+                    "Assuming the `background` illuminant will be simulated, "
+                    "using the LEDs."
+                )
+        elif self.background_ is None and self.bg_ints_ is not None:
             # will integrate with normalized spectra
-            self.background_ = self._check_background(
+            self.background_ = self._get_background_from_bg_ints(
                 self.bg_ints_, self.measured_spectra_
             )
 
@@ -226,8 +264,30 @@ class IndependentExcitationFit(_SpectraModel):
             ).dimensionless, 'units not dimensionless'
 
         # number of photoreceptors
+        # if background is None (all zeros or None) then capture border is 0
+        self.capture_border_ = float(self.background_ is not None)
         self.n_features_ = self.photoreceptor_model_.pr_number
         self.channel_names_ = self.photoreceptor_model_.names
+        self.hard_sep_value_ = (
+            self.capture_border_
+            if self.hard_sep_value is None
+            else self.hard_sep_value
+        )
+
+        # weighting for each photoreceptor
+        if self.fit_weights is None:
+            self.fit_weights_ = np.ones(self.photoreceptor_model_.pr_number)
+        else:
+            self.fit_weights_ = asarray(self.fit_weights)
+            # assert len(fit_weights) == self.photoreceptor_model_.pr_number
+
+        # do weighted initial fitting in linear domain
+        self.weighted_init_fit_ = (
+            not self.fit_to_transform
+            and np.unique(self.fit_weights_).size > 1
+        )
+
+        self._set_A()
 
         return self
 
@@ -240,6 +300,18 @@ class IndependentExcitationFit(_SpectraModel):
             apply_noise_threshold=False
         ).T
 
+        if not self.is_measurement_background_:
+            self.q_bg_ = self.photoreceptor_model_.capture(
+                self.background_ - self.bg_ints_background_,
+                background=self.background_,
+                return_units=False,
+                apply_noise_threshold=False
+            )[0]  # length of opsin
+        else:
+            self.q_bg_ = 0
+
+        return self
+
     def _fit(self, X):
         """
         Actual Fitting method. Allows easier subclassing
@@ -249,25 +321,10 @@ class IndependentExcitationFit(_SpectraModel):
         self.capture_X_, self.excite_X_ = self._process_X(X)
         self.current_X_ = self.excite_X_
 
-        self._set_A()
-
         # whether domain between spectra and photoreceptor model equal
         self._domain_equal_ = (
             self.normalized_spectra_.domain
             == self.photoreceptor_model_.sensitivity.domain
-        )
-
-        # weighting for each photoreceptor
-        if self.fit_weights is None:
-            fit_weights = np.ones(self.photoreceptor_model_.pr_number)
-        else:
-            fit_weights = asarray(self.fit_weights)
-            # assert len(fit_weights) == self.photoreceptor_model_.pr_number
-
-        # do weighted initial fitting in linear domain
-        self.weighted_init_fit_ = (
-            not self.fit_to_transform
-            and np.unique(fit_weights).size > 1
         )
 
         # separation of all negative or positive
@@ -284,7 +341,7 @@ class IndependentExcitationFit(_SpectraModel):
             self.sep_result_ = None
         elif (
             self.hard_separation
-            and np.all(self.hard_sep_value == 1)
+            and np.all(self.hard_sep_value_ == self.capture_border_)
             and (self.bg_ints_ is not None)
         ):
             self.sep_bound_ = self.bg_ints_
@@ -292,14 +349,13 @@ class IndependentExcitationFit(_SpectraModel):
         elif self.hard_separation:
             sep_value = (
                 np.ones(self.photoreceptor_model_.pr_number)
-                * self.hard_sep_value
+                * self.hard_sep_value_
             )
             # separation bound using a fit to sep_value
             # capture and excite!
             sep_result = self._fit_sample(
                 sep_value,
                 self.photoreceptor_model_.excitefunc(sep_value),
-                fit_weights=fit_weights
             )
             self.sep_bound_ = sep_result.x  # just get weight
             self.sep_result_ = sep_result
@@ -315,7 +371,7 @@ class IndependentExcitationFit(_SpectraModel):
             )
             self.container_ = OptimizeResultContainer(np.array([
                 self._fit_sample(
-                    capture_x, excite_x, fit_weights, self.sep_bound_
+                    capture_x, excite_x, self.sep_bound_
                 )
                 for capture_x, excite_x in
                 zip(self.capture_X_[xidcs], self.excite_X_[xidcs])
@@ -323,7 +379,7 @@ class IndependentExcitationFit(_SpectraModel):
         else:
             self.container_ = OptimizeResultContainer([
                 self._fit_sample(
-                    capture_x, excite_x, fit_weights, self.sep_bound_
+                    capture_x, excite_x, self.sep_bound_
                 )
                 for capture_x, excite_x in
                 zip(self.capture_X_, self.excite_X_)
@@ -374,17 +430,18 @@ class IndependentExcitationFit(_SpectraModel):
         X = np.array([self._get_x_pred(x) for x in X])
         return X
 
-    def _fit_sample(self, capture_x, excite_x, fit_weights, sep_bound=None):
+    def _fit_sample(self, capture_x, excite_x, sep_bound=None):
         # adjust bounds if necessary
         bounds = list(self.bounds_)
         if sep_bound is not None:
-            if np.all(capture_x >= self.hard_sep_value):
+            if np.all(capture_x >= self.hard_sep_value_):
                 bounds[0] = sep_bound
-            elif np.all(capture_x <= self.hard_sep_value):
+            elif np.all(capture_x <= self.hard_sep_value_):
                 bounds[1] = sep_bound
         if self.bg_ints_ is not None:
             # if np.allclose(capture_x, 1)
-            if np.allclose(capture_x, 1):
+            # if close to the background intensity just use those values
+            if np.allclose(capture_x, self.capture_border_):
                 return OptimizeResult(
                     x=self.bg_ints_,
                     cost=0.0,
@@ -400,38 +457,39 @@ class IndependentExcitationFit(_SpectraModel):
                     success=True
                 )
         # find initial w0 using linear least squares
-        w0 = self._init_sample(capture_x, bounds, fit_weights)
+        w0 = self._init_sample(capture_x, bounds)
         # fitted result
         result = least_squares(
             self._objective,
             x0=w0,
-            args=(excite_x, fit_weights),
+            args=(excite_x,),
             bounds=tuple(bounds),
             max_nfev=self.max_iter,
             **({} if self.lsq_kwargs is None else self.lsq_kwargs)
         )
         return result
 
-    def _init_sample(self, capture_x, bounds, fit_weights):
+    def _init_sample(self, capture_x, bounds):
         # weighted fit is better for substitution types of fits
         if self.weighted_init_fit_:
             result = lsq_linear(
-                fit_weights[:, None] * self.A_, fit_weights * capture_x,
+                self.fit_weights_[:, None] * self.A_,
+                self.fit_weights_ * (capture_x - self.q_bg_),
                 bounds=tuple(bounds),
                 max_iter=self.max_iter
             )
         else:
             result = lsq_linear(
-                self.A_, capture_x,
+                self.A_, (capture_x - self.q_bg_),
                 bounds=tuple(bounds),
                 max_iter=self.max_iter
             )
         # return fitted intensity (w)
         return result.x
 
-    def _objective(self, w, excite_x, fit_weights):
+    def _objective(self, w, excite_x):
         x_pred = self._get_x_pred(w)
-        return fit_weights * (excite_x - x_pred)
+        return self.fit_weights_ * (excite_x - x_pred)
 
     def _get_x_capture(self, w):
         if self.photoreceptor_model_.filterfunc is None:
@@ -457,6 +515,7 @@ class IndependentExcitationFit(_SpectraModel):
             )
             # ensure vector form
             x_pred = np.atleast_1d(np.squeeze(x_pred))
+        x_pred += self.q_bg_
         return x_pred
 
     def _get_x_pred_noise(self, w):
@@ -620,14 +679,14 @@ class TransformExcitationFit(IndependentExcitationFit):
         smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
-        hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        hard_sep_value=None,  # float in capture units (1 relative capture)
         q1_ints=None,
         bg_ints=None,
         fit_only_uniques=False,
         ignore_bounds=False,
         fit_to_transform=False,
         lsq_kwargs=None,
-        ignore_capture_units=False
+        ignore_capture_units=True
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -721,14 +780,14 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
-        hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        hard_sep_value=None,  # float in capture units (1 relative capture)
         q1_ints=None,
         bg_ints=None,
         fit_only_uniques=False,
         ignore_bounds=False,
         fit_to_transform=False,
         lsq_kwargs=None,
-        ignore_capture_units=False
+        ignore_capture_units=True
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -925,7 +984,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
-        hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        hard_sep_value=None,  # float in capture units (1 relative capture)
         q1_ints=None,
         bg_ints=None,
         fit_only_uniques=False,
@@ -933,7 +992,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         ignore_bounds=False,
         add_background=True,
         filter_background=True,
-        ignore_capture_units=False
+        ignore_capture_units=True
     ):
         self.reflectances = reflectances
         self.photoreceptor_model = photoreceptor_model

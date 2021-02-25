@@ -201,7 +201,8 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
             change_dimensionality=False
         )
         self.bg_ints_ = self._get_bg_ints(
-            self.bg_ints, self.measured_spectra_, skip=False
+            self.bg_ints, self.measured_spectra_, skip=False,
+            rtype=self.rtype
         )
         # check X
         X = self._check_X(X)

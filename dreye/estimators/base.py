@@ -10,7 +10,8 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from dreye.utilities import (
-    is_dictlike, optional_to, is_listlike, is_string, is_dictlike
+    is_dictlike, optional_to, is_listlike, is_string,
+    is_numeric
 )
 from dreye.utilities.abstract import _AbstractContainer
 from dreye.constants import ureg
@@ -120,25 +121,17 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             background['units'] = measured_spectra.units
             background = get_spectrum(**background)
         elif background is None:
-            background = get_spectrum(
-                wavelengths=measured_spectra.wavelengths,
-                units=measured_spectra.units
-            )
+            return
         elif is_string(background) and (background == 'null'):
-            background = None
+            return
         elif isinstance(background, Signal):
             background = background.to(measured_spectra.units)
         elif is_listlike(background):
-            # normalized spectra are always on domain_axis=0
-            assert measured_spectra.normalized_spectra.domain_axis == 0
-            background = optional_to(
-                background,
-                measured_spectra.intensities.units
-            )
-            background = (
-                background[None]
-                * measured_spectra.normalized_spectra.magnitude
-            ).sum(axis=-1)
+            background = optional_to(background, measured_spectra.units)
+            # check size requirements
+            assert background.size == measured_spectra.normalized_spectra.shape[
+                measured_spectra.normalized_spectra.domain_axis
+            ]
             background = get_spectrum(
                 intensities=background,
                 wavelengths=measured_spectra.wavelengths,
@@ -149,18 +142,53 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
                 "Background must be Spectrum instance or dict-like, but"
                 f"is of type {type(background)}."
             )
+
+        if np.allclose(background.magnitude, 0):
+            # return None if background is just a bunch of zeros
+            return
+
         return background
 
     @staticmethod
-    def _get_bg_ints(bg_ints, measured_spectra, skip=True):
+    def _get_background_from_bg_ints(
+        bg_ints, measured_spectra, skip_zero=True
+    ):
         """
-        Set background intensity values
+        Get background from `bg_ints` attribute
+        """
+        if np.allclose(bg_ints, 0) and skip_zero:
+            # if background intensities are zero return None
+            return
+        # sanity check
+        assert measured_spectra.normalized_spectra.domain_axis == 0
+        background = (
+            bg_ints
+            * measured_spectra.normalized_spectra.magnitude
+        ).sum(axis=-1)
+        background = get_spectrum(
+            intensities=background,
+            wavelengths=measured_spectra.wavelengths,
+            units=measured_spectra.units
+        )
+        return background
+
+    @staticmethod
+    def _get_bg_ints(bg_ints, measured_spectra, skip=True, rtype=None):
+        """
+        Get background intensity values
         """
         if skip and bg_ints is None:
             return
         # set background intensities to default
         if bg_ints is None:
-            bg_ints = np.ones(len(measured_spectra))
+            if rtype in {'absolute', 'diff'}:
+                bg_ints = np.zeros(len(measured_spectra))
+            else:
+                bg_ints = np.ones(len(measured_spectra))
+        elif is_numeric(bg_ints):
+            bg_ints = np.ones(
+                len(measured_spectra)
+            ) * optional_to(bg_ints, measured_spectra.intensities.units)
         else:
             if is_dictlike(bg_ints):
                 names = measured_spectra.names

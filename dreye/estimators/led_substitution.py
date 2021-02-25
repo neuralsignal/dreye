@@ -36,12 +36,12 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
-        hard_sep_value=1.0,  # float in capture units (1 relative capture)
+        hard_sep_value=None,  # float in capture units (1 relative capture)
         bg_ints=None,
         fit_only_uniques=False,
         ignore_bounds=False,
         lsq_kwargs=None,
-        ignore_capture_units=False,
+        ignore_capture_units=True,
         rtype='weber',  # {'fechner/log', 'weber', None}
         unidirectional=False,  # allow only increase or decreases of LEDs in simulation
         keep_proportions=False,
@@ -83,7 +83,6 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
 
         # set required objects
         self._set_required_objects(None)
-        self._set_A()
 
         X = asarray(X)
         assert (X.shape[1] % 2) == 0
@@ -111,14 +110,6 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
             led_bounds, led_bgs
         )
 
-        # weighting for each photoreceptor
-        if self.fit_weights is None:
-            fit_weights = np.ones(self.photoreceptor_model_.pr_number)
-        else:
-            fit_weights = asarray(self.fit_weights)
-
-        weighted_init_fit = fit_weights.size > 1
-
         fitted_intensities = []
         fitted_info = []
 
@@ -137,8 +128,6 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
             if (
                 self.keep_proportions
                 and (led_idx in already_fitted)
-                # TODO test with other rtypes
-                and (self.rtype in {'diff', 'weber', 'total_weber'})
             ):
                 old_w, old_w_solo = already_fitted[led_idx]
 
@@ -176,8 +165,6 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
                     led_idx,
                     led_bound,
                     led_simulate_max,
-                    fit_weights,
-                    weighted_init_fit,
                 )
 
                 already_fitted[led_idx] = (w, w_solo)
@@ -251,8 +238,6 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         led_idx,
         led_bound,
         led_simulate_max,
-        fit_weights,
-        weighted_init_fit,
     ):
         # adjust A matrix
         target_capture_x = self._get_x_capture(w_solo)
@@ -260,7 +245,7 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         # check if simulating max and adjust bounds
         if led_simulate_max:
             # TODO add noise from capture noise level
-            assert np.all(target_capture_x >= 1 - EPS), (
+            assert np.all(target_capture_x >= self.capture_border_ - EPS), (
                 str(target_capture_x)
             )
             # adjust lower bound to be the led intensity of interest
@@ -276,7 +261,7 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
                 min_bound, max_bound
             )
         else:
-            assert np.all(target_capture_x <= 1 + EPS), (
+            assert np.all(target_capture_x <= self.capture_border_ + EPS), (
                 str(target_capture_x)
             )
             # adjust upper bound to be the led intensity of interest
@@ -310,8 +295,8 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
 
         # try to simulate the lower bound of the LED simulation
         w0 = self._init_sample(
-            target_capture_x, bounds_without,
-            fit_weights, weighted_init_fit
+            target_capture_x,
+            bounds_without,
         ).copy()
         if led_simulate_max:
             w0[led_idx] = led_bound + EPS1
@@ -322,9 +307,7 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         result = least_squares(
             self._objective,
             x0=w0,
-            args=(
-                led_idx, fit_weights,
-            ),
+            args=(led_idx,),
             bounds=bounds_,
             max_nfev=self.max_iter,
             **({} if self.lsq_kwargs is None else self.lsq_kwargs)
@@ -341,33 +324,9 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         w_solo[led_idx] = led_bound
         return w_solo
 
-    def _init_sample(
-        self,
-        capture_x,
-        bounds_without,
-        fit_weights,
-        weighted_init_fit
-    ):
-        # weighted fit is better for substitution types of fits
-        if weighted_init_fit:
-            result = lsq_linear(
-                fit_weights[:, None] * self.A_,
-                fit_weights * capture_x,
-                bounds=tuple(bounds_without),
-                max_iter=self.max_iter
-            )
-        else:
-            result = lsq_linear(
-                self.A_, capture_x,
-                bounds=tuple(bounds_without),
-                max_iter=self.max_iter
-            )
-        # return fitted intensity (w)
-        return result.x
-
     def _objective(
         self,
-        w, led_idx, fit_weights
+        w, led_idx
     ):
         w_solo = self.bg_ints_.copy()
         w_solo[led_idx] = w[led_idx]
@@ -375,7 +334,7 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         w[led_idx] = self.bg_ints_[led_idx]
         x_pred = self._get_x_pred(w)
         excite_x = self._get_x_pred(w_solo)
-        return fit_weights * (excite_x - x_pred)
+        return self.fit_weights_ * (excite_x - x_pred)
 
 
 # deprecated version
