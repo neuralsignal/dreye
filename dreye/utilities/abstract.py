@@ -4,7 +4,7 @@
 import copy
 from abc import ABC, abstractmethod
 from collections.abc import Collection
-from inspect import getmembers, isfunction
+from inspect import getmembers, isfunction, signature
 
 from dreye.err import DreyeError
 
@@ -40,6 +40,27 @@ class _AbstractArray(ABC):
         Create instance from a dictionary.
         """
         pass
+
+
+class _InitDict:
+    """
+    Implements `to_dict` and `from_dict` methods
+    by using keyword arguments from the `__init__` method
+    """
+
+    def to_dict(self):
+        """
+        Return dictionary of `__init__` arguments.
+        """
+        keys = list(signature(self.__init__).parameters)
+        return {key: getattr(self, key) for key in keys}
+
+    @classmethod
+    def from_dict(cls, data):
+        """
+        From dictionary build class
+        """
+        return cls(**data)
 
 
 @inherit_docstrings

@@ -190,6 +190,12 @@ class Photoreceptor(ABC):
         """
         String representation of photoreceptor model.
         """
+        return f"{type(self).__name__}(\n\t{self.sensitivity.magnitude}\n)"
+
+    def __repr__(self):
+        """
+        String representation of photoreceptor model.
+        """
         return f"{type(self).__name__}{tuple(self.labels)}"
 
     def to_dict(self):

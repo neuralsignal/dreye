@@ -455,7 +455,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         else:
             return values.magnitude
 
-    def map(self, values, return_units=True):
+    def map(self, values, return_units=True, check_bounds=True):
         """
         Map Intensity values to output values.
 
@@ -483,9 +483,10 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             shape = None
 
         # check intensity bound of values
-        imin, imax = self.intensity_bounds
-        truth = np.all(values >= imin) and np.all(values <= imax)
-        assert truth, 'Some values to be mapped are out of bounds.'
+        if check_bounds:
+            imin, imax = self.intensity_bounds
+            truth = np.all(values >= imin) and np.all(values <= imax)
+            assert truth, 'Some values to be mapped are out of bounds.'
 
         mapped_values = self._mapper_func(values)
         mapped_values = self._resolution_mapping(mapped_values)
@@ -518,7 +519,8 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         values = optional_to(values, self.labels.units, *self.contexts)
 
         if is_numeric(values):
-            shape = None
+            shape = values.shape
+            values = [values]
         elif values.ndim > 1:
             shape = values.shape
             values = values.flatten()
@@ -536,7 +538,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         else:
             return intensity
 
-    def get_residuals(self, values, return_units=True):
+    def get_residuals(self, values, return_units=True, check_bounds=True):
         """
         Get residuals between values and mapped values
 
@@ -554,7 +556,9 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
 
         values = optional_to(values, units=self.intensity.units)
-        mapped_values = self.map(values, return_units=False)
+        mapped_values = self.map(
+            values, return_units=False, check_bounds=check_bounds
+        )
 
         # interpolate to new values given resolution
         res = self.inverse_map(mapped_values, return_units=False) - values
@@ -564,7 +568,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         else:
             return res
 
-    def score(self, values, **kwargs):
+    def score(self, values, check_bounds=True):
         """
         R^2 score for particular mapping.
 
@@ -581,7 +585,9 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             R^2-score.
         """
         values = optional_to(values, self.intensity.units, *self.contexts)
-        mapped_values = self.map(values, return_units=False)
+        mapped_values = self.map(
+            values, return_units=False, check_bounds=check_bounds
+        )
         fit_values = self.inverse_map(mapped_values, return_units=False)
         res = (values - fit_values) ** 2
         tot = (values - values.mean()) ** 2
@@ -700,7 +706,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
     ]
     _allowed_instances = MeasuredSpectrum
 
-    def map(self, values, return_units=True):
+    def map(self, values, return_units=True, check_bounds=True):
         """
         Map Intensity values to output values.
 
@@ -724,7 +730,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         y = np.empty(x.shape)
         for idx, measured_spectrum in enumerate(self):
             y[..., idx] = measured_spectrum.map(
-                x[..., idx], return_units=False
+                x[..., idx], return_units=False, check_bounds=check_bounds
             )
 
         if values.ndim == 1:
@@ -769,7 +775,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         return y
 
-    def get_residuals(self, values, return_units=True):
+    def get_residuals(self, values, return_units=True, check_bounds=True):
         """
         Get residuals between values and mapped values
 
@@ -793,7 +799,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         y = np.empty(x.shape)
         for idx, measured_spectrum in enumerate(self):
             y[..., idx] = measured_spectrum.get_residuals(
-                x[..., idx], return_units=False
+                x[..., idx], return_units=False, check_bounds=check_bounds
             )
 
         if values.ndim == 1:
@@ -804,7 +810,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
 
         return y
 
-    def score(self, values, average=True, **kwargs):
+    def score(self, values, average=True, check_bounds=True):
         """
         R^2 score for particular mapping.
 
@@ -825,7 +831,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         x = np.atleast_2d(values)
 
         scores = np.array([
-            measured_spectrum.score(x[..., idx], **kwargs)
+            measured_spectrum.score(x[..., idx], check_bounds=check_bounds)
             for idx, measured_spectrum in enumerate(self)
         ])
 

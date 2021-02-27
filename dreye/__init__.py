@@ -52,11 +52,16 @@ from dreye.estimators.intensity_models import (
 from dreye.io.serialization import (
     read_json, write_json, read_pickle, write_pickle
 )
+from dreye.estimators.metrics import MeasuredSpectraMetrics
 
 # modules
 from dreye import hardware
 from dreye import utilities
 from dreye import stimuli
+
+# This directory
+import os
+DREYE_DIR = os.path.dirname(__file__)
 
 
 __all__ = [
@@ -79,6 +84,7 @@ __all__ = [
     'labels_concat',
     'domain_concat',
     'LedSubstitution',
+    'MeasuredSpectraMetrics',
     # spectrum
     'DomainSpectrum',
     'Spectra',

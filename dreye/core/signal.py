@@ -25,8 +25,6 @@ from dreye.core.plotting_mixin import _PlottingMixin
 from dreye.core.numpy_mixin import _NumpyMixin
 
 
-# TODO concat general method?
-
 def labels_concat(objs, left=False):
     """
     Concatenate multiple Signal objects together along the labels dimension.
