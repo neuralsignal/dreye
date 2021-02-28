@@ -7,14 +7,43 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import ConvexHull
 from itertools import combinations
+from scipy import stats
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-from dreye.utilities import is_numeric, asarray, is_listlike, is_dictlike
+from dreye.utilities import (
+    is_numeric, asarray, is_listlike, is_dictlike, is_string
+)
 from dreye.core.photoreceptor import Photoreceptor
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
 
 
-def compute_mean_width(X, n=1000):
+def compute_jensen_shannon_divergence(P, Q, base=2):
+    """
+    Jensen-Shannon divergence of P and Q.
+    """
+    assert P.shape == Q.shape, "`P` and `Q` must be the same shape"
+    P = P.ravel()
+    Q = Q.ravel()
+    _P = P / np.linalg.norm(P, ord=1)
+    _Q = Q / np.linalg.norm(Q, ord=1)
+    _M = 0.5 * (_P + _Q)
+    return 0.5 * (
+        stats.entropy(_P, _M, base=base)
+        + stats.entropy(_Q, _M, base=base)
+    )
+
+
+def compute_jensen_shannon_similarity(P, Q):
+    """
+    Compute Jensen-Shannon divergence with base 2 and subtract it from 1,
+    so that 1 is equality of distribution and 0 is no similarity.
+    """
+    return 1 - compute_jensen_shannon_divergence(P, Q)
+
+
+def compute_mean_width(X, n=1000, vectorized=False):
     """
     Compute mean width by projecting `X` onto random vectors
 
@@ -33,9 +62,17 @@ def compute_mean_width(X, n=1000):
     X = X - X.mean(0)  # centering data
     rprojs = np.random.normal(size=(X.shape[-1], n))
     rprojs /= np.linalg.norm(rprojs, axis=0)  # normalize vectors by l2-norm
-    proj = X @ rprojs  # project samples onto random vectors
-    max1 = proj.max(0)  # max across samples
-    max2 = (-proj).max(0)  # max across samples
+    if vectorized:
+        proj = X @ rprojs  # project samples onto random vectors
+        max1 = proj.max(0)  # max across samples
+        max2 = (-proj).max(0)  # max across samples
+    else:
+        max1 = np.zeros(n)
+        max2 = np.zeros(n)
+        for idx, rproj in enumerate(rprojs.T):
+            proj = X @ rproj
+            max1[idx] = proj.max()
+            max2[idx] = (-proj).max()
     return (max1 + max2).mean()
 
 
@@ -108,9 +145,14 @@ class MeasuredSpectraMetrics(_InitDict):
         self.random_samples = self.get_random_samples()
 
     def _get_metrics(
-        self, metric_func, B=None, as_frame=True,
-        normalize=True, name='volume', **kwargs
+        self, metric_func, metric_name, B=None, as_frame=True,
+        normalize=True, B_name=None, **kwargs
     ):
+
+        name = (
+            metric_name if is_string(metric_name) else
+            getattr(metric_name, '__name__', repr(callable))
+        )
 
         # names of light sources
         names = np.array(self.measured_spectra.names)
@@ -125,7 +167,7 @@ class MeasuredSpectraMetrics(_InitDict):
                 metrics = np.zeros(len(self.source_idcs))
 
             for idx, source_idx in enumerate(self.source_idcs):
-                metric = metric_func(source_idx, B, **kwargs)
+                metric = metric_func(source_idx, metric_name, B, **kwargs)
                 if as_frame:
                     metrics.loc[idx, 'metric'] = metric
                     metrics.loc[idx, 'light_combos'] = '+'.join(
@@ -156,67 +198,35 @@ class MeasuredSpectraMetrics(_InitDict):
                     metrics[transformation] = metrics_
             return metrics
         else:
-            return helper(B)
+            metrics = helper(B)
+            metrics['transformation'] = B_name
+            return metrics
 
-    def get_excitation_volumes(
-        self, B=None, as_frame=True, normalize=True, **kwargs
+    def get_capture_metrics(
+        self, B=None, metric='volume', as_frame=True,
+        normalize=True, **kwargs
     ):
-        """
-        Get all volumes for excitations.
-        """
         return self._get_metrics(
-            self.get_excitation_volume,
-            B, as_frame, normalize, 'volume', **kwargs)
+            self.get_capture_metric,
+            metric,
+            B,
+            as_frame,
+            normalize,
+            **kwargs
+        )
 
-    def get_capture_volumes(
-        self, B=None, as_frame=True, normalize=True, **kwargs
+    def get_excitation_metrics(
+        self, B=None, metric='volume', as_frame=True,
+        normalize=True, **kwargs
     ):
-        """
-        Get all volumes for captures.
-        """
         return self._get_metrics(
-            self.get_capture_volume,
-            B, as_frame, normalize, 'volume', **kwargs)
-
-    def get_excitation_continuities(
-        self, B=None, as_frame=True, normalize=True, **kwargs
-    ):
-        """
-        Get all continuity likelihood for excitations.
-        """
-        return self._get_metrics(
-            self.get_excitation_continuity,
-            B, as_frame, normalize, 'continuity', **kwargs)
-
-    def get_capture_continuities(
-        self, B=None, as_frame=True, normalize=True, **kwargs
-    ):
-        """
-        Get all volumes for captures.
-        """
-        return self._get_metrics(
-            self.get_capture_continuity,
-            B, as_frame, normalize, 'continuity', **kwargs)
-
-    def get_excitation_mean_widths(
-        self, B=None, as_frame=True, normalize=True, **kwargs
-    ):
-        """
-        Get all mean widths for excitations.
-        """
-        return self._get_metrics(
-            self.get_excitation_mean_width,
-            B, as_frame, normalize, 'mean_width', **kwargs)
-
-    def get_capture_mean_widths(
-        self, B=None, as_frame=True, normalize=True, **kwargs
-    ):
-        """
-        Get all mean widths for captures.
-        """
-        return self._get_metrics(
-            self.get_capture_mean_width,
-            B, as_frame, normalize, 'mean_width', **kwargs)
+            self.get_excitation_metric,
+            metric,
+            B,
+            as_frame,
+            normalize,
+            **kwargs
+        )
 
     def get_random_samples(self, n_samples=None):
         """
@@ -246,6 +256,57 @@ class MeasuredSpectraMetrics(_InitDict):
         return self.photoreceptor_model.excitefunc(
             self.get_captures(source_idx)
         )
+
+    def _plot_points(self, points_func, source_idx, B=None, B_columns=None):
+        """
+        """
+        points = points_func(source_idx)
+
+        def helper(points, B, B_columns, title=None):
+            points = self.transform_points(points, B)
+            sns.pairplot(
+                data=pd.DataFrame(
+                    points,
+                    columns=B_columns
+                ),
+                plot_kws=dict(
+                    color='gray',
+                    alpha=0.6
+                ),
+                diag_kws=dict(
+                    color='gray',
+                    alpha=0.6
+                )
+            )
+            if title is not None:
+                plt.suptitle(title, y=1)
+
+            plt.show()
+
+        if is_dictlike(B):
+            for transformation, B_ in B.items():
+                if B_columns is None:
+                    B_columns_ = B_columns
+                else:
+                    B_columns_ = B_columns.get(transformation, None)
+                helper(points, B_, B_columns_, transformation)
+        else:
+            return helper(points, B, B_columns)
+
+    def plot_excitation_points(self, source_idx, B=None, B_columns=None):
+        """
+        Plot excitation points.
+        """
+        return self._plot_points(
+            self.get_excitations, source_idx, B,
+            B_columns
+        )
+
+    def plot_capture_points(self, source_idx, B=None):
+        """
+        Plot capture points.
+        """
+        return self._plot_points(self.get_captures, source_idx, B)
 
     @staticmethod
     def transform_points(points, B=None):
@@ -277,26 +338,14 @@ class MeasuredSpectraMetrics(_InitDict):
         convex_hull = ConvexHull(points)
         return convex_hull.volume
 
-    def get_capture_volume(self, source_idx, B=None):
-        """
-        Get volume for capture values.
-        """
-        points = self.get_captures(source_idx)
-        points = self.transform_points(points, B)
-        return self.compute_volume(points)
-
-    def get_excitation_volume(self, source_idx, B=None):
-        """
-        Get volume for capture values.
-        """
-        points = self.get_excitations(source_idx)
-        points = self.transform_points(points, B)
-        return self.compute_volume(points)
-
     @staticmethod
     def compute_continuity(points, bins=100, **kwargs):
         """
-        Compute continuity likelihood. Useful for circular datapoints
+        Compute continuity of data by binning. Useful for circular datapoints.
+
+        See Also
+        --------
+        compute_jss_uniformity
         """
         if (points.ndim == 1) or (points.shape[1] < 2):
             H = np.histogram(points, bins, **kwargs)[0].astype(bool)
@@ -304,21 +353,17 @@ class MeasuredSpectraMetrics(_InitDict):
             H = np.histogramdd(points, bins, **kwargs)[0].astype(bool)
         return H.sum() / H.size
 
-    def get_excitation_continuity(self, source_idx, B=None, bins=100, **kwargs):
+    @staticmethod
+    def compute_jss_uniformity(points, bins=100, **kwargs):
         """
-        Get the continuity likelihood.
+        Compute how similar the dataset is to a uniform distribution.
         """
-        points = self.get_excitations(source_idx)
-        points = self.transform_points(points, B)
-        return self.compute_continuity(points, bins, **kwargs)
-
-    def get_capture_continuity(self, source_idx, B=None, bins=100, **kwargs):
-        """
-        Get the continuity likelihood.
-        """
-        points = self.get_captures(source_idx)
-        points = self.transform_points(points, B)
-        return self.compute_continuity(points, bins, **kwargs)
+        if (points.ndim == 1) or (points.shape[1] < 2):
+            H = np.histogram(points, bins, **kwargs)[0]
+        else:
+            H = np.histogramdd(points, bins, **kwargs)[0]
+        H_uniform = np.ones(H.shape)
+        return compute_jensen_shannon_similarity(H, H_uniform)
 
     @staticmethod
     def compute_mean_width(points, n=1000):
@@ -329,21 +374,50 @@ class MeasuredSpectraMetrics(_InitDict):
             return np.max(points) - np.min(points)
         return compute_mean_width(points, n)
 
-    def get_excitation_mean_width(self, source_idx, B=None, n=1000):
+    def _get_metric_func(self, metric):
+        if callable(metric):
+            return metric
+        elif metric in {'volume', 'vol'}:
+            return self.compute_volume
+        elif metric in {'jss_uniformity', 'uniformity_similarity'}:
+            return self.compute_jss_uniformity
+        elif metric in {'mean_width', 'mw'}:
+            return self.compute_mean_width
+        elif metric in {'continuity', 'cont'}:
+            return self.compute_continuity
+
+        raise NameError(
+            f"Did not recognize metric `{metric}`. "
+            "`metric` must be a callable or an accepted str: "
+            "{"
+            "'volume', 'vol', 'jss_uniformity', 'uniformity_similarity', "
+            "'mean_width', 'mw', 'continuity', 'cont'"
+            "}."
+        )
+
+    def get_excitation_metric(
+        self, source_idx, metric='volume', B=None, **kwargs
+    ):
         """
-        Get the mean width.
+        Compute metric for particular combination of source lights.
         """
+        metric_func = self._get_metric_func(metric)
+        # get excitations and transform
         points = self.get_excitations(source_idx)
         points = self.transform_points(points, B)
-        return self.compute_mean_width(points, n)
+        return metric_func(points, **kwargs)
 
-    def get_capture_mean_width(self, source_idx, B=None, n=1000):
+    def get_capture_metric(
+        self, source_idx, metric='volume', B=None, **kwargs
+    ):
         """
-        Get the mean width.
+        Compute metric for particular combination of source lights.
         """
+        metric_func = self._get_metric_func(metric)
+        # get excitations and transform
         points = self.get_captures(source_idx)
         points = self.transform_points(points, B)
-        return self.compute_mean_width(points, n)
+        return metric_func(points, **kwargs)
 
     @staticmethod
     def _get_source_idcs(n, k):
