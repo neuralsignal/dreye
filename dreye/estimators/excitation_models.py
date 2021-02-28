@@ -8,6 +8,7 @@ import numpy as np
 from scipy.optimize import OptimizeResult
 from scipy.optimize import lsq_linear, least_squares
 from sklearn.utils.validation import check_array, check_is_fitted
+from sklearn import clone
 
 from dreye.utilities import (
     optional_to, asarray, is_listlike, is_callable
@@ -127,6 +128,8 @@ class IndependentExcitationFit(_SpectraModel):
     }
     fit_to_transform = False
     _skip_bg_ints = True
+    _lazy_clone = False
+    _requirements_set = False
 
     def __init__(
         self,
@@ -164,16 +167,21 @@ class IndependentExcitationFit(_SpectraModel):
         self.background_only_external = background_only_external
 
     def _set_required_objects(self, size=None):
+        if self._requirements_set:
+            return self
         # create photoreceptor model
         self.photoreceptor_model_ = self._check_photoreceptor_model(
             self.photoreceptor_model, size=size
         )
+        self.n_features_ = self.photoreceptor_model_.pr_number
+        self.channel_names_ = self.photoreceptor_model_.names
 
         # create measured_spectra_
         self.measured_spectra_ = self._check_measured_spectra(
             self.measured_spectra, self.smoothing_window,
             photoreceptor_model=self.photoreceptor_model_
         )
+        self.n_leds_ = len(self.measured_spectra_)
         # fit isotonic regression
         self.measured_spectra_.regressor
 
@@ -199,8 +207,8 @@ class IndependentExcitationFit(_SpectraModel):
         # intensity bounds as two-tuple
         if self.ignore_bounds:
             self.bounds_ = (
-                np.zeros(len(self.measured_spectra_)),
-                np.inf * np.ones(len(self.measured_spectra_))
+                np.zeros(self.n_leds_),
+                np.inf * np.ones(self.n_leds_)
             )
         else:
             self.bounds_ = self.measured_spectra_.intensity_bounds
@@ -237,19 +245,43 @@ class IndependentExcitationFit(_SpectraModel):
         elif self.background_ is not None and self.bg_ints_ is None:
             if self.background_only_external:
                 warnings.warn(
-                    "Assuming `bg_ints` are all zero."
+                    "Assuming `bg_ints` are all zero, "
+                    "since `background_only_external` set to True."
                 )
-                self.bg_ints_ = np.zeros(len(self.measured_spectra_))
-            else:
+                self.bg_ints_ = np.zeros(self.n_leds_)
+            elif (
+                not self._lazy_clone
+                and not np.allclose(self.background_.magnitude, 0)
+            ):
+                # fit background and assign bg_ints_
+                est = clone(self)
+                est._lazy_clone = True
+                X = np.ones((1, self.n_features_))
+                X = self.photoreceptor_model_.excitefunc(X)
+                est.fit(X)
+                self.bg_ints_ = est.fitted_intensities_[0]
+
                 warnings.warn(
                     "Assuming the `background` illuminant will be simulated, "
-                    "using the LEDs."
+                    "using the LEDs. Fitted background intensities: "
+                    f"{self.bg_ints_.tolist()}."
                 )
         elif self.background_ is None and self.bg_ints_ is not None:
-            # will integrate with normalized spectra
-            self.background_ = self._get_background_from_bg_ints(
-                self.bg_ints_, self.measured_spectra_
+            if not np.allclose(self.bg_ints_, 0):
+                # will integrate with normalized spectra
+                self.background_ = self._get_background_from_bg_ints(
+                    self.bg_ints_, self.measured_spectra_
+                )
+
+        if (
+            self.background_ is not None
+            and np.allclose(self.background_.magnitude, 0)
+        ):
+            warnings.warn(
+                "background array is all zero, "
+                "setting `background` illuminant to None."
             )
+            self.background_ = None
 
         if self.background_ is None and not self.ignore_capture_units:
             assert (
@@ -266,8 +298,6 @@ class IndependentExcitationFit(_SpectraModel):
         # number of photoreceptors
         # if background is None (all zeros or None) then capture border is 0
         self.capture_border_ = float(self.background_ is not None)
-        self.n_features_ = self.photoreceptor_model_.pr_number
-        self.channel_names_ = self.photoreceptor_model_.names
         self.hard_sep_value_ = (
             self.capture_border_
             if self.hard_sep_value is None
@@ -288,6 +318,9 @@ class IndependentExcitationFit(_SpectraModel):
         )
 
         self._set_A()
+
+        # make sure requirements are only set once
+        self._requirements_set = True
 
         return self
 
@@ -333,7 +366,7 @@ class IndependentExcitationFit(_SpectraModel):
                 self.hard_separation,
                 self.measured_spectra_.intensities.units
             )
-            assert len(sep_bound) == len(self.measured_spectra_), (
+            assert len(sep_bound) == self.n_leds_, (
                 "hard_separation length must match length of "
                 "measured spectra container."
             )
@@ -422,7 +455,7 @@ class IndependentExcitationFit(_SpectraModel):
         X = optional_to(X, self.output_units)
         X = check_array(X)
 
-        assert X.shape[1] == len(self.measured_spectra_)
+        assert X.shape[1] == self.n_leds_
 
         # got from output to intensity
         X = self.measured_spectra_.inverse_map(X, return_units=False)
@@ -686,7 +719,8 @@ class TransformExcitationFit(IndependentExcitationFit):
         ignore_bounds=False,
         fit_to_transform=False,
         lsq_kwargs=None,
-        ignore_capture_units=True
+        ignore_capture_units=True,
+        background_only_external=False
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -702,7 +736,8 @@ class TransformExcitationFit(IndependentExcitationFit):
             ignore_bounds=ignore_bounds,
             q1_ints=q1_ints,
             bg_ints=bg_ints,
-            ignore_capture_units=ignore_capture_units
+            ignore_capture_units=ignore_capture_units,
+            background_only_external=background_only_external
         )
         self.linear_transform = linear_transform
         self.inv_transform = inv_transform
@@ -787,7 +822,8 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         ignore_bounds=False,
         fit_to_transform=False,
         lsq_kwargs=None,
-        ignore_capture_units=True
+        ignore_capture_units=True,
+        background_only_external=False
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -803,7 +839,8 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
             ignore_bounds=ignore_bounds,
             q1_ints=q1_ints,
             bg_ints=bg_ints,
-            ignore_capture_units=ignore_capture_units
+            ignore_capture_units=ignore_capture_units,
+            background_only_external=background_only_external
         )
         self.transform_func = transform_func
         self.inv_func = inv_func
@@ -992,25 +1029,28 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         ignore_bounds=False,
         add_background=True,
         filter_background=True,
-        ignore_capture_units=True
+        ignore_capture_units=True,
+        background_only_external=False
     ):
+        super().__init__(
+            photoreceptor_model=photoreceptor_model,
+            measured_spectra=measured_spectra,
+            smoothing_window=smoothing_window,
+            background=background,
+            max_iter=max_iter,
+            hard_separation=hard_separation,
+            hard_sep_value=hard_sep_value,
+            fit_weights=fit_weights,
+            fit_only_uniques=fit_only_uniques,
+            lsq_kwargs=lsq_kwargs,
+            ignore_bounds=ignore_bounds,
+            q1_ints=q1_ints,
+            bg_ints=bg_ints,
+            ignore_capture_units=ignore_capture_units,
+            background_only_external=background_only_external
+        )
         self.reflectances = reflectances
-        self.photoreceptor_model = photoreceptor_model
-        self.measured_spectra = measured_spectra
-        self.smoothing_window = smoothing_window
-        self.background = background
-        self.max_iter = max_iter
-        self.ignore_bounds = ignore_bounds
-        self.hard_separation = hard_separation
-        self.hard_sep_value = hard_sep_value
-        self.q1_ints = q1_ints
-        self.bg_ints = bg_ints
-        self.fit_weights = fit_weights
-        self.fit_only_uniques = fit_only_uniques
-        self.lsq_kwargs = lsq_kwargs
         self.add_background = add_background
-        self.filter_background = filter_background
-        self.ignore_capture_units = ignore_capture_units
 
     def fit(self, X, y=None):
         self._set_required_objects()

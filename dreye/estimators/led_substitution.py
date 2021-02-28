@@ -1,12 +1,12 @@
 """
-LED substitution experiments
+Model for LED substitution
 """
 
 import warnings
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import lsq_linear, least_squares
+from scipy.optimize import least_squares
 
 from dreye.estimators.base import _RelativeMixin
 from dreye.estimators.excitation_models import IndependentExcitationFit
@@ -16,6 +16,7 @@ from dreye.utilities import asarray
 EPS = 1e-5
 EPS1 = 1e-3
 EPS2 = 1e-2
+# TODO docstrings
 
 
 @inherit_docstrings
@@ -35,13 +36,14 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         smoothing_window=None,  # float
         max_iter=None,
-        hard_separation=False,  # bool or list-like (same length as number of LEDs)
-        hard_sep_value=None,  # float in capture units (1 relative capture)
+        # hard_separation=False,  # bool or list-like (same length as number of LEDs)
+        # hard_sep_value=None,  # float in capture units (1 relative capture)
         bg_ints=None,
-        fit_only_uniques=False,
+        # fit_only_uniques=False,
         ignore_bounds=False,
         lsq_kwargs=None,
         ignore_capture_units=True,
+        background_only_external=False,
         rtype='weber',  # {'fechner/log', 'weber', None}
         unidirectional=False,  # allow only increase or decreases of LEDs in simulation
         keep_proportions=False,
@@ -53,14 +55,15 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
             smoothing_window=smoothing_window,
             background=background,
             max_iter=max_iter,
-            hard_separation=hard_separation,
-            hard_sep_value=hard_sep_value,
+            # hard_separation=hard_separation,
+            # hard_sep_value=hard_sep_value,
             fit_weights=fit_weights,
-            fit_only_uniques=fit_only_uniques,
+            # fit_only_uniques=fit_only_uniques,
             lsq_kwargs=lsq_kwargs,
             ignore_bounds=ignore_bounds,
             bg_ints=bg_ints,
-            ignore_capture_units=ignore_capture_units
+            ignore_capture_units=ignore_capture_units,
+            background_only_external=background_only_external
         )
         self.rtype = rtype
         self.unidirectional = unidirectional
@@ -335,53 +338,3 @@ class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
         x_pred = self._get_x_pred(w)
         excite_x = self._get_x_pred(w_solo)
         return self.fit_weights_ * (excite_x - x_pred)
-
-
-# deprecated version
-def fit_led_substitution(
-    X,
-    photoreceptor_model,
-    background,
-    measured_spectra,
-    bg_ints,
-    fit_weights,
-    rtype='weber',
-    max_iter=None,
-    lsq_kwargs=None,
-    unidirectional=False,  # allow only increase or decreases of LEDs in simulation
-    keep_proportions=False,
-    keep_intensity=True
-):
-    """
-    LED substitution experiment
-
-    Parameters
-    ----------
-    X : numpy.ndarray
-        Two-dimensional array with two columns. The first column contains
-        the indices of the LED to simulate and the second column contains
-        the intensity for the LED to reach and simulate.
-        TODO: if NaN, skip those entries and substitute with the background
-        intensity.
-    photoreceptor_model : dreye.Photoreceptor
-    background : dreye.Signal or array-like
-    measured_spectra : dreye.MeasuredSpectraContainer
-    bg_ints : array-like
-    fit_weights : array-like
-    rtype : str, optional
-    max_iter : int, optional
-    lsq_kwargs : dict, optional
-    unidirectional : bool, optional
-    keep_proportions : bool, optional
-    """
-
-    model = LedSubstitution(
-        photoreceptor_model=photoreceptor_model,
-        background=background, measured_spectra=measured_spectra,
-        bg_ints=bg_ints, fit_weights=fit_weights,
-        rtype=rtype, max_iter=max_iter,
-        lsq_kwargs=lsq_kwargs, unidirectional=unidirectional,
-        keep_proportions=keep_proportions, keep_intensity=keep_intensity
-    )
-    model.fit(X)
-    return model.fitted_intensities_df_

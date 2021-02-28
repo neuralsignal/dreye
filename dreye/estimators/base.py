@@ -318,7 +318,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         Residual for each photoreceptor and sample.
         """
         # apply transformation and compare to checked_X
-        X_pred = self.inverse_transform(self.transform(X))
+        if X is not None:
+            self.fit(X)
+        X_pred = self.fitted_X_
         X = self.current_X_
         return X - X_pred
 
@@ -337,7 +339,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             Returns the r2-value for each sample individually.
         """
         # apply transformation and compare to checked_X
-        X_pred = self.inverse_transform(self.transform(X))
+        if X is not None:
+            self.fit(X)
+        X_pred = self.fitted_X_
         X = self.current_X_
 
         # residual across photoreceptors
@@ -360,8 +364,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             Returns the r2-value for each feature individually.
         """
         # apply transformation and compare to checked_X
-        # TODO ignore bounds option
-        X_pred = self.inverse_transform(self.transform(X))
+        if X is not None:
+            self.fit(X)
+        X_pred = self.fitted_X_
         X = self.current_X_
 
         # residual across samples
@@ -418,7 +423,6 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             # refit if X is given
             self.fit(X)
         # map fitted_intensities
-        # TODO ignore bounds option
         return self.measured_spectra_.map(
             self.fitted_intensities_, return_units=False)
 
