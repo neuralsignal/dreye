@@ -35,7 +35,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         background_only_external=False,
         substitution_type='diff',
         eps=EPS,
-        q_aggregator=cp.sum,
+        q_aggregator=cp.min,
         cp_kwargs=None
     ):
         super().__init__(
@@ -91,6 +91,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         intensities2 = np.zeros(intensities.shape)
         captures = np.zeros((len(X), self.n_features_))
         captures2 = np.zeros(captures.shape)
+        active = []
 
         for idx, ix in enumerate(X):
             q, i, q2, i2 = self._fit_sample(ix)
@@ -98,6 +99,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             captures2[idx] = q2
             intensities[idx] = i
             intensities2[idx] = i2
+            active.append(np.array(self.channel_names_)[ix])
 
         excitations = self.photoreceptor_model_.excitefunc(captures)
         excitations2 = self.photoreceptor_model_.excitefunc(captures2)
@@ -108,19 +110,49 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         self.fitted_other_excite_X_ = excitations2
         self.fitted_other_capture_X_ = captures2
         self.fitted_capture_X_ = captures
+        self.active_ = pd.Series(active).apply(tuple)
 
-        # TODO
-        # df = pd.DataFrame(
-        #     np.hstack([
-        #         self.fitted_intensities_,
-        #         self.fitted_other_intensities_
-        #     ]),
-        #     columnes = self.measured_spectra_.names + self.measured_spectra_.names
-        # )
+        if self.substitution_type == 'diff':
+            df1 = self._create_dataframe(
+                self.fitted_intensities_,
+                self.fitted_excite_X_,
+                self.active_,
+                'max'
+            )
+            df2 = self._create_dataframe(
+                self.fitted_other_intensities_,
+                self.fitted_other_excite_X_,
+                self.active_,
+                'min'
+            )
+            self.fitted_intensities_df_ = pd.concat([df1, df2], axis=0)
+
+        else:
+            self.fitted_intensities_df_ = self._create_dataframe(
+                self.fitted_intensities_,
+                self.fitted_excite_X_,
+                self.active_,
+                self.substitution_type
+            )
 
         self.current_X_ = self.fitted_other_excite_X_
 
         return self
+
+    def _create_dataframe(self, i, e, active, direction):
+        """
+        """
+        edf = pd.DataFrame(
+            e,
+            columns=[f"fitted_{rh}" for rh in self.channel_names_]
+        )
+        edf['active'] = active
+        edf['direction'] = direction
+        edf['substitution_type'] = self.substitution_type
+        return pd.DataFrame(
+            i, columns=self.measured_spectra_.names,
+            index=pd.MultiIndex.from_frame(edf)
+        )
 
     def _get_i_constraints(self, i):
         constraints = [
