@@ -324,7 +324,75 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         X = self.current_X_
         return X - X_pred
 
-    def sample_scores(self, X=None):
+    def relative_changes(self, X=None):
+        """
+        Deviations for each photoreceptor and sample.
+        """
+        # apply transformation and compare to checked_X
+        if X is not None:
+            self.fit(X)
+        X_pred = self.fitted_X_
+        X = self.current_X_
+        return (X_pred - X) / np.abs(X)
+
+    @staticmethod
+    def _r2_scores(X, X_pred, axis=0):
+        # residual across photoreceptors
+        res = (X - X_pred)**2
+        tot = (X - X.mean(axis=axis, keepdims=True))**2
+        return 1 - res.sum(axis) / tot.sum(axis)
+
+    @staticmethod
+    def _abs_rel_changes_scores(X, X_pred, axis=0):
+        # absolute deviations
+        return np.abs((X_pred - X) / X).mean(axis=axis)
+
+    @staticmethod
+    def _rel_changes_scores(X, X_pred, axis=0):
+        # deviations
+        return ((X_pred - X) / np.abs(X)).mean(axis=axis)
+
+    @staticmethod
+    def _rel_changes_thresh_scores(X, X_pred, axis=0, thresh=0.01):
+        # absolute deviations below a certain threshold value
+        return (np.abs((X_pred - X) / X) < thresh).mean(axis=axis)
+
+    @staticmethod
+    def _corr_dist(X, X_pred, axis=0):
+        # correlation distortion
+        cX = np.corrcoef(X, rowvar=bool(axis % 2))
+        cX_pred = np.corrcoef(X, rowvar=bool(axis % 2))
+        return (cX_pred - cX) / np.abs(cX)
+
+    def _mean_scores(self, X=None, axis=0, method='r2', **kwargs):
+        # apply transformation and compare to checked_X
+        if X is not None:
+            self.fit(X)
+        X_pred = self.fitted_X_
+        X = self.current_X_
+
+        # residual across photoreceptors
+        if method == 'r2':
+            return self._r2_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'rel':
+            return self._rel_changes_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'absrel':
+            return self._abs_rel_changes_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'threshrel':
+            return self._rel_changes_thresh_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'corrdev':
+            return self._corr_dist(
+                X, X_pred, axis=axis, **kwargs
+            )
+        # raise
+        raise NameError(f"Method `{method}` not recognized, use "
+                        "`r2`, `rel`, `absrel`, `threshrel`, or `corrdev`.")
+
+    def sample_scores(self, X=None, method='r2', **kwargs):
         """
         Sample scores.
 
@@ -338,18 +406,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         r2 : numpy.ndarray (n_samples)
             Returns the r2-value for each sample individually.
         """
-        # apply transformation and compare to checked_X
-        if X is not None:
-            self.fit(X)
-        X_pred = self.fitted_X_
-        X = self.current_X_
+        return self._mean_scores(X=X, axis=1, method=method, **kwargs)
 
-        # residual across photoreceptors
-        res = (X - X_pred)**2
-        tot = (X - X.mean(axis=1, keepdims=True))**2
-        return 1 - res.sum(1) / tot.sum(1)
-
-    def feature_scores(self, X=None):
+    def feature_scores(self, X=None, method='r2', **kwargs):
         """
         Feature scores.
 
@@ -363,18 +422,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         r2 : numpy.ndarray (n_features)
             Returns the r2-value for each feature individually.
         """
-        # apply transformation and compare to checked_X
-        if X is not None:
-            self.fit(X)
-        X_pred = self.fitted_X_
-        X = self.current_X_
+        return self._mean_scores(X=X, axis=0, method=method, **kwargs)
 
-        # residual across samples
-        res = (X - X_pred)**2
-        tot = (X - X.mean(axis=0, keepdims=True))**2
-        return 1 - res.sum(0) / tot.sum(0)
-
-    def score(self, X=None, y=None):
+    def score(self, X=None, y=None, method='r2', **kwargs):
         """
         Score method.
 
@@ -392,7 +442,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         --------
         feature_scores
         """
-        return self.feature_scores(X).mean()
+        return self.feature_scores(X, method=method, **kwargs).mean()
 
     def transform(self, X=None):
         """

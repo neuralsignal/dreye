@@ -17,6 +17,10 @@ from dreye.utilities import (
 from dreye.core.photoreceptor import Photoreceptor
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
+# TODO metrics that depend on estimators
+# from dreye.estimators.excitation_models import IndependentExcitationFit
+# from dreye.estimators.silent_substitution import BestSubstitutionFit
+# from dreye.estimators.led_substitution import LedSubstitutionFit
 
 
 def compute_jensen_shannon_divergence(P, Q, base=2):

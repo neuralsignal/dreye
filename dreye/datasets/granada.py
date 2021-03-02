@@ -12,15 +12,32 @@ import pandas as pd
 import numpy as np
 from scipy.io import loadmat
 from dreye.utilities import irr2flux
-from dreye import DREYE_DIR
+from dreye import DREYE_DIR, IntensitySpectra
 
 GRANADA_DATAFILE = os.path.join(DREYE_DIR, 'datasets', 'granada_daylight.mat')
 
 
-def load_dataset():
+def load_dataset(as_spectra=False):
     """
     Load Granada two-year daylight spectra as a dataframe.
     Largely urban daylight spectra.
+
+    Parameters
+    ----------
+    as_spectra : bool, optional
+        Whether to return a `dreye.IntensitySpectra`. If False,
+        returns a long-format `pandas.DataFrame`. Defaults to False.
+
+    Returns
+    -------
+    df : `pandas.DataFrame` or `dreye.IntensitySpectra`
+        A long-format `pandas.DataFrame` with the following columns:
+            * `data_id`
+            * `wavelengths`
+            * `spectralirradiance`
+            * `microspectralphotonflux`
+        Or a `dreye.IntensitySpectra` instance in units of
+        microspectralphotonflux and `data_id` labels along the column axis.
 
     References
     ----------
@@ -44,4 +61,14 @@ def load_dataset():
     df['microspectralphotonflux'] = irr2flux(
         df['spectralirradiance'], df['wavelengths']
     ) * 10 ** 6
+
+    if as_spectra:
+        return IntensitySpectra(
+            df.pivot(
+                'wavelengths',
+                'data_id',
+                'microspectralphotonflux'
+            ),
+            units='uE'
+        )
     return df

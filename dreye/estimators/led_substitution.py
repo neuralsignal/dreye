@@ -20,7 +20,7 @@ EPS2 = 1e-2
 
 
 @inherit_docstrings
-class LedSubstitution(IndependentExcitationFit, _RelativeMixin):
+class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
     """
     Led Substitution estimator.
     """

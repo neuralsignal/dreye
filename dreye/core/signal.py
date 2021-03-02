@@ -1524,8 +1524,6 @@ class _Signal2DMixin(_SignalMixin):
         if isinstance(values, pd.Series):
             if self.domain is None:
                 self._domain = values.index
-
-        if isinstance(values, (pd.DataFrame, pd.Series)):
             if self.name is None:
                 self.name = values.name
 

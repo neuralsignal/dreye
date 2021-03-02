@@ -44,7 +44,7 @@ from dreye.estimators.excitation_models import (
     IndependentExcitationFit, TransformExcitationFit,
     ReflectanceExcitationFit
 )
-from dreye.estimators.led_substitution import LedSubstitution
+from dreye.estimators.led_substitution import LedSubstitutionFit
 from dreye.estimators.silent_substitution import BestSubstitutionFit
 
 from dreye.estimators.intensity_models import (
@@ -84,7 +84,7 @@ __all__ = [
     'DomainSignalContainer',
     'labels_concat',
     'domain_concat',
-    'LedSubstitution',
+    'LedSubstitutionFit',
     'BestSubstitutionFit',
     'MeasuredSpectraMetrics',
     # spectrum

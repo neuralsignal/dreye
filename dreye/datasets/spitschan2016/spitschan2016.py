@@ -12,7 +12,7 @@ import os
 import pandas as pd
 import numpy as np
 from dreye.utilities import irr2flux
-from dreye import DREYE_DIR
+from dreye import DREYE_DIR, IntensitySpectra
 
 
 _WL_FILE = 'srep26756-s1.csv'
@@ -30,9 +30,35 @@ SPITSCHAN2016_DATA = {
 }
 
 
-def load_dataset():
+def load_dataset(as_spectra=False):
     """
     Load Spitschan dataset of various spectra for different times of day as a dataframe.
+
+    Parameters
+    ----------
+    as_spectra : bool, optional
+        Whether to return a `dreye.IntensitySpectra`. If False,
+        returns a long-format `pandas.DataFrame`. Defaults to False.
+
+    Returns
+    -------
+    df : `pandas.DataFrame` or `dreye.IntensitySpectra`
+        A long-format `pandas.DataFrame` with the following columns:
+            * `date_number`
+            * `solar_elevation`
+            * `lunar_elevation`
+            * `fraction_moon_illuminated`
+            * `timestamp`
+            * `hour`
+            * `month`
+            * `data_id`
+            * `wavelengths`
+            * `spectralirradiance`
+            * `microspectralphotonflux`
+            * `location`
+        Or a `dreye.IntensitySpectra` instance in units of
+        microspectralphotonflux and labels along the column axis.
+        The column labels are a `pandas.MultiIndex`.
 
     References
     ----------
@@ -48,6 +74,27 @@ def load_dataset():
         if len(df) > 0:
             df_['data_id'] += (df['data_id'].max() + 1)
         df = df.append(df_, ignore_index=True)
+
+    if as_spectra:
+        return IntensitySpectra(
+            df.pivot(
+                'wavelengths',
+                [
+                    'data_id',
+                    'date_number',
+                    'solar_elevation',
+                    'lunar_elevation',
+                    'fraction_moon_illuminated',
+                    'timestamp',
+                    'hour',
+                    'month',
+                    'location'
+                ],
+                'microspectralphotonflux'
+            ),
+            units='uE'
+        )
+
     return df
 
 
