@@ -28,9 +28,12 @@ SPITSCHAN2016_DATA = {
         'wl_filepath': os.path.join(DREYE_DIR, 'datasets', 'spitschan2016', _WL_FILE)
     }
 }
+SPITSCHAN2016_FILE = os.path.join(
+    DREYE_DIR, 'datasets', 'spitschan2016', 'spitschan2016.feather'
+)
 
 
-def load_dataset(as_spectra=False):
+def load_dataset(as_spectra=False, label_cols='data_id'):
     """
     Load Spitschan dataset of various spectra for different times of day as a dataframe.
 
@@ -39,6 +42,9 @@ def load_dataset(as_spectra=False):
     as_spectra : bool, optional
         Whether to return a `dreye.IntensitySpectra`. If False,
         returns a long-format `pandas.DataFrame`. Defaults to False.
+    label_cols : str or list-like, optional
+        The label columns for the `dreye.IntensitySpectra` instance.
+        Defaults to `data_id`.
 
     Returns
     -------
@@ -66,31 +72,24 @@ def load_dataset(as_spectra=False):
        Variation of outdoor illumination as a function of solar elevation and light pollution.
        Sci Rep 6, 26756.
     """
-    # TODO add docstring
-    df = pd.DataFrame()
-    for location, kwargs in SPITSCHAN2016_DATA.items():
-        df_ = process_spitschan(**kwargs)
-        df_['location'] = location
-        if len(df) > 0:
-            df_['data_id'] += (df['data_id'].max() + 1)
-        df = df.append(df_, ignore_index=True)
+    if os.path.exists(SPITSCHAN2016_FILE):
+        df = pd.read_feather(SPITSCHAN2016_FILE)
+    else:
+        df = pd.DataFrame()
+        for location, kwargs in SPITSCHAN2016_DATA.items():
+            df_ = process_spitschan(**kwargs)
+            df_['location'] = location
+            if len(df) > 0:
+                df_['data_id'] += (df['data_id'].max() + 1)
+            df = df.append(df_, ignore_index=True)
 
     if as_spectra:
         return IntensitySpectra(
-            df.pivot(
+            pd.pivot_table(
+                df,
+                'microspectralphotonflux',
                 'wavelengths',
-                [
-                    'data_id',
-                    'date_number',
-                    'solar_elevation',
-                    'lunar_elevation',
-                    'fraction_moon_illuminated',
-                    'timestamp',
-                    'hour',
-                    'month',
-                    'location'
-                ],
-                'microspectralphotonflux'
+                label_cols
             ),
             units='uE'
         )

@@ -10,6 +10,7 @@ from itertools import combinations
 from scipy import stats
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.feature_selection import mutual_info_regression
 
 from dreye.utilities import (
     is_numeric, asarray, is_listlike, is_dictlike, is_string
@@ -150,7 +151,7 @@ class MeasuredSpectraMetrics(_InitDict):
 
     def _get_metrics(
         self, metric_func, metric_name, B=None, as_frame=True,
-        normalize=True, B_name=None, **kwargs
+        normalize=False, B_name=None, **kwargs
     ):
 
         name = (
@@ -185,7 +186,8 @@ class MeasuredSpectraMetrics(_InitDict):
                 metrics['k'] = metrics['k'].astype(int)
                 metrics['metric_name'] = name
             if normalize:
-                metrics['metric'] /= metrics['metric'].max()
+                # TODO types of normalizations
+                metrics['metric'] /= metrics['metric'].abs().max()
             return metrics
 
         if is_dictlike(B):
@@ -208,7 +210,7 @@ class MeasuredSpectraMetrics(_InitDict):
 
     def get_capture_metrics(
         self, B=None, metric='volume', as_frame=True,
-        normalize=True, **kwargs
+        normalize=False, **kwargs
     ):
         return self._get_metrics(
             self.get_capture_metric,
@@ -221,7 +223,7 @@ class MeasuredSpectraMetrics(_InitDict):
 
     def get_excitation_metrics(
         self, B=None, metric='volume', as_frame=True,
-        normalize=True, **kwargs
+        normalize=False, **kwargs
     ):
         return self._get_metrics(
             self.get_excitation_metric,
@@ -378,6 +380,20 @@ class MeasuredSpectraMetrics(_InitDict):
             return np.max(points) - np.min(points)
         return compute_mean_width(points, n)
 
+    @staticmethod
+    def compute_mean_correlation(points):
+        # compute correlation of each feature
+        cc = np.corrcoef(points, rowvar=False)
+        return (cc - np.eye(cc.shape[0])).mean()
+
+    @staticmethod
+    def compute_mean_mutual_info(points, **kwargs):
+        mis = []
+        for idx in range(points.shape[1] - 1):
+            mi = mutual_info_regression(points[idx], points[idx + 1:])
+            mis.append(mi)
+        return np.concatenate(mis).mean()
+
     def _get_metric_func(self, metric):
         if callable(metric):
             return metric
@@ -389,13 +405,18 @@ class MeasuredSpectraMetrics(_InitDict):
             return self.compute_mean_width
         elif metric in {'continuity', 'cont'}:
             return self.compute_continuity
+        elif metric in {'corr', 'correlation'}:
+            return self.compute_mean_correlation
+        elif metric in {'mi', 'mutual_info'}:
+            return self.compute_mean_mutual_info
 
         raise NameError(
             f"Did not recognize metric `{metric}`. "
             "`metric` must be a callable or an accepted str: "
             "{"
             "'volume', 'vol', 'jss_uniformity', 'uniformity_similarity', "
-            "'mean_width', 'mw', 'continuity', 'cont'"
+            "'mean_width', 'mw', 'continuity', 'cont', 'corr', 'correlation', "
+            "'mi', 'mutual_info'"
             "}."
         )
 

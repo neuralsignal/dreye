@@ -14,7 +14,8 @@ from dreye.utilities.abstract import inherit_docstrings
 from dreye.constants import ureg
 from dreye.core.signal import Signals, Signal
 from dreye.core.spectrum import (
-    Spectra, IntensityDomainSpectrum, Spectrum
+    Spectra, IntensityDomainSpectrum, Spectrum, IntensitySpectrum,
+    IntensitySpectra
 )
 from dreye.core.signal_container import DomainSignalContainer
 from dreye.err import DreyeError
@@ -238,6 +239,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         self._normalized_spectrum = None
         self._mapper = None
         self._regressor = None
+        self._intensity_labelled = None
 
         if self.name is None:
             idx = np.argmax(self.normalized_spectrum.magnitude)
@@ -373,6 +375,20 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         return self._normalized_spectrum
 
     @property
+    def intensity_labelled(self):
+        """
+        Intensity labelled IntensityDomainSpectrum
+        """
+        if self._intensity_labelled is None:
+            self._intensity_labelled = IntensityDomainSpectrum(
+                self.values,
+                domain=self.domain,
+                labels=self.intensity.values,
+                name=self.name
+            )
+        return self._intensity_labelled
+
+    @property
     def intensity(self):
         """
         The intensity of each measurement.
@@ -431,7 +447,12 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             return np.squeeze(new_values)
         return new_values
 
-    def int2spectrum(self, values, return_signal=True, return_units=True):
+    def ints_to_spectra(
+        self, values,
+        return_signal=True,
+        return_units=True,
+        **kwargs
+    ):
         """
         Map Intensity values to a completely interpolated spectrum
 
@@ -447,7 +468,15 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         output : signal-type, `numpy.ndarray`, or `pint.Quantity`
             Mapped output values.
         """
-        values = self.labels_interp(self.map(values))
+        values_numeric = is_numeric(values)
+        values = self.intensity_labelled.labels_interp(values, **kwargs)
+        if values_numeric:
+            values = IntensitySpectrum(
+                values,
+                domain=self.domain,
+            )
+        else:
+            values = IntensitySpectra(values)
         if return_signal and return_units:
             return values
         elif return_units:
@@ -703,8 +732,50 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         '_intensities',
         '_normalized_spectra',
         '_mapper'
-    ]
+    ] + DomainSignalContainer._init_keys
     _allowed_instances = MeasuredSpectrum
+
+    def ints_to_spectra(
+        self, values, return_signal=True,
+        return_units=True, **kwargs
+    ):
+        """
+        Map Intensity values to a completely interpolated and summed spectra.
+
+        Parameters
+        ----------
+        values : array-like
+            samples in intensity-convertible units or no units.
+        return_signal : bool
+            Whether to return a `Signal` instance.
+
+        Returns
+        -------
+        output : signal-type, `numpy.ndarray`, or `pint.Quantity`
+            Mapped output values.
+        """
+
+        values = optional_to(values, units=self.intensities.units)
+        # assert values.ndim < 3, 'values must be 1 or 2 dimensional'
+        spectra = None
+        for idx, measured_spectrum in enumerate(self):
+            spectrum = measured_spectrum.ints_to_spectra(
+                values[..., idx],
+                return_signal=True,
+                return_units=True,
+                **kwargs
+            )
+            if spectra is None:
+                spectra = spectrum
+            else:
+                spectra += spectrum
+
+        if return_signal and return_units:
+            return spectra
+        elif return_units:
+            return spectra.values
+        else:
+            return spectra.magnitude
 
     def map(self, values, return_units=True, check_bounds=True):
         """

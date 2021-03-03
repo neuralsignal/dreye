@@ -14,7 +14,7 @@ FLOWER_PATH = os.path.join(
 )
 
 
-def load_dataset(as_spectra=False):
+def load_dataset(as_spectra=False, label_cols='data_id'):
     """
     Load a set of flower reflectances as a dataframe.
 
@@ -23,6 +23,9 @@ def load_dataset(as_spectra=False):
     as_spectra : bool, optional
         Whether to return a `dreye.Spectra`. If False,
         returns a long-format `pandas.DataFrame`. Defaults to False.
+    label_cols : str or list-like, optional
+        The label columns for the `dreye.Spectra` instance.
+        Defaults to `data_id`.
 
     Returns
     -------
@@ -72,23 +75,7 @@ def load_dataset(as_spectra=False):
 
     if as_spectra:
         return Spectra(
-            df.pivot(
-                'wavelengths',
-                [
-                    'data_id',
-                    'info_id',
-                    'country',
-                    'flower_species',
-                    'flower_family',
-                    'flower_genus',
-                    'part_of_flower',
-                    'is_main_color',
-                    'human_color',
-                    'bee_color'
-
-                ],
-                'reflectance'
-            )
+            pd.pivot_table(df, 'reflectance', 'wavelengths', label_cols)
         )
 
     return df

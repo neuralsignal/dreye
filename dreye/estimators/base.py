@@ -343,25 +343,29 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         return 1 - res.sum(axis) / tot.sum(axis)
 
     @staticmethod
-    def _abs_rel_changes_scores(X, X_pred, axis=0):
+    def _abs_rel_changes_scores(X, X_pred, axis=0, round=4):
+        X, X_pred = _round_args(X, X_pred, round=round)
         # absolute deviations
         return np.abs((X_pred - X) / X).mean(axis=axis)
 
     @staticmethod
-    def _rel_changes_scores(X, X_pred, axis=0):
+    def _rel_changes_scores(X, X_pred, axis=0, round=4):
+        X, X_pred = _round_args(X, X_pred, round=round)
         # deviations
         return ((X_pred - X) / np.abs(X)).mean(axis=axis)
 
     @staticmethod
-    def _rel_changes_thresh_scores(X, X_pred, axis=0, thresh=0.01):
+    def _rel_changes_thresh_scores(X, X_pred, axis=0, thresh=0.01, round=4):
+        X, X_pred = _round_args(X, X_pred, round=round)
         # absolute deviations below a certain threshold value
         return (np.abs((X_pred - X) / X) < thresh).mean(axis=axis)
 
     @staticmethod
-    def _corr_dist(X, X_pred, axis=0):
+    def _corr_dist(X, X_pred, axis=0, round=5):
         # correlation distortion
         cX = np.corrcoef(X, rowvar=bool(axis % 2))
         cX_pred = np.corrcoef(X, rowvar=bool(axis % 2))
+        cX, cX_pred = _round_args(cX, cX_pred, round=round)
         return (cX_pred - cX) / np.abs(cX)
 
     def _mean_scores(self, X=None, axis=0, method='r2', **kwargs):
@@ -460,8 +464,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
         See Also
         --------
-        dreye.MeasuredSpectraContainer
-        dreye.MeasuredSpectrum
+        dreye.MeasuredSpectraContainer.map
+        dreye.MeasuredSpectrum.map
         fit_transform
         """
         # check is fitted
@@ -493,8 +497,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
         See Also
         --------
-        dreye.MeasuredSpectraContainer
-        dreye.MeasuredSpectrum
+        dreye.MeasuredSpectraContainer.inverse_map
+        dreye.MeasuredSpectrum.inverse_map
         fit_transform
         """
         pass
@@ -568,3 +572,12 @@ class _RelativeMixin:
             assert np.all(X >= 0), 'If not log, X must be positive.'
 
         return X
+
+
+# -- misc helper functions
+
+
+def _round_args(*args, round=None):
+    if round is not None:
+        return tuple([np.round(arg, round) for arg in args])
+    return args

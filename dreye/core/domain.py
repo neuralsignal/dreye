@@ -362,7 +362,7 @@ class Domain(_UnitArray):
 
         The "most common denominator" domain between self and other is
         chosen as follows:
-        
+
         * largest `start` value
         * smalled `end` value
         * largest `interval` value
@@ -370,7 +370,7 @@ class Domain(_UnitArray):
 
         # handles only one-dimensional uniform arrays.
         if not self.is_uniform:
-            warnings.warn("Enforcing uniformity in self.")
+            warnings.warn("Enforcing uniformity in self.", RuntimeWarning)
             self = self.enforce_uniformity()
 
         self = (self[::-1] if self.is_descending else self)
@@ -379,7 +379,7 @@ class Domain(_UnitArray):
 
         if isinstance(other, Domain):
             if not other.is_uniform:
-                warnings.warn("Enforcing uniformity in other.")
+                warnings.warn("Enforcing uniformity in other.", RuntimeWarning)
                 other = other.enforce_uniformity()
             other = (other[::-1] if other.is_descending else other)
             other = other.to(self.units)
