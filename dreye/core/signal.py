@@ -1447,8 +1447,8 @@ class _Signal2DMixin(_SignalMixin):
     @property
     def _init_aligned_attrs(self):
         return {
-            self.domain_axis: ('domain',),
-            self.labels_axis: ('labels',)
+            self.labels_axis: ('labels',),
+            **(super()._init_aligned_attrs)
         }
 
     def __init__(
@@ -1677,13 +1677,6 @@ class _Signal2DMixin(_SignalMixin):
 @inherit_docstrings
 class _SignalIndexLabels(_Signal2DMixin):
 
-    @property
-    def _init_aligned_attrs(self):
-        return {
-            self.labels_axis: ('labels',),
-            **(super()._init_aligned_attrs)
-        }
-
     def __init__(
         self,
         values,
@@ -1707,7 +1700,7 @@ class _SignalIndexLabels(_Signal2DMixin):
             **kwargs
         )
 
-    def loc_labels(self, labels):
+    def loc_labels(self, labels, inplace=False):
         """
         """
         s = pd.Series(
@@ -1716,7 +1709,15 @@ class _SignalIndexLabels(_Signal2DMixin):
         s = s.loc[labels]
         idcs = s.to_numpy()
 
-        return np.take(self, idcs, axis=self.labels_axis)
+        if not inplace:
+            self = self.copy()
+
+        self._values = np.take(self._values, idcs, axis=self.labels_axis)
+        self._labels = s.index
+        self._signal_min = np.take(self._signal_min, idcs, axis=self.labels_axis)
+        self._signal_max = np.take(self._signal_max, idcs, axis=self.labels_axis)
+
+        return self
 
     def _preprocess_check_values(self, values):
         # must return values processed
