@@ -1707,6 +1707,17 @@ class _SignalIndexLabels(_Signal2DMixin):
             **kwargs
         )
 
+    def loc_labels(self, labels):
+        """
+        """
+        s = pd.Series(
+            np.arange(self.shape[self.labels_axis]), index=self.labels
+        )
+        s = s.loc[labels]
+        idcs = s.to_numpy()
+
+        return np.take(self, idcs, axis=self.labels_axis)
+
     def _preprocess_check_values(self, values):
         # must return values processed
         if values.ndim == 1:

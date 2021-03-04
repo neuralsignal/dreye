@@ -392,6 +392,10 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             return self._corr_dist(
                 X, X_pred, axis=axis, **kwargs
             )
+        elif callable(method):
+            return method(
+                X, X_pred, axis=axis, **kwargs
+            )
         # raise
         raise NameError(f"Method `{method}` not recognized, use "
                         "`r2`, `rel`, `absrel`, `threshrel`, or `corrdev`.")
