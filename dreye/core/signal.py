@@ -13,7 +13,7 @@ from scipy.interpolate import interp1d
 from dreye.utilities import (
     is_numeric, has_units, is_listlike, asarray, get_value,
     is_callable, is_dictlike, optional_to,
-    is_hashable, is_integer, is_broadcastable
+    is_hashable, is_integer
 )
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.err import DreyeError
@@ -26,9 +26,6 @@ from dreye.core.numpy_mixin import _NumpyMixin
 
 
 # TODO Think about simplifying API:
-# - remove interpolator from init -- For sure
-# - remove smoothing from init --  For sure
-# - remove contexts -- For sure
 # - using xarray?
 
 
@@ -82,26 +79,23 @@ def domain_concat(objs, left=False):
 
 @inherit_docstrings
 class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
+    # interpolator
+    _interpolator = interp1d
+    _interpolator_kwargs = {}
+    _smoothing_kwargs = {}
+    _smoothing_window = 1.0
+    _smoothing_method = 'savgol'
 
     _init_args = (
         'domain',
-        'interpolator', 'interpolator_kwargs',
-        'contexts', 'attrs',
+        'attrs',
         'domain_min', 'domain_max',
         'name',
-        'smoothing_method', 'smoothing_window', 'smoothing_args',
         'domain_axis'
     )
     _domain_class = Domain
     # just accepts self
-    _args_defaults = {
-        'interpolator_kwargs': {},
-        'interpolator': interp1d,
-        'smoothing_args': {},
-        'smoothing_window': 1.0,
-        'smoothing_method': 'savgol',
-        'domain_axis': 0
-    }
+    _args_defaults = {'domain_axis': 0}
     # dictionary of attributes defaults if None
     _unit_conversion_params = {
         'domain': '_domain_values'
@@ -110,12 +104,12 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     # allows for serialization of older versions
     # TODO
     _deprecated_kws = {
-        # "interpolator": None,
-        # "interpolator_kwargs": None,
-        # "contexts": None,  # TODO in abstract and such
-        # "smoothing_method": None,
-        # "smoothing_window": None,
-        # "smoothing_args": None,
+        "interpolator": None,
+        "interpolator_kwargs": None,
+        "contexts": None,
+        "smoothing_method": None,
+        "smoothing_window": None,
+        "smoothing_kwargs": None,
         # Not save anyways
         "signal_min": None,
         "signal_max": None
@@ -138,12 +132,6 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         *,
         units=None,
         domain_units=None,
-        interpolator=None,
-        interpolator_kwargs=None,
-        smoothing_method=None,
-        smoothing_window=None,
-        smoothing_args=None,
-        contexts=None,
         domain_kwargs=None,
         domain_min=None,
         domain_max=None,
@@ -162,12 +150,6 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             units=units,
             domain=domain,
             domain_units=domain_units,
-            interpolator=interpolator,
-            interpolator_kwargs=interpolator_kwargs,
-            smoothing_window=smoothing_window,
-            smoothing_method=smoothing_method,
-            smoothing_args=smoothing_args,
-            contexts=contexts,
             domain_kwargs=domain_kwargs,
             domain_min=domain_min,
             domain_max=domain_max,
@@ -264,10 +246,6 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         # check values dimensionality
         values = self._preprocess_check_values(values)
 
-        # check other attributes
-        assert is_callable(self.interpolator)
-        assert is_dictlike(self.interpolator_kwargs)
-
         # check domain
         self._domain = self._get_domain(
             values, self._domain,
@@ -291,7 +269,6 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         self._process_other_attributes(values, kwargs)
 
         # clip signal using signal min and max
-        # TODO values = values.copy()
         self._values = values
         self._interpolate = None
 
@@ -307,10 +284,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
                 f"Domain bound variable must be numeric, but "
                 f"is of type '{type(bound)}'."
             )
-        elif has_units(bound):
-            value = bound.to(domain.units)
         else:
-            value = bound * domain.units
+            value = optional_to(bound, domain.units) * domain.units
 
         min_domain = np.min(domain.magnitude)
         max_domain = np.max(domain.magnitude)
@@ -358,7 +333,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         Returns the minimum value in domain.
 
-        This property is used during interpolation. If all values for
+        This property is used during interpolation. If any values for
         interpolation are bigger than `domain_min`, interpolation will
         result in an error.
         """
@@ -379,7 +354,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         Returns the maximum value in domain.
 
-        This property is used during interpolation. If all values for
+        This property is used during interpolation. If any values for
         interpolation are smaller than `domain_max`, interpolation will
         result in an error.
         """
@@ -500,7 +475,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         Returns the interpolator.
 
         The default interpolator is `scipy.interpolate.interp1d`. The
-        interpolator can be set during initialization.
+        interpolator can be set after initialization.
 
         See Also
         --------
@@ -544,35 +519,17 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         else:
             raise TypeError('interpolator_kwargs must be dict.')
 
-    def _get_interp_function(
-        self, domain, mag, kwargs
-    ):
-        """
-        get the interpolate function given the domain, magnitude,
-        keyword argument dictionary, and signal min and max array.
-        """
-        return self.interpolator(
-            domain,
-            mag,
-            **kwargs
-        )
-        # TODO simplify where used
-
     @property
     def _interp_function(self):
         """
         interpolate callable.
-
-        See Also
-        --------
-        _get_interp_function
         """
         if self._interpolate is None:
 
-            self._interpolate = self._get_interp_function(
+            self._interpolate = self.interpolator(
                 self.domain.magnitude,
                 self.magnitude,
-                self.interpolator_kwargs,
+                **self.interpolator_kwargs,
             )
 
         return self._interpolate
@@ -644,9 +601,9 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         domain_units = self_domain.units
         if has_units(domain):
             domain_units = domain.units
-            domain_values = domain.to(domain_units).magnitude
         else:
-            domain_values = asarray(domain)
+            domain_units = self_domain.units
+        domain_values = asarray(domain)
 
         # assert domain_values.ndim <= 1
         # check domain min and max (must be bigger than this range)
@@ -658,7 +615,6 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
                 domain_max=domain_max.magnitude
             )
 
-        # usually self._interp_function
         values = interp_function(domain_values)
 
         if asarr:
@@ -855,10 +811,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             "signal domain must be uniform for filtering"
         )
 
-        domain_interval = optional_to(
-            domain_interval, self.domain.units,
-            *self.contexts
-        )
+        domain_interval = optional_to(domain_interval, self.domain.units)
 
         M = domain_interval / self.domain.interval
         if M % 1 != 0:
@@ -879,9 +832,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             # create filter instance
             filter1d = Filter1D(method, M, **method_args)
             # handle borders by interpolating
-            start_idx, end_idx = int(
-                np.floor((M - 1) / 2)), int(np.ceil((M - 1) / 2)
-            )
+            start_idx, end_idx = \
+                int(np.floor((M - 1) / 2)), int(np.ceil((M - 1) / 2))
             # create new domain
             new_domain = self.domain.extend(
                 start_idx, left=True
@@ -913,11 +865,16 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         return new
 
     @property
-    def smoothing_args(self):
+    def smoothing_kwargs(self):
         """
         Keyword arguments used for smoothing the signal.
         """
-        return self._smoothing_args
+        return self._smoothing_kwargs
+
+    @smoothing_kwargs.setter
+    def smoothing_kwargs(self, value):
+        assert is_dictlike(value)
+        self._smoothing_kwargs = value
 
     @property
     def smoothing_window(self):
@@ -926,12 +883,27 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         return self._smoothing_window
 
+    @smoothing_window.setter
+    def smoothing_window(self, value):
+        value = get_value(value)
+        assert is_numeric(value), "`smoothing_window` must be numeric"
+        self._smoothing_window = value
+
     @property
     def smoothing_method(self):
         """
         The standard method used for smoothing.
         """
         return self._smoothing_method
+
+    @smoothing_method.setter
+    def smoothing_method(self, value):
+        if value == 'savgol':
+            self._smoothing_method = value
+        else:
+            # try if this works
+            Filter1D(value, self.smoothing_window, **self.smoothing_kwargs)
+            self._smoothing_method = value
 
     def smooth(self, smoothing_window=None):
         """
@@ -958,7 +930,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         spectrum = self.filter(
             smoothing_window, self.smoothing_method,
             extrapolate=False,
-            **self.smoothing_args
+            **self.smoothing_kwargs
         )
         spectrum.attrs['applied_window_'] = smoothing_window
         return spectrum
@@ -1011,7 +983,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         elif is_listlike(other):
             # handles units, checks other shape, extends domain
             other_mag = optional_to(
-                other, self.units, *self.contexts,
+                other, self.units,
                 **self._unit_conversion_kws)
 
             assert (
@@ -1094,6 +1066,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     def _slices_ndim(self, ndim):
         """
         Given a dimensionality, return domain-aligned slices.
+        Allows expansion of other signal arrays.
 
         (domain_axis, a3, a2, a1) and ndim 2
         -> (slice, None, None, slice)
@@ -1131,7 +1104,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         Get axis order
         """
         order = -np.arange(self.ndim)[::-1]
-        return np.roll(order, shift=domain_axis+1)
+        return np.roll(order, shift=domain_axis + 1)
 
     def _equalize(self, other):
         """
@@ -1532,10 +1505,6 @@ class _Signal2DMixin(_SignalMixin):
         df.index.name = index_name
         return df
 
-    def _assign_further_longdf_values(self, df):
-        # TODO remove method for simplicity
-        return df
-
     @property
     def T(self):
         """
@@ -1661,7 +1630,7 @@ class _SignalIndexLabels(_Signal2DMixin):
             self_values = self.magnitude
             # check if it has units
             other_values = optional_to(
-                other, self.units, *self.contexts,
+                other, self.units,
                 **self._unit_conversion_kws)
             # handle labels and bounds
             labels = self._get_labels(other_values, labels)
@@ -1692,9 +1661,6 @@ class _SignalIndexLabels(_Signal2DMixin):
         return new
 
     def _assign_further_longdf_values(self, df):
-        # merge bounds
-        df = super()._assign_further_longdf_values(df)
-
         # if labels are multiindex include them
         if isinstance(self.labels, pd.MultiIndex):
             df_labels = self.labels.to_frame(index=False)
@@ -1786,10 +1752,10 @@ class _SignalDomainLabels(_Signal2DMixin):
         """
         if self._labels_interpolate is None:
 
-            self._labels_interpolate = self._get_interp_function(
+            self._labels_interpolate = self.interpolator(
                 self.labels.magnitude,
                 self.magnitude,
-                self.labels_interpolator_kwargs,
+                **self.labels_interpolator_kwargs,
             )
 
         return self._labels_interpolate
@@ -1797,7 +1763,8 @@ class _SignalDomainLabels(_Signal2DMixin):
     @property
     def labels_interpolator_kwargs(self):
         """
-        Interpolator arguments for labels axis
+        Interpolator arguments for labels axis. Same as `interpolator_kwargs`
+        only that the axis argument is switched.
         """
         interpolator_kwargs = self.interpolator_kwargs
         interpolator_kwargs['axis'] = self.labels_axis
@@ -1933,23 +1900,6 @@ class Signal(_SignalMixin):
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -1971,15 +1921,9 @@ class Signal(_SignalMixin):
         *,
         units=None,
         domain_units=None,
-        interpolator=None,
-        interpolator_kwargs=None,
-        contexts=None,
         domain_kwargs=None,
         domain_min=None,
         domain_max=None,
-        smoothing_method=None,
-        smoothing_window=None,
-        smoothing_args=None,
         attrs=None,
         name=None,
         domain_axis=None
@@ -1989,15 +1933,9 @@ class Signal(_SignalMixin):
             units=units,
             domain=domain,
             domain_units=domain_units,
-            interpolator=interpolator,
-            interpolator_kwargs=interpolator_kwargs,
-            contexts=contexts,
             domain_kwargs=domain_kwargs,
             domain_min=domain_min,
             domain_max=domain_max,
-            smoothing_method=smoothing_method,
-            smoothing_window=smoothing_window,
-            smoothing_args=smoothing_args,
             attrs=attrs,
             name=name,
             domain_axis=domain_axis
@@ -2035,23 +1973,6 @@ class Signals(_SignalIndexLabels):
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -2073,15 +1994,9 @@ class Signals(_SignalIndexLabels):
         *,
         units=None,
         domain_units=None,
-        interpolator=None,
-        interpolator_kwargs=None,
-        contexts=None,
         domain_kwargs=None,
         domain_min=None,
         domain_max=None,
-        smoothing_method=None,
-        smoothing_window=None,
-        smoothing_args=None,
         attrs=None,
         name=None,
         domain_axis=None
@@ -2092,15 +2007,9 @@ class Signals(_SignalIndexLabels):
             domain=domain,
             domain_units=domain_units,
             labels=labels,
-            interpolator=interpolator,
-            interpolator_kwargs=interpolator_kwargs,
-            contexts=contexts,
             domain_kwargs=domain_kwargs,
             domain_min=domain_min,
             domain_max=domain_max,
-            smoothing_method=smoothing_method,
-            smoothing_window=smoothing_window,
-            smoothing_args=smoothing_args,
             attrs=attrs,
             name=name,
             domain_axis=domain_axis
@@ -2140,23 +2049,6 @@ class DomainSignal(_SignalDomainLabels):
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -2184,18 +2076,12 @@ class DomainSignal(_SignalDomainLabels):
         units=None,
         domain_units=None,
         labels_units=None,
-        interpolator=None,
-        interpolator_kwargs=None,
-        contexts=None,
         domain_kwargs=None,
         labels_kwargs=None,
         domain_min=None,
         domain_max=None,
         labels_min=None,
         labels_max=None,
-        smoothing_method=None,
-        smoothing_window=None,
-        smoothing_args=None,
         attrs=None,
         name=None,
         domain_axis=None,
@@ -2208,18 +2094,12 @@ class DomainSignal(_SignalDomainLabels):
             domain_units=domain_units,
             labels=labels,
             labels_units=labels_units,
-            interpolator=interpolator,
-            interpolator_kwargs=interpolator_kwargs,
-            contexts=contexts,
             domain_kwargs=domain_kwargs,
             labels_kwargs=labels_kwargs,
             domain_min=domain_min,
             labels_min=labels_min,
             domain_max=domain_max,
             labels_max=labels_max,
-            smoothing_method=smoothing_method,
-            smoothing_window=smoothing_window,
-            smoothing_args=smoothing_args,
             attrs=attrs,
             name=name,
             domain_axis=domain_axis,

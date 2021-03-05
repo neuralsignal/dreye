@@ -51,23 +51,6 @@ class CalibrationSpectrum(Spectrum):
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -160,23 +143,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -216,7 +182,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         # should be the minimum step that can be taken - or an array?
         if is_listlike(resolution):
             self.attrs['resolution_'] = optional_to(
-                resolution, self.labels.units, *self.contexts
+                resolution, self.labels.units
             ) * self.labels.units
         elif resolution is None:
             self.attrs['resolution_'] = None
@@ -397,7 +363,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
                 domain=self.output,
                 name=self.name,
                 attrs=self.attrs,
-                contexts=self.contexts
             )
         return self._intensity
 
@@ -458,11 +423,11 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             Mapped output values.
         """
         labels = values
-        values = optional_to(values, self.intensity.units, *self.contexts)
-        values = self._get_interp_function(
+        values = optional_to(values, self.intensity.units)
+        values = self.interpolator(
             self.intensity.magnitude,  # x
             self.magnitude,  # y
-            self.labels_interpolator_kwargs,
+            **self.labels_interpolator_kwargs,
         )(values)
         if is_numeric(labels):
             values = IntensitySpectrum(
@@ -502,7 +467,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             Mapped output values.
         """
 
-        values = optional_to(values, self.intensity.units, *self.contexts)
+        values = optional_to(values, self.intensity.units)
 
         if is_numeric(values):
             shape = None
@@ -546,7 +511,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             Mapped intensity values.
         """
         # this is going to be two dimensional, since it is a Signals instance
-        values = optional_to(values, self.labels.units, *self.contexts)
+        values = optional_to(values, self.labels.units)
 
         if is_numeric(values):
             shape = values.shape
@@ -614,7 +579,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         r2 : float
             R^2-score.
         """
-        values = optional_to(values, self.intensity.units, *self.contexts)
+        values = optional_to(values, self.intensity.units)
         mapped_values = self.map(
             values, return_units=False, check_bounds=check_bounds
         )

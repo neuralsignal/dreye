@@ -34,8 +34,6 @@ class Domain(_UnitArray):
         will return a list of interval values of length n-1.
     units: str, optional
         Units associated with the domain.
-    contexts : str or tuple, optional
-        Contexts for unit conversion. See pint documentation.
     name : str
         Name for the domain object.
 
@@ -56,7 +54,7 @@ class Domain(_UnitArray):
     _convert_attributes = (
         'start', 'end', 'interval'
     )
-    _init_args = ('attrs', 'contexts', 'name', 'interval_')
+    _init_args = ('attrs', 'name', 'interval_')
 
     @property
     def _class_new_instance(self):
@@ -70,7 +68,6 @@ class Domain(_UnitArray):
         *,
         units=None,
         values=None,
-        contexts=None,
         attrs=None,
         name=None,
         interval_=None
@@ -91,7 +88,6 @@ class Domain(_UnitArray):
         super().__init__(
             values=values,
             units=units,
-            contexts=contexts,
             attrs=attrs,
             name=name,
             start=start,
@@ -141,9 +137,9 @@ class Domain(_UnitArray):
                                  "a range of values or pass start, end, "
                                  "and interval.")
 
-            start = optional_to(start, self.units, *self.contexts)
-            end = optional_to(end, self.units, *self.contexts)
-            interval = optional_to(interval, self.units, *self.contexts)
+            start = optional_to(start, self.units)
+            end = optional_to(end, self.units)
+            interval = optional_to(interval, self.units)
 
             start = DEFAULT_FLOAT_DTYPE(start)
             end = DEFAULT_FLOAT_DTYPE(end)
@@ -172,7 +168,7 @@ class Domain(_UnitArray):
                     interval = self.interval_
                 assert is_numeric(interval), \
                     "Need to supply numeric interval if domain is of size 1."
-                interval = optional_to(interval, self.units, *self.contexts)
+                interval = optional_to(interval, self.units)
             else:
                 # returns start and end in ascending order
                 start, end, interval = array_domain(
@@ -394,7 +390,7 @@ class Domain(_UnitArray):
             end = other.end
             interval = other.interval
         elif is_listlike(other):
-            other_magnitude = optional_to(other, self.units, *self.contexts)
+            other_magnitude = optional_to(other, self.units)
 
             if other_magnitude.ndim != 1:
                 raise DreyeError("Other array is not one-dimensional.")
@@ -459,10 +455,10 @@ class Domain(_UnitArray):
             domain = domain.to(self.units)
             domain = domain.magnitude
         elif is_listlike(domain):
-            domain = optional_to(domain, self.units, *self.contexts)
+            domain = optional_to(domain, self.units)
             assert domain.ndim == 1, "Domain must be one-dimensional."
         elif is_numeric(domain):
-            domain = optional_to(domain, self.units, *self.contexts)
+            domain = optional_to(domain, self.units)
             domain = np.array([domain])
         else:
             raise DreyeError(f"Appending type '{type(domain)}' impossible.")

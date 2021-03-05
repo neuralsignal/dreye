@@ -35,9 +35,9 @@ def _remove_spectrum_noise(
         bg = interp1d(wls, mean_bg_counts, axis=axis)(wls1)
         wl_diff = np.mean(np.diff(wls1))
 
-    lower = gaussian_filter1d(lower, sigma/wl_diff, axis=axis)
-    ubg = gaussian_filter1d(ubg, sigma/wl_diff, axis=axis)
-    bg = gaussian_filter1d(bg, sigma/wl_diff, axis=axis)
+    lower = gaussian_filter1d(lower, sigma / wl_diff, axis=axis)
+    ubg = gaussian_filter1d(ubg, sigma / wl_diff, axis=axis)
+    bg = gaussian_filter1d(bg, sigma / wl_diff, axis=axis)
     boolean = lower <= ubg
     if wls1 is not None:
         boolean = interp1d(
@@ -256,7 +256,6 @@ class MeasurementRunner:
                 wavelengths=self.spectrometer.wavelengths,
                 calibration=self.spectrometer.cal,
                 integration_time=its,
-                smoothing_window=self.smoothing_window,
                 output_units=output.units,
                 zero_intensity_bound=output.zero_intensity_bound,
                 max_intensity_bound=output.max_intensity_bound,
