@@ -203,7 +203,7 @@ class MeasurementRunner:
                     "Integration times don't match - this is a bug!"
                 )
                 if verbose > 1:
-                    photons_per_sec = np.sum(spectrum_array[:, idx])/its[idx]
+                    photons_per_sec = np.sum(spectrum_array[:, idx]) / its[idx]
                     sys.stdout.write(
                         f'step {idx}: {value*output.units} '
                         f'== {photons_per_sec} photons/second\n')

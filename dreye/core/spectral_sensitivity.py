@@ -65,13 +65,12 @@ class Sensitivity(Spectra):
         from_template=False,
         template=govardovskii2000_template, **kwargs
     ):
-        if (
-            domain is not None
-            and (
-                is_numeric(values)
-                or from_template
-            )
-        ):
+        if is_numeric(values) or from_template:
+            if domain is None:
+                domain = np.arange(
+                    np.max([np.min(values) - 300, 0]),
+                    np.max(values) + 300
+                )
             wavelengths = optional_to(domain, 'nm')
             if not kwargs.get('domain_axis', 0):
                 wavelengths = wavelengths[:, None]

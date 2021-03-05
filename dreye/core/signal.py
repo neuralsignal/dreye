@@ -17,7 +17,7 @@ from dreye.utilities import (
 )
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.err import DreyeError
-from dreye.constants import DEFAULT_FLOAT_DTYPE, ABSOLUTE_ACCURACY
+from dreye.constants import DEFAULT_FLOAT_DTYPE, ABSOLUTE_ACCURACY, CONTEXTS
 from dreye.core.abstract import _UnitArray
 from dreye.core.domain import Domain
 from dreye.utilities import Filter1D
@@ -79,7 +79,7 @@ def domain_concat(objs, left=False):
 
 @inherit_docstrings
 class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
-    # interpolator
+    # defaults for interpolator and smoothing
     _interpolator = interp1d
     _interpolator_kwargs = {}
     _smoothing_kwargs = {}
@@ -102,7 +102,6 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     }
     # attributes mapping passed to the "to" method of pint
     # allows for serialization of older versions
-    # TODO
     _deprecated_kws = {
         "interpolator": None,
         "interpolator_kwargs": None,
@@ -110,7 +109,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         "smoothing_method": None,
         "smoothing_window": None,
         "smoothing_kwargs": None,
-        # Not save anyways
+        # Not saved anyways
         "signal_min": None,
         "signal_max": None
 
@@ -204,7 +203,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
         series = pd.Series(
             self.magnitude,
-            index=self.domain.to_index()
+            index=self.domain.to_index('domain')
         )
         return series
 
@@ -337,7 +336,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         interpolation are bigger than `domain_min`, interpolation will
         result in an error.
         """
-        return self._domain_min.to(self.domain.units)
+        return self._domain_min.to(self.domain.units, *CONTEXTS)
 
     @domain_min.setter
     def domain_min(self, value):
@@ -358,7 +357,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         interpolation are smaller than `domain_max`, interpolation will
         result in an error.
         """
-        return self._domain_max.to(self.domain.units)
+        return self._domain_max.to(self.domain.units, *CONTEXTS)
 
     @domain_max.setter
     def domain_max(self, value):
@@ -1840,7 +1839,7 @@ class _SignalDomainLabels(_Signal2DMixin):
         interpolation are bigger than `labels_min`, interpolation will
         result in an error.
         """
-        return self._labels_min.to(self.labels.units)
+        return self._labels_min.to(self.labels.units, *CONTEXTS)
 
     @labels_min.setter
     def labels_min(self, value):
@@ -1861,7 +1860,7 @@ class _SignalDomainLabels(_Signal2DMixin):
         interpolation are smaller than `labels_max`, interpolation will
         result in an error.
         """
-        return self._labels_max.to(self.labels.units)
+        return self._labels_max.to(self.labels.units, *CONTEXTS)
 
     @labels_max.setter
     def labels_max(self, value):

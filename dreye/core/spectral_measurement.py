@@ -6,12 +6,12 @@ from scipy.interpolate import interp1d
 from sklearn.isotonic import IsotonicRegression
 
 from dreye.utilities import (
-    has_units, is_numeric,
+    is_numeric,
     optional_to, is_listlike, has_units,
-    get_units, get_value, digits_to_decimals
+    get_units, get_value
 )
 from dreye.utilities.abstract import inherit_docstrings
-from dreye.constants import ureg
+from dreye.constants import ureg, CONTEXTS
 from dreye.core.signal import Signals, Signal
 from dreye.core.spectrum import (
     Spectra, IntensityDomainSpectrum, Spectrum, IntensitySpectrum,
@@ -230,7 +230,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         """
         if self.attrs['resolution_'] is None:
             return
-        return self.attrs['resolution_'].to(self.labels.units)
+        return self.attrs['resolution_'].to(self.labels.units, *CONTEXTS)
 
     @property
     def zero_intensity_bound(self):
@@ -239,7 +239,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
         Includes units.
         """
-        return self.attrs['zero_intensity_bound_'].to(self.labels.units)
+        return self.attrs['zero_intensity_bound_'].to(self.labels.units, *CONTEXTS)
 
     @property
     def max_intensity_bound(self):
@@ -248,7 +248,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
 
         Includes units.
         """
-        return self.attrs['max_intensity_bound_'].to(self.labels.units)
+        return self.attrs['max_intensity_bound_'].to(self.labels.units, *CONTEXTS)
 
     @property
     def output_bounds(self):
@@ -615,6 +615,10 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             self._assign_mapper()
         return self._regressor
 
+    @property
+    def regressor_method(self):
+        return 'isotonic'
+
     def _assign_mapper(self):
         # 1D signal
         y = self.intensity.magnitude  # integral across intensities
@@ -638,13 +642,19 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             y = np.concatenate([y, [0]])
 
         # perform isotonic regression
-        isoreg = IsotonicRegression(
-            # lower and upper intensity values
-            y_min=y_min,
-            y_max=y_max,
-            increasing=zero_is_lower
-        )
-        self._regressor = isoreg
+        if self.regressor_method == 'isotonic':
+            isoreg = IsotonicRegression(
+                # lower and upper intensity values
+                y_min=y_min,
+                y_max=y_max,
+                increasing=zero_is_lower
+            )
+            self._regressor = isoreg
+        else:
+            raise NameError(
+                f"regressor_method `{self.regressor_method}` "
+                "not recognized."
+            )
 
         new_y = isoreg.fit_transform(x, y)
 

@@ -8,13 +8,13 @@ from abc import ABC, abstractmethod
 from scipy.stats import norm
 import numpy as np
 
-from dreye.core.signal import _SignalMixin, _Signal2DMixin, Signals
+from dreye.core.signal import _SignalMixin, Signals
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.core.spectral_sensitivity import Sensitivity
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.utilities import (
-    is_callable, has_units, asarray, is_integer
+    is_callable, has_units, is_integer
 )
 
 
@@ -132,7 +132,7 @@ class Photoreceptor(ABC):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -502,6 +502,8 @@ class Photoreceptor(ABC):
         # calculate capture
         # illuminant x opsin via integral
         q = np.trapz(sensitivity * illuminant, wls, axis=0)
+        if apply_noise_threshold:
+            q = self.limit_q_by_noise_level(q, inplace=True)
 
         if np.any(q < 0):
             raise ValueError("Capture values calculated are below 0; "
@@ -521,16 +523,14 @@ class Photoreceptor(ABC):
         )
         # q_bg may have different units to q
         q = q / q_bg
-        if apply_noise_threshold:
-            return self.limit_q_by_noise_level(q)
-        else:
-            return q
+        return q
 
-    def limit_q_by_noise_level(self, q):
+    def limit_q_by_noise_level(self, q, inplace=False):
         """
-        Return relative captures `q` after accounting for capture noise
-        levels.
+        Return captures `q` after accounting for capture noise levels.
         """
+        if not inplace:
+            q = q.copy()
 
         if (
             self.capture_noise_level is None
@@ -538,7 +538,6 @@ class Photoreceptor(ABC):
         ):
             return q
 
-        q = np.round(q / self.capture_noise_level, 0) * self.capture_noise_level
         q[q < self.capture_noise_level] = self.capture_noise_level
         return q
 
@@ -570,7 +569,7 @@ class LinearPhotoreceptor(Photoreceptor):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -631,7 +630,7 @@ class LogPhotoreceptor(Photoreceptor):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -692,7 +691,7 @@ class HyperbolicPhotoreceptor(Photoreceptor):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -727,7 +726,7 @@ class HyperbolicPhotoreceptor(Photoreceptor):
         """
         Returns the `1/(1-arr)`.
         """
-        return 1 / (1-arr)
+        return 1 / (1 - arr)
 
 
 @inherit_docstrings
@@ -754,7 +753,7 @@ class LinearContrastPhotoreceptor(Photoreceptor):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.

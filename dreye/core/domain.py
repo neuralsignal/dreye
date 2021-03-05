@@ -116,11 +116,12 @@ class Domain(_UnitArray):
         """
         return 1
 
-    def to_index(self):
+    def to_index(self, name=None):
         """
         Return `pandas.Index` instance of domain.
         """
-        return pd.Index(self.magnitude)
+        name = (self.name if name is None else name)
+        return pd.Index(self.magnitude, name=name)
 
     def _test_and_assign_values(self, values, kwargs):
         """

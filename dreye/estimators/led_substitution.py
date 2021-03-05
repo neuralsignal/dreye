@@ -34,7 +34,6 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-        smoothing_window=None,  # float
         max_iter=None,
         # hard_separation=False,  # bool or list-like (same length as number of LEDs)
         # hard_sep_value=None,  # float in capture units (1 relative capture)
@@ -52,7 +51,6 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
             measured_spectra=measured_spectra,
-            smoothing_window=smoothing_window,
             background=background,
             max_iter=max_iter,
             # hard_separation=hard_separation,
@@ -194,8 +192,8 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             })
 
         fitted_intensities = np.array(fitted_intensities)
-        fitted_excitations = self.fitted_excite_X_ = np.array([
-            self._get_x_pred_noise(w)
+        fitted_excitations = np.array([
+            self._get_x_pred(w)
             for w in fitted_intensities
         ])
 

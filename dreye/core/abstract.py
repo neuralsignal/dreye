@@ -318,7 +318,7 @@ class _UnitArray(_AbstractArray):
         self._values = values.magnitude
         return self
 
-    def _convert_values(self, values, units, unitless=False, **kwargs):
+    def _convert_values(self, values, units, *args, unitless=False, **kwargs):
         """
         Convert values.
 
@@ -330,7 +330,7 @@ class _UnitArray(_AbstractArray):
         kws = self._unit_conversion_kws
         kws.update(kwargs)
 
-        values = values.to(units, *CONTEXTS, **kws)
+        values = values.to(units, *CONTEXTS, *args, **kws)
 
         if unitless:
             return values.magnitude

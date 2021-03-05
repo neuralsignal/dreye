@@ -39,7 +39,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _check_measured_spectra(
-        measured_spectra, smoothing_window,
+        measured_spectra,
         size=None, photoreceptor_model=None,
         change_dimensionality=True
     ):
@@ -66,9 +66,6 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             raise ValueError("Measured Spectra must be Spectra "
                              "container or dict, but is type "
                              f"'{type(measured_spectra)}'.")
-
-        if smoothing_window is not None:
-            measured_spectra = measured_spectra.smooth(smoothing_window)
 
         # enforce photon flux for photoreceptor models
         if (

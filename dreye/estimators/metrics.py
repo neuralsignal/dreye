@@ -115,7 +115,6 @@ class MeasuredSpectraMetrics(_InitDict):
             self.measured_spectra.normalized_spectra,
             background=self.background,
             return_units=False,
-            apply_noise_threshold=False
         ).T
         self.bounds = self.measured_spectra.intensity_bounds
         self.normalized_spectra = self.measured_spectra.normalized_spectra
