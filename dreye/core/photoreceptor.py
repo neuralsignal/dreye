@@ -1,6 +1,7 @@
 """Class to define photoreceptor/capture model
 """
 
+import warnings
 import copy
 from abc import ABC, abstractmethod
 
@@ -15,6 +16,9 @@ from dreye.err import DreyeError
 from dreye.utilities import (
     is_callable, has_units, asarray, is_integer
 )
+
+
+RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-2
 
 
 def get_photoreceptor_model(
@@ -173,6 +177,7 @@ class Photoreceptor(ABC):
             if wavelengths is not None:
                 sensitivity = sensitivity(wavelengths)
             if labels is not None:
+                # TODO do we want to do this inplace?
                 sensitivity.labels = labels
 
         # ensure domain axis = 0
@@ -185,6 +190,53 @@ class Photoreceptor(ABC):
         self._sensitivity = sensitivity
         self._filterfunc = filterfunc
         self._capture_noise_level = capture_noise_level
+
+    @property
+    def data(self):
+        """
+        `numpy.ndarray` of sensitivities.
+        """
+        return self.sensitivity.magnitude
+
+    @property
+    def wls(self):
+        """
+        `numpy.ndarray` of wavelengths
+        """
+        return self.sensitivity.domain.magnitude
+
+    def compute_ratios(self, rtol=None, return_wls=False):
+        """
+        Compute ratios of the sensitivities for all significant wavelengths.
+        """
+        wl_range = self.wavelength_range(rtol)
+        wls = np.arange(*wl_range)
+        # NB: sensitivity in pr_model always has domain on zeroth axis
+        s = self.sensitivity(
+            wls, check_bounds=False, asarr=True
+        )
+        if np.any(s < 0):
+            warnings.warn(
+                "Zeros or smaller in sensitivities array!", RuntimeWarning
+            )
+            s[s < 0] = 0
+        ratios = s / np.sum(np.abs(s), axis=1, keepdims=True)
+        if return_wls:
+            return wl_range, ratios
+        else:
+            return ratios
+
+    def wavelength_range(self, rtol=None):
+        """
+        Range of wavelengths that the photoreceptor are sensitive to.
+        Returns a tuple of the min and max wavelength value.
+        """
+        rtol = (RELATIVE_SENSITIVITY_SIGNIFICANT if rtol is None else rtol)
+        tol = (
+            (self.sensitivity.max() - self.sensitivity.min())
+            * rtol
+        )
+        return self.sensitivity.nonzero_range(tol).boundaries
 
     def __str__(self):
         """
@@ -486,7 +538,7 @@ class Photoreceptor(ABC):
         ):
             return q
 
-        q = np.round(q/self.capture_noise_level, 0) * self.capture_noise_level
+        q = np.round(q / self.capture_noise_level, 0) * self.capture_noise_level
         q[q < self.capture_noise_level] = self.capture_noise_level
         return q
 

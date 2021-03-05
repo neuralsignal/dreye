@@ -80,8 +80,6 @@ class _PlottingMixin:
             **kwargs
         )
 
-        # TODO signal_min and max?
-
         if xlabel is None:
             xlabel = _get_label(self.domain_units)
         if ylabel is None:

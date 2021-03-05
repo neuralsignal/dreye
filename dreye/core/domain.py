@@ -4,6 +4,7 @@
 import warnings
 
 import numpy as np
+import pandas as pd
 
 from dreye.utilities import (
     is_listlike, asarray, array_domain, is_uniform,
@@ -118,6 +119,12 @@ class Domain(_UnitArray):
         Dimensionality of a domain instance is always 1.
         """
         return 1
+
+    def to_index(self):
+        """
+        Return `pandas.Index` instance of domain.
+        """
+        return pd.Index(self.magnitude)
 
     def _test_and_assign_values(self, values, kwargs):
         """
@@ -502,7 +509,7 @@ class Domain(_UnitArray):
             ])
         else:
             add_domain = np.array([
-                self.end + self.interval * (idx+1)
+                self.end + self.interval * (idx + 1)
                 for idx in range(length)
             ])
         # add domain

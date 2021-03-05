@@ -46,12 +46,6 @@ class CalibrationSpectrum(Spectrum):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
@@ -161,12 +155,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
@@ -361,6 +349,8 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         if self._normalized_spectrum is None:
             values = self.mean(axis=self.labels_axis)
             units, values = get_units(values), get_value(values)
+            # threshold to zero
+            values[values < 0] = 0
             # create spectrum
             spectrum = Spectrum(
                 values=values,
@@ -368,7 +358,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
                 name=self.name,
                 units=units,
                 attrs=self.attrs,
-                signal_min=0  # enforce zero as signal minimum
             )
             self._normalized_spectrum = spectrum.normalized_signal
 
@@ -380,7 +369,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         Intensity labelled IntensityDomainSpectrum
         """
         if self._intensity_labelled is None:
-            self._intensity_labelled = IntensityDomainSpectrum(
+            self._intensity_labelled = IntensitySpectra(
                 self.values,
                 domain=self.domain,
                 labels=self.intensity.values,
@@ -468,15 +457,27 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         output : signal-type, `numpy.ndarray`, or `pint.Quantity`
             Mapped output values.
         """
-        values_numeric = is_numeric(values)
-        values = self.intensity_labelled.labels_interp(values, **kwargs)
-        if values_numeric:
+        labels = values
+        values = optional_to(values, self.intensity.units, *self.contexts)
+        values = self._get_interp_function(
+            self.intensity.magnitude,  # x
+            self.magnitude,  # y
+            self.labels_interpolator_kwargs,
+        )(values)
+        if is_numeric(labels):
             values = IntensitySpectrum(
                 values,
+                units=self.units,
                 domain=self.domain,
+                name=labels,
             )
         else:
-            values = IntensitySpectra(values)
+            values = IntensitySpectra(
+                values,
+                units=self.units,
+                domain=self.domain,
+                labels=labels,
+            )
         if return_signal and return_units:
             return values
         elif return_units:

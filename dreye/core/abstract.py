@@ -31,6 +31,7 @@ class _UnitArray(_AbstractArray):
     _convert_attributes = ()
     _unit_mappings = {}
     # _enforce_same_shape = True
+    # TODO remove contexts
     _init_args = ('attrs', 'contexts', 'name')
     # all init arguments necessary to copy object except values and units
     _args_defaults = {}
@@ -151,7 +152,7 @@ class _UnitArray(_AbstractArray):
                 assert hasattr(type(self), key), \
                     f"Must provide property for attribute {key}"
                 # set attribute
-                setattr(self, '_'+key, value)
+                setattr(self, '_' + key, value)
             else:
                 # these do not have an attribute property
                 kwargs[key] = value
@@ -181,7 +182,7 @@ class _UnitArray(_AbstractArray):
         Method to set an attribute whose units need to be converted
         the same way as the `values` array.
         """
-        setattr(self, '_'+attr, value)
+        setattr(self, '_' + attr, value)
 
     @property
     def _init_kwargs(self):
@@ -643,8 +644,8 @@ class _UnitArray(_AbstractArray):
                 for idx, ikey in enumerate(key):
                     if ikey is Ellipsis:
                         before = key[:idx]
-                        if len(key) > idx+1:
-                            after = key[idx+1:]
+                        if len(key) > idx + 1:
+                            after = key[idx + 1:]
                         else:
                             after = ()
                         toadd = values.ndim - len(after + before)
@@ -669,7 +670,7 @@ class _UnitArray(_AbstractArray):
                             # this assumes numpy.ndarray instances
                             if any(map(lambda x: x < 0), idx):
                                 raise ValueError(
-                                    "_init_aligned_attrs was set inproperly."
+                                    "`_init_aligned_attrs` was set inproperly."
                                 )
                             attr_value = getattr(self, attr)
                             ikey = tuple(
@@ -682,7 +683,7 @@ class _UnitArray(_AbstractArray):
                         else:
                             if idx < 0:
                                 raise ValueError(
-                                    "_init_aligned_attrs was set inproperly."
+                                    "`_init_aligned_attrs` was set inproperly."
                                 )
                             attr_value = getattr(self, attr)
                             # assumes same length and

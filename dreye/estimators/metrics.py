@@ -3,6 +3,7 @@ Class to calculate various metrics given
 a photoreceptor model and measured spectra
 """
 
+import warnings
 import numpy as np
 import pandas as pd
 from scipy.spatial import ConvexHull
@@ -393,6 +394,38 @@ class MeasuredSpectraMetrics(_InitDict):
             mi = mutual_info_regression(points[idx], points[idx + 1:])
             mis.append(mi)
         return np.concatenate(mis).mean()
+
+    def compute_gamut_metric(
+        self, source_idx, metric='gamut', B=None, pr_volume=None
+    ):
+        """
+        Compute gamut for a single source
+        """
+        # get captures
+        assert B is None, "`B` must be None."
+        assert pr_volume is not None, "`pr_volume` must be given."
+        points = self.get_captures(source_idx)
+        ratios = points / np.sum(np.abs(points), axis=1, keepdims=True)
+        volume = self.compute_volume(ratios[:, :-1])
+        return volume / pr_volume
+
+    def compute_gamuts(self, as_frame=True, normalize=False, rtol=None):
+        """
+        Compute Gamut for a set of capture points
+        """
+        assert self.background is None, "Cannot compute gamut with background."
+        assert self.photoreceptor_model.pr_number > 1, "Need more than one photoreceptor"
+        ratios = self.photoreceptor_model.compute_ratios(rtol)
+        pr_volume = self.compute_volume(ratios[:, :-1])
+        return self._get_metrics(
+            self.compute_gamut_metric,
+            'gamut',
+            None,
+            as_frame,
+            normalize,
+            # passed to compute_gamut
+            pr_volume=pr_volume
+        )
 
     def _get_metric_func(self, metric):
         if callable(metric):

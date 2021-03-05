@@ -49,12 +49,6 @@ class Sensitivity(Spectra):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
