@@ -28,7 +28,6 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-        smoothing_window=None,  # float
         bg_ints=None,
         ignore_bounds=False,
         ignore_capture_units=True,
@@ -41,7 +40,6 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
             measured_spectra=measured_spectra,
-            smoothing_window=smoothing_window,
             background=background,
             fit_weights=fit_weights,
             ignore_bounds=ignore_bounds,

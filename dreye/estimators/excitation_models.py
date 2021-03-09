@@ -2,6 +2,7 @@
 Excitation models
 """
 
+import inspect
 import warnings
 
 import numpy as np
@@ -48,9 +49,6 @@ class IndependentExcitationFit(_SpectraModel):
         Container with all available LEDs and their measured spectra. If
         None, a fake LED measurement will be created with intensities
         ranging from 0 to 100 microphotonflux.
-    smoothing_window : numeric, optional
-        The smoothing window size to use to smooth over the measurements
-        in the container.
     max_iter : int, optional
         The number of maximum iterations. This is passed directly to
         `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
@@ -138,7 +136,6 @@ class IndependentExcitationFit(_SpectraModel):
         fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-        smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
         hard_sep_value=None,  # float in capture units (1 relative capture)
@@ -152,7 +149,6 @@ class IndependentExcitationFit(_SpectraModel):
     ):
         self.photoreceptor_model = photoreceptor_model
         self.measured_spectra = measured_spectra
-        self.smoothing_window = smoothing_window
         self.background = background
         self.max_iter = max_iter
         self.hard_separation = hard_separation
@@ -167,6 +163,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.background_only_external = background_only_external
 
     def _set_required_objects(self, size=None):
+        # TODO split into separate routines
         if self._requirements_set:
             return self
         # create photoreceptor model
@@ -178,12 +175,12 @@ class IndependentExcitationFit(_SpectraModel):
 
         # create measured_spectra_
         self.measured_spectra_ = self._check_measured_spectra(
-            self.measured_spectra, self.smoothing_window,
+            self.measured_spectra,
             photoreceptor_model=self.photoreceptor_model_
         )
         self.n_leds_ = len(self.measured_spectra_)
         # fit isotonic regression
-        self.measured_spectra_.regressor
+        self.measured_spectra_._assign_mapper()
 
         # set background intensities if exist
         self.bg_ints_ = self._get_bg_ints(
@@ -254,15 +251,28 @@ class IndependentExcitationFit(_SpectraModel):
                 and not np.allclose(self.background_.magnitude, 0)
             ):
                 # fit background and assign bg_ints_
-                est = clone(self)
+                # get params from init
+                params = inspect.signature(
+                    IndependentExcitationFit.__init__
+                ).parameters
+                # build estimator
+                # if subclasses should still use this fitting procedure
+                est = IndependentExcitationFit(
+                    **{
+                        param: getattr(self, param)
+                        for param in params
+                        if param != 'self'
+                    }
+                )
                 est._lazy_clone = True
                 X = np.ones((1, self.n_features_))
                 X = self.photoreceptor_model_.excitefunc(X)
                 est.fit(X)
+                # est.fit(X)
                 self.bg_ints_ = est.fitted_intensities_[0]
 
                 warnings.warn(
-                    "Assuming the `background` illuminant will be simulated, "
+                    "Assuming the `background` illuminant will be simulated "
                     "using the LEDs. Fitted background intensities: "
                     f"{self.bg_ints_.tolist()}."
                 )
@@ -330,7 +340,6 @@ class IndependentExcitationFit(_SpectraModel):
             self.normalized_spectra_,
             background=self.background_,
             return_units=False,
-            apply_noise_threshold=False
         ).T
 
         if not self.is_measurement_background_:
@@ -338,7 +347,6 @@ class IndependentExcitationFit(_SpectraModel):
                 self.background_ - self.bg_ints_background_,
                 background=self.background_,
                 return_units=False,
-                apply_noise_threshold=False
             )[0]  # length of opsin
         else:
             self.q_bg_ = 0
@@ -426,7 +434,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.fitted_intensities_ = np.array(self.container_.x)
         # get fitted X
         self.fitted_excite_X_ = np.array([
-            self._get_x_pred_noise(w)
+            self._get_x_pred(w)
             for w in self.fitted_intensities_
         ])
         self.fitted_capture_X_ = self.photoreceptor_model_.inv_excitefunc(
@@ -551,17 +559,8 @@ class IndependentExcitationFit(_SpectraModel):
         x_pred += self.q_bg_
         return x_pred
 
-    def _get_x_pred_noise(self, w):
-        return self.photoreceptor_model_.excitefunc(
-            self.photoreceptor_model_.limit_q_by_noise_level(
-                self._get_x_capture(w)
-            )
-        )
-
     def _get_x_pred(self, w):
-        return self.photoreceptor_model_.excitefunc(
-            self._get_x_capture(w)
-        )
+        return self.photoreceptor_model_.excitefunc(self._get_x_capture(w))
 
     def _process_X(self, X):
         """
@@ -576,8 +575,7 @@ class IndependentExcitationFit(_SpectraModel):
 
         # use inverse of excitation function
         capture_X = self.photoreceptor_model_.inv_excitefunc(X)
-        capture_X = self.photoreceptor_model_.limit_q_by_noise_level(capture_X)
-        excite_X = self.photoreceptor_model_.excitefunc(capture_X)
+        excite_X = X
         return capture_X, excite_X
 
     @property
@@ -618,9 +616,6 @@ class TransformExcitationFit(IndependentExcitationFit):
         Container with all available LEDs and their measured spectra. If
         None, a fake LED measurement will be created with intensities
         ranging from 0 to 100 microphotonflux.
-    smoothing_window : numeric, optional
-        The smoothing window size to use to smooth over the measurements
-        in the container.
     max_iter : int, optional
         The number of maximum iterations. This is passed directly to
         `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
@@ -709,7 +704,6 @@ class TransformExcitationFit(IndependentExcitationFit):
         fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-        smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
         hard_sep_value=None,  # float in capture units (1 relative capture)
@@ -725,7 +719,6 @@ class TransformExcitationFit(IndependentExcitationFit):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
             measured_spectra=measured_spectra,
-            smoothing_window=smoothing_window,
             background=background,
             max_iter=max_iter,
             hard_separation=hard_separation,
@@ -780,12 +773,12 @@ class TransformExcitationFit(IndependentExcitationFit):
     def fitted_X_(self):
         return self.fitted_transform_X_
 
-    def _objective(self, w, excite_x, fit_weights):
+    def _objective(self, w, excite_x):
         x_pred = self._get_x_pred(w)
         if self.fit_to_transform:
             excite_x = excite_x @ self.W_
             x_pred = x_pred @ self.W_
-        return fit_weights * (excite_x - x_pred)
+        return self.fit_weights_ * (excite_x - x_pred)
 
 
 class NonlinearTransformExcitationFit(IndependentExcitationFit):
@@ -812,7 +805,6 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-        smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
         hard_sep_value=None,  # float in capture units (1 relative capture)
@@ -828,7 +820,6 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
             measured_spectra=measured_spectra,
-            smoothing_window=smoothing_window,
             background=background,
             max_iter=max_iter,
             hard_separation=hard_separation,
@@ -873,7 +864,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         super().fit(self.inv_func_(X))
         # overwrite current X
         self.current_X_ = self.transform_X_
-        self.fitted_transform_X_ = self.func_(self.fitted_excite_X_)
+        self.fitted_transform_X_ = self.transform_func_(self.fitted_excite_X_)
         return self
 
     def inverse_transform(self, X):
@@ -884,12 +875,12 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
     def fitted_X_(self):
         return self.fitted_transform_X_
 
-    def _objective(self, w, excite_x, fit_weights):
+    def _objective(self, w, excite_x):
         x_pred = self._get_x_pred(w)
         if self.fit_to_transform:
-            excite_x = self.func_(excite_x)
-            x_pred = self.func_(x_pred)
-        return fit_weights * (excite_x - x_pred)
+            excite_x = self.transform_func_(excite_x)
+            x_pred = self.transform_func_(x_pred)
+        return self.fit_weights_ * (excite_x - x_pred)
 
 
 @inherit_docstrings
@@ -928,9 +919,6 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         Container with all available LEDs and their measured spectra. If
         None, a fake LED measurement will be created with intensities
         ranging from 0 to 100 microphotonflux.
-    smoothing_window : numeric, optional
-        The smoothing window size to use to smooth over the measurements
-        in the container.
     max_iter : int, optional
         The number of maximum iterations. This is passed directly to
         `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
@@ -1018,7 +1006,6 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         fit_weights=None,
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-        smoothing_window=None,  # float
         max_iter=None,
         hard_separation=False,  # bool or list-like (same length as number of LEDs)
         hard_sep_value=None,  # float in capture units (1 relative capture)
@@ -1035,7 +1022,6 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
             measured_spectra=measured_spectra,
-            smoothing_window=smoothing_window,
             background=background,
             max_iter=max_iter,
             hard_separation=hard_separation,
@@ -1051,6 +1037,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         )
         self.reflectances = reflectances
         self.add_background = add_background
+        self.filter_background = filter_background
 
     def fit(self, X, y=None):
         self._set_required_objects()
@@ -1069,7 +1056,8 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         X = self._check_X(X)
 
         # check sizing (domain_axis=0)
-        assert X.shape[1] == self.reflectances_.shape[1]
+        assert X.shape[1] == self.reflectances_.shape[1], \
+            f"shape mismatch: {X.shape[1]} and {self.reflectances_.shape[1]}"
 
         spectra_units = self.reflectances_.units
         spectra = self.reflectances_.magnitude @ X.T

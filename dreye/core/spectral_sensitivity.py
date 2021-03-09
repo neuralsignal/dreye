@@ -54,23 +54,6 @@ class Sensitivity(Spectra):
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -82,13 +65,12 @@ class Sensitivity(Spectra):
         from_template=False,
         template=govardovskii2000_template, **kwargs
     ):
-        if (
-            domain is not None
-            and (
-                is_numeric(values)
-                or from_template
-            )
-        ):
+        if is_numeric(values) or from_template:
+            if domain is None:
+                domain = np.arange(
+                    np.max([np.min(values) - 300, 0]),
+                    np.max(values) + 300
+                )
             wavelengths = optional_to(domain, 'nm')
             if not kwargs.get('domain_axis', 0):
                 wavelengths = wavelengths[:, None]

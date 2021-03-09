@@ -25,6 +25,26 @@ from dreye.utilities.abstract import _InitDict, inherit_docstrings
 # from dreye.estimators.led_substitution import LedSubstitutionFit
 
 
+def compute_from_simplex(X, eps=1e-4):
+    """
+    Compute a simplex to a random variable.
+
+    Notes
+    -----
+    To transform `X` first `eps` is added to each element and then the last
+    dimension of `X` is normalized by the L1-norm. Finally, `X` is
+    transformed by the following formalism:
+    .. math::
+
+        \mathbf{y} = \left[ \log \left( \frac{ x_1 }{ x_D }
+        \right) , \dots , \log \left( \frac{ x_{D-1} }{ x_D }
+        \right) \right]^\top
+    """
+    X = X + eps
+    X = X / np.sum(np.abs(X), axis=-1, keepdims=True)
+    return np.log(X[..., :-1] / X[..., -1:])
+
+
 def compute_jensen_shannon_divergence(P, Q, base=2):
     """
     Jensen-Shannon divergence of P and Q.
@@ -115,8 +135,11 @@ class MeasuredSpectraMetrics(_InitDict):
             self.measured_spectra.normalized_spectra,
             background=self.background,
             return_units=False,
-            apply_noise_threshold=False
         ).T
+        if self.background is not None:
+            self.q_bg = self.photoreceptor_model.capture(
+                self.background, return_units=False
+            )[0]
         self.bounds = self.measured_spectra.intensity_bounds
         self.normalized_spectra = self.measured_spectra.normalized_spectra
         self.n_sources = len(self.measured_spectra)
@@ -405,18 +428,19 @@ class MeasuredSpectraMetrics(_InitDict):
         assert B is None, "`B` must be None."
         assert pr_volume is not None, "`pr_volume` must be given."
         points = self.get_captures(source_idx)
-        ratios = points / np.sum(np.abs(points), axis=1, keepdims=True)
-        volume = self.compute_volume(ratios[:, :-1])
+        volume = self.compute_volume(compute_from_simplex(points))
         return volume / pr_volume
 
     def compute_gamuts(self, as_frame=True, normalize=False, rtol=None):
         """
         Compute Gamut for a set of capture points
         """
-        assert self.background is None, "Cannot compute gamut with background."
+        # can do with background if sensitivities are scaled accordingly
         assert self.photoreceptor_model.pr_number > 1, "Need more than one photoreceptor"
-        ratios = self.photoreceptor_model.compute_ratios(rtol)
-        pr_volume = self.compute_volume(ratios[:, :-1])
+        points = self.photoreceptor_model.compute_ratios(rtol)
+        if self.background is not None:
+            points = self.q_bg * points
+        pr_volume = self.compute_volume(compute_from_simplex(points))
         return self._get_metrics(
             self.compute_gamut_metric,
             'gamut',

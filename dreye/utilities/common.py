@@ -7,7 +7,7 @@ from collections.abc import Mapping, Callable
 
 import numpy as np
 
-from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE
+from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE, CONTEXTS
 
 
 def has_units(value):
@@ -29,7 +29,7 @@ def optional_to(obj, units, *args, **kwargs):
         if units is None:
             obj = obj.magnitude
         else:
-            obj = obj.to(units, *args, **kwargs).magnitude
+            obj = obj.to(units, *CONTEXTS, *args, **kwargs).magnitude
     if is_numeric(obj):
         return obj
     elif is_listlike(obj):

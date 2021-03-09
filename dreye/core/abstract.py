@@ -15,7 +15,7 @@ from dreye.utilities import (
     is_numeric, get_units, get_value
 )
 from dreye.utilities.abstract import _AbstractArray
-from dreye.constants import ureg
+from dreye.constants import ureg, CONTEXTS
 from dreye.io import read_json, write_json, read_pickle, write_pickle
 
 
@@ -31,8 +31,7 @@ class _UnitArray(_AbstractArray):
     _convert_attributes = ()
     _unit_mappings = {}
     # _enforce_same_shape = True
-    # TODO remove contexts
-    _init_args = ('attrs', 'contexts', 'name')
+    _init_args = ('attrs', 'name')
     # all init arguments necessary to copy object except values and units
     _args_defaults = {}
     # dictionary of attributes defaults if None
@@ -89,18 +88,17 @@ class _UnitArray(_AbstractArray):
 
     def __init__(
         self, values, *, units=None,
-        contexts=None, attrs=None, name=None,
+        attrs=None, name=None,
         **kwargs
     ):
         """
         The init always accepts a positional argument `values` and various
-        designated keyword arguments: `units`, `contexts`, `attrs`, `name`.
+        designated keyword arguments: `units`, `attrs`, `name`.
 
         Parameters
         ----------
         values : array-like
         units : string or `pint.Unit`, optional
-        contexts : string or tuple, optional
         attrs : dict, optional
         name : string or tuple, optional
         """
@@ -119,8 +117,6 @@ class _UnitArray(_AbstractArray):
                 name = values.name
             if attrs is None:
                 attrs = values.attrs
-            if contexts is None:
-                contexts = values.contexts
             for key, value in kwargs.items():
                 if value is None and hasattr(values, key):
                     kwargs[key] = copy.copy(getattr(values, key))
@@ -139,8 +135,7 @@ class _UnitArray(_AbstractArray):
             units = units.units
         # units are assigned
         self._units = units
-        # setup names and attributes and contexts
-        self.contexts = contexts
+        # setup names and attributes
         self.attrs = attrs
         self.name = name
 
@@ -159,7 +154,7 @@ class _UnitArray(_AbstractArray):
 
         # pop all set keys
         for key in self._init_args:
-            if key in ('name', 'attrs', 'contexts'):
+            if key in ('name', 'attrs'):
                 continue
             kwargs.pop(key)
 
@@ -217,31 +212,6 @@ class _UnitArray(_AbstractArray):
         Setting the units associated with the object
         """
         self.to(value, copy=False)
-
-    @property
-    def contexts(self):
-        """
-        Tuple of contexts for unit conversion.
-        """
-        return self._contexts
-
-    @contexts.setter
-    def contexts(self, value):
-        """
-        Setting the contexts for unit conversion.
-        """
-        # always flux context
-        if value is None:
-            self._contexts = ('flux',)
-        elif is_string(value):
-            self._contexts = tuple(set(value, 'flux'))
-        elif is_listlike(value):
-            self._contexts = tuple(set(value) | {'flux'})
-        else:
-            raise DreyeError(
-                "Context must be type tuple, str, or None, but "
-                f"is of type {type(value)}"
-            )
 
     @property
     def attrs(self):
@@ -350,7 +320,7 @@ class _UnitArray(_AbstractArray):
 
     def _convert_values(self, values, units, *args, unitless=False, **kwargs):
         """
-        Convert values given the contexts.
+        Convert values.
 
         This method is indirectly used by the `to` method
         and the directly by the `_convert_all_attrs` and
@@ -360,7 +330,7 @@ class _UnitArray(_AbstractArray):
         kws = self._unit_conversion_kws
         kws.update(kwargs)
 
-        values = values.to(units, *(self.contexts + args), **kws)
+        values = values.to(units, *CONTEXTS, *args, **kws)
 
         if unitless:
             return values.magnitude

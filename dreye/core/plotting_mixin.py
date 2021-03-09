@@ -184,8 +184,12 @@ class _PlottingMixin:
         offset = optional_to(offset, self.units)
         windows = np.linspace(min_window, max_window, steps)
 
-        container = [self] + [self.smooth(window)+offset*(idx+1)*self.units
-                              for idx, window in enumerate(windows)]
+        container = [
+            self
+        ] + [
+            self.smooth(window) + offset * (idx + 1) * self.units
+            for idx, window in enumerate(windows)
+        ]
 
         data = pd.concat(
             [ele.to_longframe() for ele in container],

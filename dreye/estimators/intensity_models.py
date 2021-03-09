@@ -23,9 +23,6 @@ class IntensityFit(_SpectraModel):
         Container with all available LEDs and their measured spectra. If
         None, a fake LED measurement will be created with intensities
         ranging from 0 to 100 microphotonflux.
-    smoothing_window : numeric, optional
-        The smoothing window size to use to smooth over the measurements
-        in the container.
 
     Attributes
     ----------
@@ -46,22 +43,20 @@ class IntensityFit(_SpectraModel):
         self,
         *,
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-        smoothing_window=None  # float
     ):
         self.measured_spectra = measured_spectra
-        self.smoothing_window = smoothing_window
 
     def fit(self, X, y=None):
         #
         self.measured_spectra_ = self._check_measured_spectra(
-            self.measured_spectra, self.smoothing_window, asarray(X).shape[1],
+            self.measured_spectra, asarray(X).shape[1],
             change_dimensionality=False
         )
         # check X
         X = self._check_X(X)
         self.current_X_ = X
         # call in order to fit isotonic regression
-        self.measured_spectra_.regressor
+        self.measured_spectra_._assign_mapper()
 
         self.n_features_ = len(self.measured_spectra_)
 
@@ -114,9 +109,6 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         Container with all available LEDs and their measured spectra. If
         None, a fake LED measurement will be created with intensities
         ranging from 0 to 100 microphotonflux.
-    smoothing_window : numeric, optional
-        The smoothing window size to use to smooth over the measurements
-        in the container.
     max_iter : int, optional
         The number of maximum iterations. This is passed directly to
         `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
@@ -145,9 +137,6 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         LED intensity bound will always exist.
     lsq_kwargs : dict, optional
         Keyword arguments passed directly to `scipy.optimize.least_squares`.
-    smoothing_window : numeric, optional
-        The smoothing window size to use to smooth over the measurements
-        in the container.
     rtype : str {'fechner', 'log', 'weber', None}, optional
         Relative intensity measure to use:
 
@@ -184,11 +173,9 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         *,
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         bg_ints=None,  # array-like
-        smoothing_window=None,  # float
         rtype=None,  # {'fechner/log', 'weber', None}
     ):
         self.measured_spectra = measured_spectra
-        self.smoothing_window = smoothing_window
         self.rtype = rtype
         self.bg_ints = bg_ints
 
@@ -196,7 +183,6 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         #
         self.measured_spectra_ = self._check_measured_spectra(
             self.measured_spectra,
-            self.smoothing_window,
             asarray(X).shape[1],
             change_dimensionality=False
         )
@@ -209,7 +195,7 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         self.current_X_ = X
 
         # call in order to fit isotonic regression
-        self.measured_spectra_.regressor
+        self.measured_spectra_._assign_mapper()
 
         self.n_features_ = len(self.measured_spectra_)
 
@@ -263,11 +249,9 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
 #         self,
 #         *,
 #         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-#         smoothing_window=None,  # float
 #         max_iter=None
 #     ):
 #         self.measured_spectra = measured_spectra
-#         self.smoothing_window = smoothing_window
 #         self.max_iter = max_iter
 #
 #     def fit(self, X, y=None):
@@ -276,7 +260,7 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
 #         """
 #         # create measured_spectra_
 #         self.measured_spectra_ = self._check_measured_spectra(
-#             self.measured_spectra, self.smoothing_window
+#             self.measured_spectra,
 #         )
 #         normalized_spectra = self.measured_spectra_.normalized_spectra.copy()
 #         assert normalized_spectra.domain_axis == 0
@@ -298,8 +282,8 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
 #         self.wavelengths_ = self.normalized_spectra_.domain.magnitude
 #         self.bounds_ = self.measured_spectra_.intensity_bounds
 #
-#         # creates regressor for mapping values
-#         self.measured_spectra_.regressor
+#         # creates for mapping values
+#         self.measured_spectra_._assign_mapper()
 #         self.container_ = self._fit_samples(X)
 #
 #         if not np.all(self.container_.success):
