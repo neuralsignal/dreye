@@ -42,7 +42,7 @@ from dreye.core.photoreceptor import (
 )
 from dreye.estimators.excitation_models import (
     IndependentExcitationFit, TransformExcitationFit,
-    ReflectanceExcitationFit
+    ReflectanceExcitationFit, NonlinearTransformExcitationFit
 )
 from dreye.estimators.led_substitution import LedSubstitutionFit
 from dreye.estimators.silent_substitution import BestSubstitutionFit
@@ -53,7 +53,9 @@ from dreye.estimators.intensity_models import (
 from dreye.io.serialization import (
     read_json, write_json, read_pickle, write_pickle
 )
-from dreye.estimators.metrics import MeasuredSpectraMetrics
+from dreye.estimators.metrics import (
+    MeasuredSpectraMetrics
+)
 
 # modules
 from dreye import hardware
@@ -117,4 +119,5 @@ __all__ = [
     'ReflectanceExcitationFit',
     'IntensityFit',
     'RelativeIntensityFit',
+    'NonlinearTransformExcitationFit'
 ]

@@ -97,7 +97,10 @@ Scikit-learn type estimators
    RelativeIntensityFit
    IndependentExcitationFit
    TransformExcitationFit
+   NonlinearTransformExcitationFit
    ReflectanceExcitationFit
+   BestSubstitutionFit
+   LedSubstitutionFit
 
 
 Miscellaneous functions and classes
