@@ -56,7 +56,7 @@ class IntensityFit(_SpectraModel):
         X = self._check_X(X)
         self.current_X_ = X
         # call in order to fit isotonic regression
-        self.measured_spectra_.regressor
+        self.measured_spectra_._assign_mapper()
 
         self.n_features_ = len(self.measured_spectra_)
 
@@ -195,7 +195,7 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         self.current_X_ = X
 
         # call in order to fit isotonic regression
-        self.measured_spectra_.regressor
+        self.measured_spectra_._assign_mapper()
 
         self.n_features_ = len(self.measured_spectra_)
 
@@ -260,7 +260,7 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
 #         """
 #         # create measured_spectra_
 #         self.measured_spectra_ = self._check_measured_spectra(
-#             self.measured_spectra, 
+#             self.measured_spectra,
 #         )
 #         normalized_spectra = self.measured_spectra_.normalized_spectra.copy()
 #         assert normalized_spectra.domain_axis == 0
@@ -282,8 +282,8 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
 #         self.wavelengths_ = self.normalized_spectra_.domain.magnitude
 #         self.bounds_ = self.measured_spectra_.intensity_bounds
 #
-#         # creates regressor for mapping values
-#         self.measured_spectra_.regressor
+#         # creates for mapping values
+#         self.measured_spectra_._assign_mapper()
 #         self.container_ = self._fit_samples(X)
 #
 #         if not np.all(self.container_.success):

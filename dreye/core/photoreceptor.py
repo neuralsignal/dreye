@@ -283,15 +283,15 @@ class Photoreceptor(ABC):
         """
         return copy.copy(self)
 
-    @abstractmethod
     def excitefunc(self, arr):
         """excitation function
         """
+        return arr
 
-    @abstractmethod
     def inv_excitefunc(self, arr):
         """inverse of excitation function
         """
+        return arr
 
     @property
     def sensitivity(self):

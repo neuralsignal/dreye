@@ -192,7 +192,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         self._intensity = None
         self._normalized_spectrum = None
         self._mapper = None
-        self._regressor = None
+        self._inverse_mapper = None
         self._intensity_labelled = None
 
         if self.name is None:
@@ -483,7 +483,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             truth = np.all(values >= imin) and np.all(values <= imax)
             assert truth, 'Some values to be mapped are out of bounds.'
 
-        mapped_values = self._mapper_func(values)
+        mapped_values = self.mapper(values)
         mapped_values = self._resolution_mapping(mapped_values)
 
         if shape is not None:
@@ -523,7 +523,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             shape = None
 
         values = self._resolution_mapping(values)
-        intensity = self.regressor.transform(values)
+        intensity = self.inverse_mapper(values)
 
         if shape is not None:
             intensity = intensity.reshape(shape)
@@ -588,36 +588,27 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         tot = (values - values.mean()) ** 2
         return 1 - res.sum() / tot.sum()
 
-    def _mapper_func(self, *args, **kwargs):
-        """mapping using isotonic regression
+    @property
+    def mapper(self):
         """
-
+        Mapper for intensity values to output values.
+        """
         if self._mapper is None:
             self._assign_mapper()
-
-        return np.clip(
-            self._mapper(*args, **kwargs),
-            a_min=self.output_bounds[0],
-            a_max=self.output_bounds[1]
-        )
+        return self._mapper
 
     @property
-    def regressor(self):
+    def inverse_mapper(self):
         """
-        Scikit-learn regressor instance used to fit output values
-        to intensity values
-
-        See Also
-        --------
-        sklearn.isotonic.IsotonicRegression
+        Mapper for output values to intensity values.
         """
-        if self._regressor is None:
+        if self._inverse_mapper is None:
             self._assign_mapper()
-        return self._regressor
+        return self._inverse_mapper
 
     @property
-    def regressor_method(self):
-        return 'isotonic'
+    def inverse_map_method(self):
+        return 'spline'
 
     def _assign_mapper(self):
         # 1D signal
@@ -627,53 +618,79 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         argsort = np.argsort(x)
         x = x[argsort]
         y = y[argsort]
-        # y_min and y_max
-        y_min, y_max = self.intensity_bounds
-        zero_is_lower = self.zero_is_lower
         zero_intensity_bound = self.zero_intensity_bound.magnitude
 
         # a little redundant but should ensure safety of method
-        if zero_is_lower and zero_intensity_bound < np.min(x):
+        if self.zero_is_lower and zero_intensity_bound < np.min(x):
             x = np.concatenate([[zero_intensity_bound], x])
             y = np.concatenate([[0], y])
         # a little redundant but should ensure safety of method
-        elif not zero_is_lower and zero_intensity_bound > np.max(x):
+        elif not self.zero_is_lower and zero_intensity_bound > np.max(x):
             x = np.concatenate([x, [zero_intensity_bound]])
             y = np.concatenate([y, [0]])
 
+        # get new_y and set inverse_mapper
+        new_y, self._inverse_mapper = self._get_inverse_mapper(x, y)
+        # set mapper
+        self._mapper = self._get_mapper(new_y, x)
+
+    def _get_inverse_mapper(self, x, y):
         # perform isotonic regression
-        if self.regressor_method == 'isotonic':
+        if self.inverse_map_method == 'isotonic':
             isoreg = IsotonicRegression(
                 # lower and upper intensity values
-                y_min=y_min,
-                y_max=y_max,
-                increasing=zero_is_lower
+                y_min=self.intensity_bounds[0],
+                y_max=self.intensity_bounds[1],
+                increasing=self.zero_is_lower
             )
-            self._regressor = isoreg
-        else:
-            raise NameError(
-                f"regressor_method `{self.regressor_method}` "
-                "not recognized."
+            new_y = isoreg.fit_transform(x, y)
+            return new_y, isoreg.transform
+        elif self.inverse_map_method == 'spline':
+            from pygam import s, LinearGAM
+            constraints = (
+                'monotonic_inc' if self.zero_is_lower else 'monotonic_dec'
             )
+            model = LinearGAM(
+                s(
+                    0,
+                    n_splines=len(x),
+                    spline_order=1,
+                    lam=0.1,
+                    constraints=constraints
+                ),
+                max_iter=1000
+            )
+            model.fit(x, y)
+            new_y = model.predict(x)
+            return new_y, model.predict
 
-        new_y = isoreg.fit_transform(x, y)
+        raise NameError(
+            f"inverse_map_method `{self.inverse_map_method}` "
+            "not recognized."
+        )
 
-        # should throw bounds_error, since zero intensity bound
-        # has been added
-        # self._mapper = interp1d(new_y, x)
-        # interpolation function
-        if zero_is_lower:
-            self._mapper = interp1d(
+    def _get_mapper(self, new_y, x):
+        if self.zero_is_lower:
+            interp = interp1d(
                 new_y, x,
                 bounds_error=False,
                 fill_value=self.output_bounds
             )
+
         else:
-            self._mapper = interp1d(
+            interp = interp1d(
                 new_y, x,
                 bounds_error=False,
                 fill_value=self.output_bounds[::-1]
             )
+
+        def mapper(*args, **kwargs):
+            return np.clip(
+                interp(*args, **kwargs),
+                a_min=self.output_bounds[0],
+                a_max=self.output_bounds[1]
+            )
+        return mapper
 
 
 @inherit_docstrings

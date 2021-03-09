@@ -2,6 +2,7 @@
 Excitation models
 """
 
+import inspect
 import warnings
 
 import numpy as np
@@ -162,6 +163,7 @@ class IndependentExcitationFit(_SpectraModel):
         self.background_only_external = background_only_external
 
     def _set_required_objects(self, size=None):
+        # TODO split into separate routines
         if self._requirements_set:
             return self
         # create photoreceptor model
@@ -178,7 +180,7 @@ class IndependentExcitationFit(_SpectraModel):
         )
         self.n_leds_ = len(self.measured_spectra_)
         # fit isotonic regression
-        self.measured_spectra_.regressor
+        self.measured_spectra_._assign_mapper()
 
         # set background intensities if exist
         self.bg_ints_ = self._get_bg_ints(
@@ -249,15 +251,28 @@ class IndependentExcitationFit(_SpectraModel):
                 and not np.allclose(self.background_.magnitude, 0)
             ):
                 # fit background and assign bg_ints_
-                est = clone(self)
+                # get params from init
+                params = inspect.signature(
+                    IndependentExcitationFit.__init__
+                ).parameters
+                # build estimator
+                # if subclasses should still use this fitting procedure
+                est = IndependentExcitationFit(
+                    **{
+                        param: getattr(self, param)
+                        for param in params
+                        if param != 'self'
+                    }
+                )
                 est._lazy_clone = True
                 X = np.ones((1, self.n_features_))
                 X = self.photoreceptor_model_.excitefunc(X)
                 est.fit(X)
+                # est.fit(X)
                 self.bg_ints_ = est.fitted_intensities_[0]
 
                 warnings.warn(
-                    "Assuming the `background` illuminant will be simulated, "
+                    "Assuming the `background` illuminant will be simulated "
                     "using the LEDs. Fitted background intensities: "
                     f"{self.bg_ints_.tolist()}."
                 )
@@ -758,12 +773,12 @@ class TransformExcitationFit(IndependentExcitationFit):
     def fitted_X_(self):
         return self.fitted_transform_X_
 
-    def _objective(self, w, excite_x, fit_weights):
+    def _objective(self, w, excite_x):
         x_pred = self._get_x_pred(w)
         if self.fit_to_transform:
             excite_x = excite_x @ self.W_
             x_pred = x_pred @ self.W_
-        return fit_weights * (excite_x - x_pred)
+        return self.fit_weights_ * (excite_x - x_pred)
 
 
 class NonlinearTransformExcitationFit(IndependentExcitationFit):
@@ -849,7 +864,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         super().fit(self.inv_func_(X))
         # overwrite current X
         self.current_X_ = self.transform_X_
-        self.fitted_transform_X_ = self.func_(self.fitted_excite_X_)
+        self.fitted_transform_X_ = self.transform_func_(self.fitted_excite_X_)
         return self
 
     def inverse_transform(self, X):
@@ -860,12 +875,12 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
     def fitted_X_(self):
         return self.fitted_transform_X_
 
-    def _objective(self, w, excite_x, fit_weights):
+    def _objective(self, w, excite_x):
         x_pred = self._get_x_pred(w)
         if self.fit_to_transform:
-            excite_x = self.func_(excite_x)
-            x_pred = self.func_(x_pred)
-        return fit_weights * (excite_x - x_pred)
+            excite_x = self.transform_func_(excite_x)
+            x_pred = self.transform_func_(x_pred)
+        return self.fit_weights_ * (excite_x - x_pred)
 
 
 @inherit_docstrings
@@ -1022,6 +1037,7 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         )
         self.reflectances = reflectances
         self.add_background = add_background
+        self.filter_background = filter_background
 
     def fit(self, X, y=None):
         self._set_required_objects()
@@ -1040,7 +1056,8 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         X = self._check_X(X)
 
         # check sizing (domain_axis=0)
-        assert X.shape[1] == self.reflectances_.shape[1]
+        assert X.shape[1] == self.reflectances_.shape[1], \
+            f"shape mismatch: {X.shape[1]} and {self.reflectances_.shape[1]}"
 
         spectra_units = self.reflectances_.units
         spectra = self.reflectances_.magnitude @ X.T
