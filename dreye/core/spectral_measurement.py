@@ -429,7 +429,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         values = self.interpolator(
             self.intensity.magnitude,  # x
             self.magnitude,  # y
-            **self.labels_interpolator_kwargs,
+            **{**self.labels_interpolator_kwargs, **kwargs},
         )(values)
         if is_numeric(labels):
             values = IntensitySpectrum(
