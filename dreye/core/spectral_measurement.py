@@ -151,6 +151,8 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
     IntensitySpectrum
     """
 
+    inverse_map_method = 'isotonic'
+
     # always in uE?
 
     def __init__(
@@ -605,10 +607,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         if self._inverse_mapper is None:
             self._assign_mapper()
         return self._inverse_mapper
-
-    @property
-    def inverse_map_method(self):
-        return 'spline'
 
     def _assign_mapper(self):
         # 1D signal
