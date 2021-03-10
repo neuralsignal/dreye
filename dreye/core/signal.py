@@ -105,15 +105,14 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     _deprecated_kws = {
         "interpolator": None,
         "interpolator_kwargs": None,
-        "contexts": None,
         "smoothing_method": None,
         "smoothing_window": None,
         "smoothing_kwargs": None,
         "smoothing_args": None,
         # Not saved anyways
         "signal_min": None,
-        "signal_max": None
-
+        "signal_max": None,
+        **_UnitArray._deprecated_kws
     }
 
     @property

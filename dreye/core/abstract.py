@@ -37,6 +37,9 @@ class _UnitArray(_AbstractArray):
     # dictionary of attributes defaults if None
     _unit_conversion_params = {}
     # attributes mapping passed to the "to" method of pint
+    _deprecated_kws = {
+        "contexts": None,
+    }
 
     @property
     def _init_aligned_attrs(self):
