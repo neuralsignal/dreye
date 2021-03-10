@@ -628,7 +628,8 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             y = np.concatenate([y, [0]])
 
         # get new_y and set inverse_mapper
-        new_y, self._inverse_mapper = self._get_inverse_mapper(x, y)
+        self._inverse_mapper = self._get_inverse_mapper(x, y)
+        new_y = self._inverse_mapper(x)
         # set mapper
         self._mapper = self._get_mapper(new_y, x)
 
@@ -641,8 +642,8 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
                 y_max=self.intensity_bounds[1],
                 increasing=self.zero_is_lower
             )
-            new_y = isoreg.fit_transform(x, y)
-            return new_y, isoreg.transform
+            isoreg.fit(x, y)
+            inverse_mapper = isoreg.transform
         elif self.inverse_map_method == 'spline':
             from pygam import s, LinearGAM
             constraints = (
@@ -659,13 +660,28 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
                 max_iter=1000
             )
             model.fit(x, y)
-            new_y = model.predict(x)
-            return new_y, model.predict
+            inverse_mapper = model.predict
+        else:
+            raise NameError(
+                f"inverse_map_method `{self.inverse_map_method}` "
+                "not recognized."
+            )
 
-        raise NameError(
-            f"inverse_map_method `{self.inverse_map_method}` "
-            "not recognized."
-        )
+        new_y = inverse_mapper(x)
+        if self.zero_is_lower:
+            interp = interp1d(
+                x, new_y,
+                bounds_error=False,
+                fill_value=self.intensity_bounds
+            )
+        else:
+            interp = interp1d(
+                x, new_y,
+                bounds_error=False,
+                fill_value=self.intensity_bounds[::-1]
+            )
+
+        return interp
 
     def _get_mapper(self, new_y, x):
         if self.zero_is_lower:
