@@ -35,6 +35,9 @@ class IntensityFit(_SpectraModel):
     current_X_ : numpy.ndarray
         Current input values used to transform and calculate scores.
     """
+    _deprecated_kws = {
+        "smoothing_window": None
+    }
 
     # other attributes that are the length of X but not X
     _X_length = []

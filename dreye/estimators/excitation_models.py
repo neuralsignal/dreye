@@ -122,7 +122,8 @@ class IndependentExcitationFit(_SpectraModel):
     ]
     _deprecated_kws = {
         "photoreceptor_fit_weights": "fit_weights",
-        "q1_ints": "bg_ints"
+        "q1_ints": "bg_ints",
+        "smoothing_window": None
     }
     fit_to_transform = False
     _skip_bg_ints = True

@@ -32,6 +32,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
     """
     Abstract Spectra model used for various Dreye estimators.
     """
+    _deprecated_kws = {
+        "smoothing_window": None
+    }
 
     # other attributes that are the length of X but not X
     # and are not the fitted signal
