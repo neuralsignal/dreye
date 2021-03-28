@@ -2,7 +2,7 @@
 
 {{ header }}
 
-Version 0.0.0 (May 15, 2020)
+Version 0.0.1 (May 15, 2020)
 -----------------------------
 
 Preliminary version of dreye.

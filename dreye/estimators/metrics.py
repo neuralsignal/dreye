@@ -3,7 +3,6 @@ Class to calculate various metrics given
 a photoreceptor model and measured spectra
 """
 
-import warnings
 import numpy as np
 import pandas as pd
 from scipy.spatial import ConvexHull
@@ -105,6 +104,17 @@ def compute_mean_width(X, n=1000, vectorized=False):
 @inherit_docstrings
 class MeasuredSpectraMetrics(_InitDict):
     """
+    Metrics to compute the "goodness-of-fit" for various light source
+    combinations.
+
+    Parameters
+    ----------
+    combos : int, array-like
+    photoreceptor_model : :obj:`~dreye.Photoreceptor`
+    measured_spectra : :obj:`~dreye.MeasuredSpectraContainer`
+    n_samples : int, optional
+    seed : int, optional
+    background : :obj:`~dreye.Spectrum`
     """
 
     def __init__(
@@ -161,12 +171,12 @@ class MeasuredSpectraMetrics(_InitDict):
                 self.source_idcs = self.combos
             else:
                 raise ValueError(
-                    "`combos` dimensionality is `{self.combos.ndim}`, "
+                    f"`combos` dimensionality is `{self.combos.ndim}`, "
                     "but needs to be 1 or 2."
                 )
         else:
             raise TypeError(
-                "`combos` is of type `{type(self.combos)}`, "
+                f"`combos` is of type `{type(self.combos)}`, "
                 "but must be numeric or array-like."
             )
 

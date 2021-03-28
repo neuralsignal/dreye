@@ -35,7 +35,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        mean : `pint.Quantity`
+        mean : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -48,7 +48,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        mean : `pint.Quantity`
+        mean : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -61,7 +61,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        sum : `pint.Quantity`
+        sum : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -75,7 +75,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        sum : `pint.Quantity`
+        sum : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -88,7 +88,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        std : `pint.Quantity`
+        std : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -102,7 +102,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        std : `pint.Quantity`
+        std : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -115,7 +115,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        var : `pint.Quantity`
+        var : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -128,7 +128,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        var : `pint.Quantity`
+        var : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -141,7 +141,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        min : `pint.Quantity`
+        min : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -157,7 +157,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        min : `pint.Quantity`
+        min : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -170,7 +170,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        max : `pint.Quantity`
+        max : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -187,7 +187,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        max : `pint.Quantity`
+        max : :obj:`~pint.Quantity`
         """
 
         return self._numpy_reduce(
@@ -200,7 +200,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        array : `pint.Quantity`
+        array : :obj:`~pint.Quantity`
         """
 
         if transpose:
@@ -223,7 +223,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        array : `pint.Quantity`
+        array : :obj:`~pint.Quantity`
         """
 
         values = np.cov(self.magnitude, *args, **kwargs)
@@ -236,7 +236,7 @@ class _NumpyMixin:
 
         Returns
         -------
-        array : `pint.Quantity`
+        array : :obj:`~pint.Quantity`
         """
 
         values = np.corrcoef(self.magnitude, *args, **kwargs)

@@ -30,14 +30,9 @@ class IntensityFit(_SpectraModel):
         Measured spectrum container used for fitting. This will be the same
         if as `measured_spectra` if a `dreye.MeasuredSpectraContainer` instance
         was passed.
-    fitted_intensities_ : numpy.ndarray
-        Intensities fit in units of `measured_spectra_.intensities.units`
-    current_X_ : numpy.ndarray
-        Current input values used to transform and calculate scores.
+    fitted_intensities_ : :obj:`~numpy.ndarray`
+        Intensities fit in units of `measured_spectra_.intensities.units`.
     """
-    _deprecated_kws = {
-        "smoothing_window": None
-    }
 
     # other attributes that are the length of X but not X
     _X_length = []
@@ -57,7 +52,7 @@ class IntensityFit(_SpectraModel):
         )
         # check X
         X = self._check_X(X)
-        self.current_X_ = X
+        self.intensities_ = X
         # call in order to fit isotonic regression
         self.measured_spectra_._assign_mapper()
 
@@ -93,6 +88,10 @@ class IntensityFit(_SpectraModel):
     @property
     def fitted_X_(self):
         return self.fitted_intensities_
+
+    @property
+    def X_(self):
+        return self.intensities_
 
 
 @inherit_docstrings
@@ -162,8 +161,6 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         Intensities fit in units of `measured_spectra_.intensities`.
     fitted_relative_intensities_ : numpy.ndarray
         Relative intensity values that were fit.
-    current_X_ : numpy.ndarray
-        Current input values used to transform and calculate scores.
     """
 
     # other attributes that are the length of X but not X
@@ -195,7 +192,7 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         )
         # check X
         X = self._check_X(X)
-        self.current_X_ = X
+        self.relative_intensities_ = X
 
         # call in order to fit isotonic regression
         self.measured_spectra_._assign_mapper()
@@ -241,6 +238,10 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
     def fitted_X_(self):
         return self.fitted_relative_intensities_
 
+    @property
+    def X_(self):
+        return self.relative_intensities_
+
 #
 # # TODO improve (not final version)
 # class IlluminantFit(_SpectraModel):
@@ -279,7 +280,7 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
 #         # check X
 #         X = self._check_X(X)
 #         # also store checked X
-#         self.current_X_ = X
+#         self.X_ = X
 #         # spectra as array
 #         self.normalized_spectra_ = normalized_spectra
 #         self.wavelengths_ = self.normalized_spectra_.domain.magnitude

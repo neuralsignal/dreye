@@ -133,9 +133,11 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
                 self.substitution_type
             )
 
-        self.current_X_ = self.fitted_other_excite_X_
-
         return self
+
+    @property
+    def X_(self):
+        return self.fitted_other_excite_X_
 
     def _create_dataframe(self, i, e, active, direction):
         """

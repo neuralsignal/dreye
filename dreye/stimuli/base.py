@@ -171,9 +171,9 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         if (
             hasattr(self.estimator, 'fitted_X_')
-            and hasattr(self.estimator, 'current_X_')
+            and hasattr(self.estimator, 'X_')
         ):
-            if self.estimator.current_X_.shape == self.signal.shape:
+            if self.estimator.X_.shape == self.signal.shape:
                 self._fitted_signal = self.estimator.fitted_X_
             else:
                 self._fitted_signal = self.signal

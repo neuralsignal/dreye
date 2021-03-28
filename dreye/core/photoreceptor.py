@@ -21,7 +21,7 @@ from dreye.utilities import (
 RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-2
 
 
-def get_photoreceptor_model(
+def create_photoreceptor_model(
     sensitivity=None, wavelengths=None, filterfunc=None, labels=None,
     photoreceptor_type='linear', **kwargs
 ):
@@ -106,7 +106,12 @@ def get_photoreceptor_model(
     )
 
 
+# deprecated!
+get_photoreceptor_model = create_photoreceptor_model
+
+
 # TODO convenience capture function
+# def capture
 
 
 class Photoreceptor(ABC):

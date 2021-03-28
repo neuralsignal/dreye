@@ -9,7 +9,6 @@ import numpy as np
 from scipy.optimize import OptimizeResult
 from scipy.optimize import lsq_linear, least_squares
 from sklearn.utils.validation import check_array, check_is_fitted
-from sklearn import clone
 
 from dreye.utilities import (
     optional_to, asarray, is_listlike, is_callable
@@ -105,9 +104,6 @@ class IndependentExcitationFit(_SpectraModel):
         The current relative photon capture values used for fitting.
     excite_X_ : numpy.ndarray (n_samples, n_prs)
         The current photoreceptor excitation values used for fitting.
-    current_X_ : numpy.ndarray (n_samples, n_prs)
-        Current photoreceptor excitation values used for fitting.
-        This is the same as `excite_X_`
     fitted_intensities_ : numpy.ndarray
         Intensities fit in units of `measured_spectra_.intensities.units`
     fitted_capture_X_ : numpy.ndarray (n_samples, n_prs)
@@ -121,6 +117,7 @@ class IndependentExcitationFit(_SpectraModel):
         'fitted_intensities_'
     ]
     _deprecated_kws = {
+        **_SpectraModel._deprecated_kws,
         "photoreceptor_fit_weights": "fit_weights",
         "q1_ints": "bg_ints",
         "smoothing_window": None
@@ -361,7 +358,6 @@ class IndependentExcitationFit(_SpectraModel):
 
         # overwrite this method when subclassing
         self.capture_X_, self.excite_X_ = self._process_X(X)
-        self.current_X_ = self.excite_X_
 
         # whether domain between spectra and photoreceptor model equal
         self._domain_equal_ = (
@@ -587,6 +583,10 @@ class IndependentExcitationFit(_SpectraModel):
     def fitted_X_(self):
         return self.fitted_excite_X_
 
+    @property
+    def X_(self):
+        return self.excite_X_
+
 
 @inherit_docstrings
 class TransformExcitationFit(IndependentExcitationFit):
@@ -676,9 +676,6 @@ class TransformExcitationFit(IndependentExcitationFit):
     transform_X_ : numpy.ndarray (n_samples, m_space)
         The current linear transformation of the photoreceptor excitations
         used for fitting.
-    current_X_ : numpy.ndarray (n_samples, m_space)
-        Current linear transformatino of photoreceptor excitation values
-        used for fitting. This is the same as `transform_X_`.
     fitted_intensities_ : numpy.ndarray
         Intensities fit in units of `measured_spectra_.intensities.units`
     fitted_capture_X_ : numpy.ndarray (n_samples, n_prs)
@@ -762,7 +759,6 @@ class TransformExcitationFit(IndependentExcitationFit):
 
         super().fit(X @ self.Winv_)
         # overwrite current X
-        self.current_X_ = self.transform_X_
         self.fitted_transform_X_ = self.fitted_excite_X_ @ self.W_
         return self
 
@@ -773,6 +769,10 @@ class TransformExcitationFit(IndependentExcitationFit):
     @property
     def fitted_X_(self):
         return self.fitted_transform_X_
+
+    @property
+    def X_(self):
+        return self.transform_X_
 
     def _objective(self, w, excite_x):
         x_pred = self._get_x_pred(w)
@@ -864,7 +864,6 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
 
         super().fit(self.inv_func_(X))
         # overwrite current X
-        self.current_X_ = self.transform_X_
         self.fitted_transform_X_ = self.transform_func_(self.fitted_excite_X_)
         return self
 
@@ -875,6 +874,10 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
     @property
     def fitted_X_(self):
         return self.fitted_transform_X_
+
+    @property
+    def X_(self):
+        return self.transform_X_
 
     def _objective(self, w, excite_x):
         x_pred = self._get_x_pred(w)
@@ -982,9 +985,6 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         The current relative photon capture values used for fitting.
     excite_X_ : numpy.ndarray (n_samples, n_prs)
         The current photoreceptor excitation values used for fitting.
-    current_X_ : numpy.ndarray (n_samples, n_prs)
-        Current photoreceptor excitation values used for fitting.
-        This is the same as `excite_X_`
     fitted_intensities_ : numpy.ndarray
         Intensities fit in units of `measured_spectra_.intensities.units`
     fitted_capture_X_ : numpy.ndarray (n_samples, n_prs)

@@ -36,10 +36,12 @@ class Domain(_UnitArray):
         Units associated with the domain.
     name : str
         Name for the domain object.
+    attrs : dict
+        User-defined dictionary storage.
 
     Notes
     -----
-    The `Domain` object is used for various signal-type classes to specify
+    The :obj:`~Domain` object is used for various signal-type classes to specify
     the domain range of a signal. For example, for a spectral distribution
     of light the domain range will be various wavelengths in nanometers.
 
@@ -55,6 +57,10 @@ class Domain(_UnitArray):
         'start', 'end', 'interval'
     )
     _init_args = ('attrs', 'name', 'interval_')
+    _deprecated_kws = {
+        **_UnitArray.deprecated_kws,
+        'interval_': '_interval_'
+    }
 
     @property
     def _class_new_instance(self):
@@ -70,7 +76,7 @@ class Domain(_UnitArray):
         values=None,
         attrs=None,
         name=None,
-        interval_=None
+        _interval_=None
     ):
         if is_listlike(start) and values is None:
             values = start
@@ -93,13 +99,13 @@ class Domain(_UnitArray):
             start=start,
             end=end,
             interval=interval,
-            interval_=interval_
+            _interval_=_interval_
         )
 
     @property
-    def interval_(self):
+    def _backup_interval_(self):
         """
-        IGNORE. This property is used internally.
+        This property is used internally.
 
         This backup interval is used in the case when values is of size 1,
         the property is used in the internal method `_test_and_assign_values`.
@@ -112,13 +118,22 @@ class Domain(_UnitArray):
     @property
     def ndim(self):
         """
-        Dimensionality of a domain instance is always 1.
+        Dimensionality of a domain is always 1.
         """
         return 1
 
     def to_index(self, name=None):
         """
-        Return `pandas.Index` instance of domain.
+        Return :obj:`~pandas.Index` instance of domain.
+
+        Parameters
+        ----------
+        name : str, optional
+            The name for instantiating :obj:`~pandas.Index`.
+
+        Returns
+        -------
+        index : :obj:`~pandas.Index`
         """
         name = (self.name if name is None else name)
         return pd.Index(self.magnitude, name=name)
@@ -166,7 +181,7 @@ class Domain(_UnitArray):
                 interval = kwargs.get('interval', None)
                 # take backup interval
                 if interval is None:
-                    interval = self.interval_
+                    interval = self._backup_interval_
                 assert is_numeric(interval), \
                     "Need to supply numeric interval if domain is of size 1."
                 interval = optional_to(interval, self.units)
@@ -327,7 +342,7 @@ class Domain(_UnitArray):
 
         Returns
         -------
-        domain : `Domain`
+        domain : :obj:`~Domain`
             A new domain with uniform intervals, or a copy of self if self
             is already uniform.
         """
@@ -350,19 +365,19 @@ class Domain(_UnitArray):
 
         Parameters
         ----------
-        other : `Domain` object or array-like
+        other : :obj:`~Domain` object or array-like
             Domain object to equalize to self.
 
         Returns
         -------
-        domain : `Domain`
+        domain : :obj:`~Domain`
             A new domain corresponding the "most common denominator" between
             self and other.
 
         Notes
         -----
         If domains do not have uniform intervals, uniformity will be enforced
-        using `Domain.enforce_uniformity`.
+        using :obj:`~Domain.enforce_uniformity`.
 
         The "most common denominator" domain between self and other is
         chosen as follows:
@@ -439,7 +454,7 @@ class Domain(_UnitArray):
 
         Parameters
         ----------
-        domain : `Domain` or array-like
+        domain : :obj:`~Domain` or array-like
             Domain values to append to self.
         left : bool, optional
             Whether to append to the left side of the domain.
@@ -447,8 +462,15 @@ class Domain(_UnitArray):
 
         Returns
         -------
-        domain : `Domain`
+        domain : :obj:`~Domain`
             Returns appended domain.
+
+        Examples
+        --------
+        >>> domain1 = Domain(0, 1, 0.1, units='s')
+        >>> domain2 = Domain(1, 2, 0.1, units='s')
+        >>> domain1.append(domain2)
+        Domain(start=0.0, end=2.0, interval=0.1, units=second)
         """
 
         # Works with reverse
@@ -489,8 +511,14 @@ class Domain(_UnitArray):
 
         Returns
         -------
-        domain : `Domain`
+        domain : :obj:`~Domain`
             Returns extended domain.
+
+        Examples
+        --------
+        >>> domain = Domain(0, 1, 0.1, units='s')
+        >>> domain.extend(5)
+        Domain(start=0.0, end=1.5, interval=0.1, units=second)
         """
         # works with reversed/descending values
         assert is_integer(length), "Length must be integer type."
@@ -517,6 +545,11 @@ class Domain(_UnitArray):
         """
         Calculates gradient between points.
 
+        Returns
+        -------
+        gradient : :obj:`~pint.Quantity`
+            The gradient of the domain in units of the domain.
+
         See Also
         --------
         numpy.gradient
@@ -528,6 +561,11 @@ class Domain(_UnitArray):
     def span(self):
         """
         Span of the domain (max-min).
+
+        Returns
+        -------
+        span : float
+            Span of the domain
         """
         return np.max(self.magnitude) - np.min(self.magnitude)
 
@@ -535,6 +573,10 @@ class Domain(_UnitArray):
     def boundaries(self):
         """
         Tuple of minimum and maximum value.
+
+        Returns
+        -------
+        boundaries : two-tuple of floats
+            Minimum and maximum of domain.
         """
         return (np.min(self.magnitude), np.max(self.magnitude))
-        # return (self.start, self.end)

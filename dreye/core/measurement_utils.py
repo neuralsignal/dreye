@@ -30,13 +30,13 @@ def convert_measurement(
 ):
     """
     Convert photon count signal into
-    `dreye.Spectrum` or `dreye.DomainSpectrum` subclass.
+    :obj:`~dreye.Spectrum` or :obj:`~dreye.DomainSpectrum` subclass.
 
     Parameters
     ----------
     signal : Signal-type instance
         Signal instance with dimensionless values
-    calibration : `CalibrationSpectrum`, optional
+    calibration : :obj:`~CalibrationSpectrum`, optional
         Calibration spectrum. If None, assume a flat calibration spectrum
         at 1 mircojoules.
     integration_time : numeric or array-like, optional
@@ -44,13 +44,13 @@ def convert_measurement(
         assumes an integration time of 1 second.
     area : numeric, optional
         Area for `calibration` instance. If None and `calibration` is
-        `CalibrationSpectrum` instance, area is 1 cm^2.
+        :obj:`~CalibrationSpectrum` instance, area is 1 cm^2.
     units : string or `pint.Unit`.
         The units to convert the spectrum to. Defaults to 'uE', which is
         microspectralphotonflux.
     spectrum_cls : object
-        Spectrum class to use to create measurement. Default to
-        `IntensitySpectra`
+        Spectrum class to use to create measurement. Defaults to
+        :obj:`~IntensitySpectra`
     background : Signal-type instance
         This signal-type instance is subtracted from the signal class,
         once the signal class has been converte to irradiance units.
@@ -131,7 +131,7 @@ def create_measured_spectrum(
     **kwargs
 ):
     """
-    Create `dreye.MeasuredSpectrum` instance from numpy.ndarray objects.
+    Create :obj:`~dreye.MeasuredSpectrum` instance from a :obj:`~numpy.ndarray`.
 
     Parameters
     ----------
@@ -142,7 +142,7 @@ def create_measured_spectrum(
         array of output in ascending or descending order.
     wavelengths : array-like, optional
         array of wavelengths in nanometers in ascending or descending order.
-    calibration : CalibrationSpectrum or array-like
+    calibration : :obj:`~CalibrationSpectrum` or array-like
         Calibration spectrum instance used for conversion of `spectrum_array`.
     integration_times : numeric or array-like, optional
         Integration times in seconds for each measurement in `spectrum_array`.
@@ -171,11 +171,11 @@ def create_measured_spectrum(
         This signal-type instance is subtracted from the signal class,
         once the signal class has been converte to irradiance units.
     kwargs : dict, optional
-        Keyword arguments passed to `MeasuredSpectrum` instance.
+        Keyword arguments passed to :obj:`~MeasuredSpectrum` instance.
 
     Returns
     -------
-    object : `MeasuredSpectrum`
+    object : :obj:`~MeasuredSpectrum`
         `MeasuredSpectrum` instance containing `spectrum_array`.
     """
     # create labels
@@ -215,7 +215,7 @@ def create_measured_spectrum(
     )
 
 
-def get_led_spectra_container(
+def create_led_spectra_container(
     led_spectra=None,  # wavelengths x LED (ignores units)
     intensity_bounds=(0, 100),  # two-tuple of min and max intensity
     wavelengths=None,  # wavelengths (two-tuple or array-like)
@@ -228,7 +228,7 @@ def get_led_spectra_container(
     names=None,
 ):
     """
-    Convenience function to created `dreye.MeasuredSpectraContainer` from
+    Convenience function to created :obj:`~dreye.MeasuredSpectraContainer` from
     LED spectra and intensity bounds.
 
     Parameters
@@ -255,9 +255,9 @@ def get_led_spectra_container(
     resolution : array-like, optional
         The resolution of the hardware piece. An array of each step that the
         hardware piece can resolve.
-    intensity_units : str or `pint.Unit`, optional
+    intensity_units : str or :obj:`~pint.Unit`, optional
         The units of intensity. Defaults to `microphotonflux`.
-    output_units : str or `pint.Unit`, optional
+    output_units : str or :obj:`~pint.Unit`, optional
         The units of output values. Defaults to None or the units of
         intensity.
     transform_func : callable, optional
@@ -272,16 +272,16 @@ def get_led_spectra_container(
 
     Returns
     -------
-    object : `dreye.MeasuredSpectraContainer`
+    object : :obj:`~dreye.MeasuredSpectraContainer`
         A container that can map intensity values to output values, and
         which can be used for various estimators and building stimuli.
 
     Notes
     -----
     This function was made for convenience, but a better way to create
-    a `dreye.MeasuredSpectraContainer` instance is to first create
-    `dreye.MeasuredSpectrum` instance for each LED and then to pass a list
-    of these instances to initialize a `dreye.MeasuredSpectraContainer`
+    a :obj:`~dreye.MeasuredSpectraContainer` instance is to first create
+    :obj:`~dreye.MeasuredSpectrum` instance for each LED and then to pass a list
+    of these instances to initialize a :obj:`~dreye.MeasuredSpectraContainer`
     instance.
     """
     hard_std = 20.  # STD of gaussians if led_spectra not given
@@ -365,3 +365,7 @@ def get_led_spectra_container(
         measured_spectra.append(measured_spectrum)
 
     return MeasuredSpectraContainer(measured_spectra)
+
+
+# deprecated!
+get_led_spectra_container = create_led_spectra_container

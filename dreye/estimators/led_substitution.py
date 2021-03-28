@@ -208,7 +208,6 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         )
         self.fitted_excite_X_ = fitted_excitations[::2]
         self.fitted_solo_excite_X_ = fitted_excitations[1::2]
-        self.current_X_ = self.fitted_solo_excite_X_
 
         self.fitted_capture_X_ = self.photoreceptor_model_.inv_excitefunc(
             self.fitted_excite_X_
@@ -336,3 +335,7 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         x_pred = self._get_x_pred(w)
         excite_x = self._get_x_pred(w_solo)
         return self.fit_weights_ * (excite_x - x_pred)
+
+    @property
+    def X_(self):
+        return self.fitted_solo_excite_X_

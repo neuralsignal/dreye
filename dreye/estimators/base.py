@@ -290,7 +290,13 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         """
         X after fitting.
         """
-        return self.current_X_
+
+    @property
+    @abstractmethod
+    def X_(self):
+        """
+        X before fitting.
+        """
 
     def to_dict(self):
         """
@@ -321,7 +327,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         if X is not None:
             self.fit(X)
         X_pred = self.fitted_X_
-        X = self.current_X_
+        X = self.X_
         return X - X_pred
 
     def relative_changes(self, X=None):
@@ -332,7 +338,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         if X is not None:
             self.fit(X)
         X_pred = self.fitted_X_
-        X = self.current_X_
+        X = self.X_
         return (X_pred - X) / np.abs(X)
 
     @staticmethod
@@ -373,7 +379,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         if X is not None:
             self.fit(X)
         X_pred = self.fitted_X_
-        X = self.current_X_
+        X = self.X_
 
         # residual across photoreceptors
         if method == 'r2':

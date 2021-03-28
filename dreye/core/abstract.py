@@ -105,7 +105,7 @@ class _UnitArray(_AbstractArray):
         attrs : dict, optional
         name : string or tuple, optional
         """
-        convert_units = False
+        new_units = None
         # map the value
         units = self._unit_mappings.get(units, units)
 
@@ -126,9 +126,7 @@ class _UnitArray(_AbstractArray):
             values = values.values
 
         if has_units(values):
-            if units is not None:
-                convert_units = True
-                convert_to = units
+            new_units = units
             units = values.units
             values = values.magnitude
 
@@ -146,11 +144,15 @@ class _UnitArray(_AbstractArray):
             if value is None:
                 value = self._args_defaults.get(key, None)
             if key in self._init_args:
-                # these has an attribute property
-                assert hasattr(type(self), key), \
-                    f"Must provide property for attribute {key}"
-                # set attribute
-                setattr(self, '_' + key, value)
+                # semi-private attribute
+                if key.startswith('_'):
+                    setattr(self, key, value)
+                else:
+                    # these has an attribute property
+                    assert hasattr(type(self), key), \
+                        f"Must provide property for attribute {key}"
+                    # set attribute
+                    setattr(self, '_' + key, value)
             else:
                 # these do not have an attribute property
                 kwargs[key] = value
@@ -165,8 +167,8 @@ class _UnitArray(_AbstractArray):
         self._test_and_assign_values(values, kwargs)
 
         # this ensure that things like the domain are carried over
-        if convert_units:
-            self.units = convert_to
+        if new_units is not None:
+            self.units = new_units
 
     def _get_convert_attribute(self, attr):
         """
@@ -222,7 +224,7 @@ class _UnitArray(_AbstractArray):
         Dictionary to hold arbitrary objects.
 
         The keys of the dictionary can be user-defined keys or keys specific to
-        particular classes, such as for the `dreye.MeasuredSpectrum` class.
+        particular classes, such as for the :obj:`~MeasuredSpectrum` class.
         """
         return self._attrs
 
@@ -261,14 +263,14 @@ class _UnitArray(_AbstractArray):
     @property
     def magnitude(self):
         """
-        Returns `numpy.ndarray` of values without units.
+        Returns :obj:`~numpy.ndarray` of values without units.
         """
         return self._values
 
     @property
     def values(self):
         """
-        Returns `pint.Quantity` array (i.e. units are attached).
+        Returns :obj:`~pint.Quantity` array (i.e. array-like with units).
         """
         return self.magnitude * self.units
 
@@ -281,11 +283,11 @@ class _UnitArray(_AbstractArray):
         units : str
             Units to convert to
         args : tuple, optional
-            Contexts to pass to `pint.Quantity.to` method.
+            Contexts to pass to :obj:`~pint.Quantity.to` method.
         copy : bool, optional
             If self will be copied. Defaults to True.
         kwargs : dict, optional
-            Keyword arguments passed to `pint.Quantity.to` method.
+            Keyword arguments passed to :obj:`~pint.Quantity.to` method.
 
         Returns
         -------
@@ -299,7 +301,7 @@ class _UnitArray(_AbstractArray):
 
         Notes
         -----
-        This function essentially uses `pint`'s unit conversion system.
+        This function essentially uses :obj:`~pint`'s unit conversion system.
         Besides converting the `values` array, this method will also convert
         any attributes that have the same dependent units as the `values`
         array.
@@ -602,7 +604,7 @@ class _UnitArray(_AbstractArray):
     def __getitem__(self, key):
         """
         Returns copy of self if key is a tuple of slices or a slice instance.
-        Otherwise `__getitem__` returns a `pint.Quantity`.
+        Otherwise `__getitem__` returns a :obj:`~pint.Quantity`.
         """
         values = self.values[key]
         if hasattr(values, 'ndim'):
@@ -769,20 +771,28 @@ class _UnitArray(_AbstractArray):
 
     def asarray(self):
         """
-        Return values as `numpy.ndarray` object.
+        Return values as :obj:`~numpy.ndarray` object.
         """
-        return self.values.magnitude
+        return self.magnitude.copy()
 
     def __array__(self):
         """
-        Method for converting to `numpy.ndarray` object.
+        Method for converting to :obj:`~numpy.ndarray` object.
         """
-        return self.values.magnitude
+        return self.asarray()
 
     def to_dict(self):
         """
-        Convert object to dictionary, containing values, units,
-        and other attributes necessary for initialization.
+        Return a `dict` containing all essential information of the object:
+            * list of values
+            * units of values
+            * other attributes necessary for initialization
+
+        Returns
+        -------
+        dictionary : dict
+            Dictionary containing all necessary information
+            for initialization of object.
         """
         dictionary = {
             'values': self.magnitude.tolist(),
@@ -794,7 +804,17 @@ class _UnitArray(_AbstractArray):
     @classmethod
     def from_dict(cls, data):
         """
-        Create class instance from dictionary.
+        Create Instance of the class using a dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Dictionary containing all necessary information for initialization.
+
+        Returns
+        -------
+        obj : instance of `cls`
+            Instance of `cls`.
         """
         return cls(**data)
 
