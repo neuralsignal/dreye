@@ -58,7 +58,7 @@ class Domain(_UnitArray):
     )
     _init_args = ('attrs', 'name', 'interval_')
     _deprecated_kws = {
-        **_UnitArray.deprecated_kws,
+        **_UnitArray._deprecated_kws,
         'interval_': '_interval_'
     }
 

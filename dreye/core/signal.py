@@ -103,6 +103,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     # attributes mapping passed to the "to" method of pint
     # allows for serialization of older versions
     _deprecated_kws = {
+        **_UnitArray._deprecated_kws,
         "interpolator": None,
         "interpolator_kwargs": None,
         "smoothing_method": None,
@@ -112,7 +113,6 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         # Not saved anyways
         "signal_min": None,
         "signal_max": None,
-        **_UnitArray._deprecated_kws
     }
 
     @property
