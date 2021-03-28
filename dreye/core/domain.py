@@ -103,7 +103,7 @@ class Domain(_UnitArray):
         )
 
     @property
-    def _backup_interval_(self):
+    def _interval_(self):
         """
         This property is used internally.
 
@@ -113,7 +113,12 @@ class Domain(_UnitArray):
         # always ensures that it is a float
         if hasattr(self, '_interval'):
             return np.mean(self._interval)
-        return self._interval_
+        if hasattr(self, '_backup_interval_'):
+            return self._backup_interval_
+
+    @_interval_.setter
+    def _interval_(self, value):
+        self._backup_interval_ = value
 
     @property
     def ndim(self):
@@ -181,7 +186,7 @@ class Domain(_UnitArray):
                 interval = kwargs.get('interval', None)
                 # take backup interval
                 if interval is None:
-                    interval = self._backup_interval_
+                    interval = self._interval_
                 assert is_numeric(interval), \
                     "Need to supply numeric interval if domain is of size 1."
                 interval = optional_to(interval, self.units)
