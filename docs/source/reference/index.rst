@@ -9,4 +9,5 @@ API Reference
     core
     stimuli
     hardware
+    datasets
     utilities
