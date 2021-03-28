@@ -190,6 +190,7 @@ class Domain(_UnitArray):
                 assert is_numeric(interval), \
                     "Need to supply numeric interval if domain is of size 1."
                 interval = optional_to(interval, self.units)
+                reverse = interval < 0
             else:
                 # returns start and end in ascending order
                 start, end, interval = array_domain(
