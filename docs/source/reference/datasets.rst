@@ -1,5 +1,5 @@
 ======================
-Hardware API Reference
+Datasets API Reference
 ======================
 
 .. currentmodule:: dreye.datasets
