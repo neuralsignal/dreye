@@ -56,7 +56,7 @@ class Domain(_UnitArray):
     _convert_attributes = (
         'start', 'end', 'interval'
     )
-    _init_args = ('attrs', 'name', 'interval_')
+    _init_args = ('attrs', 'name', '_interval_')
     _deprecated_kws = {
         **_UnitArray._deprecated_kws,
         'interval_': '_interval_'
