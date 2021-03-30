@@ -99,3 +99,7 @@ class TestDomain:
             dreye.write_json(filepath, domain)
             domain = dreye.read_json(filepath)
             assert domain == _domain
+
+    def test_extend(self):
+        domain = dreye.Domain(0, 1, 0.1, units='s')
+        assert domain[:1].extend(10) == domain
