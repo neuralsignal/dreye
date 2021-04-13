@@ -433,78 +433,28 @@ class MeasuredSpectraMetrics(_InitDict):
             mis.append(mi)
         return np.concatenate(mis).mean()
 
-    # @staticmethod
-    # def compute_gamut(points, nonlin)
-
-    def compute_gamut_metric(
-        self, source_idx, metric='gamut', B=None, pr_volume=None, nonlin=None,
-        relative=True
+    def compute_gamut(
+        self, points, nonlin=None, relative=True, zscore=False,
+        gamut_metric='mean_width'
     ):
         """
-        Compute gamut for a single source
+        Compute absolute gamut
         """
-        # get captures
-        assert B is None, "`B` must be None."
-        assert pr_volume is not None, "`pr_volume` must be given."
-        points = self.get_captures(source_idx)
+        gamut_metric = self._get_metric_func(gamut_metric)
         if nonlin is not None:
             points = nonlin(points)
-        volume = self.compute_volume(compute_from_simplex(points))
+        if zscore or np.any(points < 0):
+            points = (points - np.min(points)) / (np.max(points) - np.min(points))
+        nsize = points.shape[-1]
+        volume = gamut_metric(compute_from_simplex(points))
         if relative:
-            return volume / pr_volume
-        else:
-            return volume
-
-    def compute_gamuts(
-        self, as_frame=True, normalize=False, rtol=None,
-        nonlin=None, relative=True
-    ):
-        """
-        Compute Gamut for a set of capture points
-        """
-        # can do with background if sensitivities are scaled accordingly
-        assert self.photoreceptor_model.pr_number > 1, "Need more than one photoreceptor"
-        points = self.photoreceptor_model.compute_ratios(rtol, compute=False)
-        if self.background is not None:
-            points = self.q_bg * points
-        if nonlin is not None:
-            points = nonlin(points)
-        pr_volume = self.compute_volume(compute_from_simplex(points))
-        return self._get_metrics(
-            self.compute_gamut_metric,
-            'gamut',
-            None,
-            as_frame,
-            normalize,
-            # passed to compute_gamut
-            pr_volume=pr_volume,
-            nonlin=nonlin,
-            relative=relative
-        )
-
-    def compute_alt_gamuts(
-        self, as_frame=True, normalize=False, rtol=None, nonlin=None, relative=True
-    ):
-        """Compute gamuts from photoreceptor simplex
-        """
-        # TODO official way to calculate volume
-        assert self.photoreceptor_model.pr_number > 1, "Need more than one photoreceptor"
-        points1 = np.eye(self.photoreceptor_model.pr_number)
-        points2 = 1 - points1
-        points2 = points2 / np.sum(points2, axis=-1, keepdims=True)
-        points = np.vstack([points1, points2])
-        pr_volume = self.compute_volume(compute_from_simplex(points))
-        return self._get_metrics(
-            self.compute_gamut_metric,
-            'alt_gamut',
-            None,
-            as_frame,
-            normalize,
-            # passed to compute_gamut
-            pr_volume=pr_volume,
-            nonlin=nonlin,
-            relative=relative
-        )
+            points1 = np.eye(nsize)
+            points2 = 1 - points1
+            points2 = points2 / np.sum(points2, axis=-1, keepdims=True)
+            points = np.vstack([points1, points2])
+            denom_volume = gamut_metric(compute_from_simplex(points))
+            return volume / denom_volume
+        return volume
 
     def compute_as_peaks(self):
         """
@@ -546,6 +496,8 @@ class MeasuredSpectraMetrics(_InitDict):
             return self.compute_mean_correlation
         elif metric in {'mi', 'mutual_info'}:
             return self.compute_mean_mutual_info
+        elif metric in {'gamut', }:
+            return self.compute_gamut
 
         raise NameError(
             f"Did not recognize metric `{metric}`. "
