@@ -727,6 +727,13 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         return self / self.max(axis=self.domain_axis, keepdims=True)
 
     @property
+    def dmax(self):
+        """
+        domain value with maximum sgnal value.
+        """
+        return self.domain.magnitude[np.nanargmax(self.magnitude, axis=self.domain_axis)]
+
+    @property
     def piecewise_integral(self):
         """
         Returns the signal multiplied by the gradient of the domain.

@@ -210,11 +210,11 @@ class Photoreceptor(ABC):
         """
         return self.sensitivity.domain.magnitude
 
-    def compute_ratios(self, rtol=None, return_wls=False):
+    def compute_ratios(self, rtol=None, peak2peak=False, return_wls=False, compute=True):
         """
         Compute ratios of the sensitivities for all significant wavelengths.
         """
-        wl_range = self.wavelength_range(rtol)
+        wl_range = self.wavelength_range(rtol, peak2peak=peak2peak)
         wls = np.arange(*wl_range)
         # NB: sensitivity in pr_model always has domain on zeroth axis
         s = self.sensitivity(
@@ -225,17 +225,23 @@ class Photoreceptor(ABC):
                 "Zeros or smaller in sensitivities array!", RuntimeWarning
             )
             s[s < 0] = 0
-        ratios = s / np.sum(np.abs(s), axis=1, keepdims=True)
+        if compute:
+            ratios = s / np.sum(np.abs(s), axis=1, keepdims=True)
+        else:
+            ratios = s
         if return_wls:
             return wl_range, ratios
         else:
             return ratios
 
-    def wavelength_range(self, rtol=None):
+    def wavelength_range(self, rtol=None, peak2peak=False):
         """
         Range of wavelengths that the photoreceptor are sensitive to.
         Returns a tuple of the min and max wavelength value.
         """
+        if peak2peak:
+            dmax = self.sensitivity.dmax
+            return np.min(dmax), np.max(dmax)
         rtol = (RELATIVE_SENSITIVITY_SIGNIFICANT if rtol is None else rtol)
         tol = (
             (self.sensitivity.max() - self.sensitivity.min())

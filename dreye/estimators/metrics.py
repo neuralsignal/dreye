@@ -3,6 +3,7 @@ Class to calculate various metrics given
 a photoreceptor model and measured spectra
 """
 
+import warnings
 import numpy as np
 import pandas as pd
 from scipy.spatial import ConvexHull
@@ -24,24 +25,28 @@ from dreye.utilities.abstract import _InitDict, inherit_docstrings
 # from dreye.estimators.led_substitution import LedSubstitutionFit
 
 
-def compute_from_simplex(X, eps=1e-4):
+def compute_from_simplex(X):
     """
     Compute a simplex to a random variable.
-
-    Notes
-    -----
-    To transform `X` first `eps` is added to each element and then the last
-    dimension of `X` is normalized by the L1-norm. Finally, `X` is
-    transformed by the following formalism:
-    .. math::
-
-        \mathbf{y} = \left[ \log \left( \frac{ x_1 }{ x_D }
-        \right) , \dots , \log \left( \frac{ x_{D-1} }{ x_D }
-        \right) \right]^\top
     """
-    X = X + eps
-    X = X / np.sum(np.abs(X), axis=-1, keepdims=True)
-    return np.log(X[..., :-1] / X[..., -1:])
+    X = np.abs(X)
+    X = X / np.sum(X, axis=-1, keepdims=True)
+    return probs_vec_to_cart(X)
+
+
+def probs_vec_to_cart(X):
+    n = X.shape[1]
+    assert n > 1
+    A = np.zeros((n, n-1))
+    A[1, 0] = 1
+    for i in range(2, n):
+        A[i, :i-1] = np.mean(A[:i, :i-1], axis=0)
+        dis = np.sum((A[:i, :i-1] - A[i, :i-1])**2, axis=1)
+        assert np.unique(dis).size == 1
+        x = np.sqrt(1 - dis.mean())
+        A[i, i-1] = x
+
+    return X @ A
 
 
 def compute_jensen_shannon_divergence(P, Q, base=2):
@@ -168,7 +173,7 @@ class MeasuredSpectraMetrics(_InitDict):
                     source_idcs.append(source_idx)
                 self.source_idcs = np.vstack(source_idcs)
             elif self.combos.ndim == 2:
-                self.source_idcs = self.combos
+                self.source_idcs = self.combos.astype(bool)
             else:
                 raise ValueError(
                     f"`combos` dimensionality is `{self.combos.ndim}`, "
@@ -375,7 +380,7 @@ class MeasuredSpectraMetrics(_InitDict):
         """
         if (points.ndim == 1) or (points.shape[1] < 2):
             return np.max(points) - np.min(points)
-        convex_hull = ConvexHull(points)
+        convex_hull = ConvexHull(points, qhull_options="QJ Pp")
         return convex_hull.volume
 
     @staticmethod
@@ -428,8 +433,12 @@ class MeasuredSpectraMetrics(_InitDict):
             mis.append(mi)
         return np.concatenate(mis).mean()
 
+    # @staticmethod
+    # def compute_gamut(points, nonlin)
+
     def compute_gamut_metric(
-        self, source_idx, metric='gamut', B=None, pr_volume=None
+        self, source_idx, metric='gamut', B=None, pr_volume=None, nonlin=None,
+        relative=True
     ):
         """
         Compute gamut for a single source
@@ -438,18 +447,28 @@ class MeasuredSpectraMetrics(_InitDict):
         assert B is None, "`B` must be None."
         assert pr_volume is not None, "`pr_volume` must be given."
         points = self.get_captures(source_idx)
+        if nonlin is not None:
+            points = nonlin(points)
         volume = self.compute_volume(compute_from_simplex(points))
-        return volume / pr_volume
+        if relative:
+            return volume / pr_volume
+        else:
+            return volume
 
-    def compute_gamuts(self, as_frame=True, normalize=False, rtol=None):
+    def compute_gamuts(
+        self, as_frame=True, normalize=False, rtol=None,
+        nonlin=None, relative=True
+    ):
         """
         Compute Gamut for a set of capture points
         """
         # can do with background if sensitivities are scaled accordingly
         assert self.photoreceptor_model.pr_number > 1, "Need more than one photoreceptor"
-        points = self.photoreceptor_model.compute_ratios(rtol)
+        points = self.photoreceptor_model.compute_ratios(rtol, compute=False)
         if self.background is not None:
             points = self.q_bg * points
+        if nonlin is not None:
+            points = nonlin(points)
         pr_volume = self.compute_volume(compute_from_simplex(points))
         return self._get_metrics(
             self.compute_gamut_metric,
@@ -458,8 +477,59 @@ class MeasuredSpectraMetrics(_InitDict):
             as_frame,
             normalize,
             # passed to compute_gamut
-            pr_volume=pr_volume
+            pr_volume=pr_volume,
+            nonlin=nonlin,
+            relative=relative
         )
+
+    def compute_alt_gamuts(
+        self, as_frame=True, normalize=False, rtol=None, nonlin=None, relative=True
+    ):
+        """Compute gamuts from photoreceptor simplex
+        """
+        # TODO official way to calculate volume
+        assert self.photoreceptor_model.pr_number > 1, "Need more than one photoreceptor"
+        points1 = np.eye(self.photoreceptor_model.pr_number)
+        points2 = 1 - points1
+        points2 = points2 / np.sum(points2, axis=-1, keepdims=True)
+        points = np.vstack([points1, points2])
+        pr_volume = self.compute_volume(compute_from_simplex(points))
+        return self._get_metrics(
+            self.compute_gamut_metric,
+            'alt_gamut',
+            None,
+            as_frame,
+            normalize,
+            # passed to compute_gamut
+            pr_volume=pr_volume,
+            nonlin=nonlin,
+            relative=relative
+        )
+
+    def compute_as_peaks(self):
+        """
+        Compute best set according to peaks of opsins and LEDs
+        """
+        pr_max = self.photoreceptor_model.sensitivity.dmax
+        s_max = self.normalized_spectra.dmax
+        argmin = np.argmin(np.abs(s_max[:, None] - pr_max[None]), axis=0)
+        if np.unique(argmin).size != argmin.size:
+            argmin_ = argmin
+            argmin = []
+            for odx, amin in enumerate(argmin_):
+                if amin not in argmin:
+                    argmin.append(amin)
+                    continue
+
+                argsort = np.argsort(np.abs(pr_max[odx] - s_max))
+                for amin_ in argsort:
+                    if amin_ not in argmin:
+                        amin = amin_
+                        break
+                else:
+                    warnings.warn("Couldn't find unique set of LEDs for opsin set.")
+                argmin.append(amin)
+        return self.normalized_spectra.labels[argmin]
 
     def _get_metric_func(self, metric):
         if callable(metric):
