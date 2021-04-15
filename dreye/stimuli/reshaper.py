@@ -4,6 +4,8 @@ Reshaper for sklearn-type estimators
 
 from sklearn.base import BaseEstimator, TransformerMixin
 
+# TODO
+
 
 class Reshaper(BaseEstimator, TransformerMixin):
 
@@ -21,5 +23,5 @@ class Reshaper(BaseEstimator, TransformerMixin):
 # transform, and inv_transform need to return reshaped X or output
 # (except for last axis)
 # any callable with X will be reshaped before passing
-# if exists, then fitted_X_, current_X_
-# and anything that corresponds to fitted_X_ and current_X_ (all_equal)
+# if exists, then fitted_X_, X_
+# and anything that corresponds to fitted_X_ and X_ (all_equal)

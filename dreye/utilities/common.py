@@ -7,7 +7,7 @@ from collections.abc import Mapping, Callable
 
 import numpy as np
 
-from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE
+from dreye.constants import ureg, DEFAULT_FLOAT_DTYPE, CONTEXTS
 
 
 def has_units(value):
@@ -29,7 +29,7 @@ def optional_to(obj, units, *args, **kwargs):
         if units is None:
             obj = obj.magnitude
         else:
-            obj = obj.to(units, *args, **kwargs).magnitude
+            obj = obj.to(units, *CONTEXTS, *args, **kwargs).magnitude
     if is_numeric(obj):
         return obj
     elif is_listlike(obj):
@@ -139,7 +139,7 @@ def is_callable(obj):
     return isinstance(obj, Callable)
 
 
-def irr2flux(irradiance, wavelengths, return_units=None):
+def irr2flux(irradiance, wavelengths, return_units=None, prefix=None):
     """
     Convert from irradiance to photonflux.
 
@@ -155,12 +155,15 @@ def irr2flux(irradiance, wavelengths, return_units=None):
         Whether to return a `pint.Quantity` or `numpy.ndarray` object.
         If None, the function will return a `pint.Quantity` if `irradiance`
         have units.
+    prefix : str, optional
+        Unit prefix for photonflux (e.g. `micro`).
 
     Returns
     -------
     photonflux : numpy.ndarray or pint.Quantity
         Values converted to photonflux (mol/m^2/s/nm).
     """
+    prefix = '' if prefix is None else prefix
     if return_units is None:
         if has_units(irradiance):
             return_units = True
@@ -178,12 +181,12 @@ def irr2flux(irradiance, wavelengths, return_units=None):
         * ureg.N_A
     )
     if return_units:
-        return photonflux.to('E')
+        return photonflux.to(f'{prefix}E')
     else:
-        return get_value(photonflux.to('E'))
+        return get_value(photonflux.to(f'{prefix}E'))
 
 
-def flux2irr(photonflux, wavelengths, return_units=None):
+def flux2irr(photonflux, wavelengths, return_units=None, prefix=None):
     """
     Convert from photonflux to irradiance.
 
@@ -199,12 +202,15 @@ def flux2irr(photonflux, wavelengths, return_units=None):
         Whether to return a `pint.Quantity` or `numpy.ndarray` object.
         If None, the function will return a `pint.Quantity` if `photonflux`
         have units.
+    prefix : str, optional
+        Unit prefix for irradiance (e.g. `micro`).
 
     Returns
     -------
     irradiance : numpy.ndarray or pint.Quantity
         Values converted to photonflux (W/m^2/nm).
     """
+    prefix = '' if prefix is None else prefix
     if return_units is None:
         if has_units(photonflux):
             return_units = True
@@ -223,6 +229,6 @@ def flux2irr(photonflux, wavelengths, return_units=None):
             * ureg.N_A)
     ) / wavelengths
     if return_units:
-        return irradiance.to('spectralirradiance')
+        return irradiance.to(f'{prefix}spectralirradiance')
     else:
-        return get_value(irradiance.to('spectralirradiance'))
+        return get_value(irradiance.to(f'{prefix}spectralirradiance'))

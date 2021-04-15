@@ -5,7 +5,7 @@ from dreye.constants.common import (
     DEFAULT_INT_DTYPE, DEFAULT_FLOAT_DTYPE, RELATIVE_ACCURACY,
     ABSOLUTE_ACCURACY
 )
-from dreye.constants.units import ureg
+from dreye.constants.units import ureg, CONTEXTS
 
 __all__ = [
     # common
@@ -14,4 +14,5 @@ __all__ = [
     'DEFAULT_FLOAT_DTYPE',
     'RELATIVE_ACCURACY',
     'ABSOLUTE_ACCURACY',
+    'CONTEXTS'
 ]

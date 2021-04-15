@@ -70,7 +70,7 @@ Convenience functions to create signal-type classes
 
    create_gaussian_spectrum
    create_measured_spectrum
-   get_led_spectra_container
+   create_led_spectra_container
 
 
 Photoreceptor models
@@ -85,6 +85,7 @@ Photoreceptor models
    LinearContrastPhotoreceptor
    LogPhotoreceptor
    HyperbolicPhotoreceptor
+   create_photoreceptor_model
 
 
 Scikit-learn type estimators
@@ -97,7 +98,10 @@ Scikit-learn type estimators
    RelativeIntensityFit
    IndependentExcitationFit
    TransformExcitationFit
+   NonlinearTransformExcitationFit
    ReflectanceExcitationFit
+   BestSubstitutionFit
+   LedSubstitutionFit
 
 
 Miscellaneous functions and classes
@@ -111,3 +115,7 @@ Miscellaneous functions and classes
   write_json
   read_pickle
   write_pickle
+  irr2flux
+  flux2irr
+  stavenga1993_template
+  govardovskii2000_template

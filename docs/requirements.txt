@@ -1,3 +1,4 @@
+# package requirements
 scipy>=1.5.2
 matplotlib>=3.3.0
 numpy>=1.16.5
@@ -6,10 +7,12 @@ pint==0.16.1
 cloudpickle>=1.5.0
 scikit-learn>=0.23.2
 pandas>=1.0.0
-seabreeze>=1.0.1
-nidaqmx>=0.5.7
 pytest>=6.1.0
+cvxpy>=1.1.10
+pyarrow>=3.0.0
+pygam>=0.8.0
 
+# doc requirements
 sphinx==3.0.3
 ipython
 recommonmark

@@ -5,11 +5,13 @@ LED Estimators for intensities and spectra
 from abc import abstractmethod
 
 from scipy.optimize import OptimizeResult
+import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from dreye.utilities import (
-    is_dictlike, optional_to, is_listlike, is_string
+    is_dictlike, optional_to, is_listlike, is_string,
+    is_numeric
 )
 from dreye.utilities.abstract import _AbstractContainer
 from dreye.constants import ureg
@@ -30,6 +32,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
     """
     Abstract Spectra model used for various Dreye estimators.
     """
+    _deprecated_kws = {
+        "smoothing_window": None
+    }
 
     # other attributes that are the length of X but not X
     # and are not the fitted signal
@@ -37,7 +42,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _check_measured_spectra(
-        measured_spectra, smoothing_window,
+        measured_spectra,
         size=None, photoreceptor_model=None,
         change_dimensionality=True
     ):
@@ -64,9 +69,6 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             raise ValueError("Measured Spectra must be Spectra "
                              "container or dict, but is type "
                              f"'{type(measured_spectra)}'.")
-
-        if smoothing_window is not None:
-            measured_spectra = measured_spectra.smooth(smoothing_window)
 
         # enforce photon flux for photoreceptor models
         if (
@@ -119,25 +121,17 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             background['units'] = measured_spectra.units
             background = get_spectrum(**background)
         elif background is None:
-            background = get_spectrum(
-                wavelengths=measured_spectra.wavelengths,
-                units=measured_spectra.units
-            )
+            return
         elif is_string(background) and (background == 'null'):
-            background = None
+            return
         elif isinstance(background, Signal):
             background = background.to(measured_spectra.units)
         elif is_listlike(background):
-            # normalized spectra are always on domain_axis=0
-            assert measured_spectra.normalized_spectra.domain_axis == 0
-            background = optional_to(
-                background,
-                measured_spectra.intensities.units
-            )
-            background = (
-                background[None]
-                * measured_spectra.normalized_spectra.magnitude
-            ).sum(axis=-1)
+            background = optional_to(background, measured_spectra.units)
+            # check size requirements
+            assert background.size == measured_spectra.normalized_spectra.shape[
+                measured_spectra.normalized_spectra.domain_axis
+            ]
             background = get_spectrum(
                 intensities=background,
                 wavelengths=measured_spectra.wavelengths,
@@ -148,7 +142,64 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
                 "Background must be Spectrum instance or dict-like, but"
                 f"is of type {type(background)}."
             )
+
+        if np.allclose(background.magnitude, 0):
+            # return None if background is just a bunch of zeros
+            return
+
         return background
+
+    @staticmethod
+    def _get_background_from_bg_ints(
+        bg_ints, measured_spectra, skip_zero=True
+    ):
+        """
+        Get background from `bg_ints` attribute
+        """
+        if np.allclose(bg_ints, 0) and skip_zero:
+            # if background intensities are zero return None
+            return
+        # sanity check
+        assert measured_spectra.normalized_spectra.domain_axis == 0
+        background = (
+            bg_ints
+            * measured_spectra.normalized_spectra.magnitude
+        ).sum(axis=-1)
+        background = get_spectrum(
+            intensities=background,
+            wavelengths=measured_spectra.wavelengths,
+            units=measured_spectra.units
+        )
+        return background
+
+    @staticmethod
+    def _get_bg_ints(bg_ints, measured_spectra, skip=True, rtype=None):
+        """
+        Get background intensity values
+        """
+        if skip and bg_ints is None:
+            return
+        # set background intensities to default
+        if bg_ints is None:
+            if rtype in {'absolute', 'diff'}:
+                bg_ints = np.zeros(len(measured_spectra))
+            else:
+                bg_ints = np.ones(len(measured_spectra))
+        elif is_numeric(bg_ints):
+            bg_ints = np.ones(
+                len(measured_spectra)
+            ) * optional_to(bg_ints, measured_spectra.intensities.units)
+        else:
+            if is_dictlike(bg_ints):
+                names = measured_spectra.names
+                bg_ints = [bg_ints.get(name, 1) for name in names]
+            bg_ints = optional_to(
+                bg_ints,
+                measured_spectra.intensities.units
+            )
+            assert len(bg_ints) == len(measured_spectra)
+            assert np.all(bg_ints >= 0)
+        return bg_ints
 
     @staticmethod
     def _check_reflectances(
@@ -239,7 +290,13 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         """
         X after fitting.
         """
-        return self.current_X_
+
+    @property
+    @abstractmethod
+    def X_(self):
+        """
+        X before fitting.
+        """
 
     def to_dict(self):
         """
@@ -267,11 +324,101 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         Residual for each photoreceptor and sample.
         """
         # apply transformation and compare to checked_X
-        X_pred = self.inverse_transform(self.transform(X))
-        X = self.current_X_
+        if X is not None:
+            self.fit(X)
+        X_pred = self.fitted_X_
+        X = self.X_
         return X - X_pred
 
-    def sample_scores(self, X=None):
+    def relative_changes(self, X=None):
+        """
+        Deviations for each photoreceptor and sample.
+        """
+        # apply transformation and compare to checked_X
+        if X is not None:
+            self.fit(X)
+        X_pred = self.fitted_X_
+        X = self.X_
+        return (X_pred - X) / np.abs(X)
+
+    @staticmethod
+    def _r2_scores(X, X_pred, axis=0):
+        # residual across photoreceptors
+        res = (X - X_pred)**2
+        tot = (X - X.mean(axis=axis, keepdims=True))**2
+        return 1 - res.sum(axis) / tot.sum(axis)
+
+    @staticmethod
+    def _agg_scores(scores, axis, aggfunc=None, default='mean'):
+        if aggfunc is None:
+            aggfunc = default
+        if isinstance(aggfunc, str):
+            aggfunc = getattr(np, aggfunc)
+        return aggfunc(scores, axis=axis)
+
+    def _abs_rel_changes_scores(self, X, X_pred, axis=0, round=None, aggfunc=None):
+        X, X_pred = _round_args(X, X_pred, round=round)
+        # absolute deviations
+        scores = np.abs((X_pred - X) / X)
+        return self._agg_scores(scores, axis, aggfunc)
+
+    def _rel_changes_scores(self, X, X_pred, axis=0, round=None, aggfunc=None):
+        X, X_pred = _round_args(X, X_pred, round=round)
+        # deviations
+        scores = ((X_pred - X) / np.abs(X))
+        return self._agg_scores(scores, axis, aggfunc)
+
+    def _rel_changes_thresh_scores(self, X, X_pred, axis=0, thresh=0.01, round=None, aggfunc=None):
+        X, X_pred = _round_args(X, X_pred, round=round)
+        # absolute deviations below a certain threshold value
+        scores = (np.abs((X_pred - X) / X) < thresh)
+        return self._agg_scores(scores, axis, aggfunc)
+
+    def _corr_dist(self, X, X_pred, axis=0, round=None, aggfunc=None):
+        # correlation distortion
+        cX = np.corrcoef(X, rowvar=bool(axis % 2))
+        cX_pred = np.corrcoef(X_pred, rowvar=bool(axis % 2))
+        cX, cX_pred = _round_args(cX, cX_pred, round=round)
+        scores = (cX_pred - cX) / np.abs(cX)
+
+        def default(x, axis):
+            return x
+
+        return self._agg_scores(scores, axis, aggfunc, default=default)
+
+    def _mean_scores(self, X=None, axis=0, method='r2', **kwargs):
+        # apply transformation and compare to checked_X
+        if X is not None:
+            self.fit(X)
+        X_pred = self.fitted_X_
+        X = self.X_
+
+        # residual across photoreceptors
+        if method == 'r2':
+            return self._r2_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'rel':
+            return self._rel_changes_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'absrel':
+            return self._abs_rel_changes_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'threshrel':
+            return self._rel_changes_thresh_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'corrdev':
+            return self._corr_dist(
+                X, X_pred, axis=axis, **kwargs
+            )
+        elif callable(method):
+            return method(
+                X, X_pred, axis=axis, **kwargs
+            )
+        # raise
+        raise NameError(f"Method `{method}` not recognized, use "
+                        "`r2`, `rel`, `absrel`, `threshrel`, or `corrdev`.")
+
+    def sample_scores(self, X=None, method='r2', **kwargs):
         """
         Sample scores.
 
@@ -285,16 +432,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         r2 : numpy.ndarray (n_samples)
             Returns the r2-value for each sample individually.
         """
-        # apply transformation and compare to checked_X
-        X_pred = self.inverse_transform(self.transform(X))
-        X = self.current_X_
+        return self._mean_scores(X=X, axis=1, method=method, **kwargs)
 
-        # residual across photoreceptors
-        res = (X - X_pred)**2
-        tot = (X - X.mean(axis=1, keepdims=True))**2
-        return 1 - res.sum(1)/tot.sum(1)
-
-    def feature_scores(self, X=None):
+    def feature_scores(self, X=None, method='r2', **kwargs):
         """
         Feature scores.
 
@@ -308,16 +448,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         r2 : numpy.ndarray (n_features)
             Returns the r2-value for each feature individually.
         """
-        # apply transformation and compare to checked_X
-        X_pred = self.inverse_transform(self.transform(X))
-        X = self.current_X_
+        return self._mean_scores(X=X, axis=0, method=method, **kwargs)
 
-        # residual across samples
-        res = (X - X_pred)**2
-        tot = (X - X.mean(axis=0, keepdims=True))**2
-        return 1 - res.sum(0)/tot.sum(0)
-
-    def score(self, X=None, y=None):
+    def score(self, X=None, y=None, method='r2', **kwargs):
         """
         Score method.
 
@@ -335,7 +468,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         --------
         feature_scores
         """
-        return self.feature_scores(X).mean()
+        return self.feature_scores(X, method=method, **kwargs).mean()
 
     def transform(self, X=None):
         """
@@ -353,8 +486,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
         See Also
         --------
-        dreye.MeasuredSpectraContainer
-        dreye.MeasuredSpectrum
+        dreye.MeasuredSpectraContainer.map
+        dreye.MeasuredSpectrum.map
         fit_transform
         """
         # check is fitted
@@ -386,8 +519,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
         See Also
         --------
-        dreye.MeasuredSpectraContainer
-        dreye.MeasuredSpectrum
+        dreye.MeasuredSpectraContainer.inverse_map
+        dreye.MeasuredSpectrum.inverse_map
         fit_transform
         """
         pass
@@ -413,3 +546,60 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         fit_transform
         """
         pass
+
+
+class _RelativeMixin:
+
+    def _to_absolute_intensity(self, X, bg_ints=None):
+        if bg_ints is None:
+            bg_ints = self.bg_ints_
+        if self.rtype == 'absolute':
+            return X
+        elif self.rtype == 'diff':
+            return X + bg_ints
+        # convert to intensity
+        if self.rtype in {'fechner', 'log'}:
+            X = np.exp(X)
+        elif self.rtype not in {'weber', 'total_weber'}:
+            assert np.all(X >= 0), 'If not log, X must be positive.'
+
+        if self.rtype.startswith('total'):
+            X = X * np.sum(self.bg_ints_)
+        else:
+            X = X * bg_ints
+        if self.rtype in {'weber', 'total_weber'}:
+            X = X + bg_ints
+        return X
+
+    def _to_relative_intensity(self, X, bg_ints=None):
+        if bg_ints is None:
+            bg_ints = self.bg_ints_
+        if self.rtype == 'absolute':
+            return X
+        elif self.rtype == 'diff':
+            return X - bg_ints
+        # convert to relative intensity
+        if self.rtype in {'weber', 'total_weber'}:
+            X = X - bg_ints
+
+        if self.rtype.startswith('total'):
+            X = X / np.sum(self.bg_ints_)
+        else:
+            X = X / bg_ints
+
+        if self.rtype in {'fechner', 'log'}:
+            assert np.all(X > 0), 'If log, X cannot be zero or lower.'
+            X = np.log(X)
+        elif self.rtype not in {'weber', 'total_weber'}:
+            assert np.all(X >= 0), 'If not log, X must be positive.'
+
+        return X
+
+
+# -- misc helper functions
+
+
+def _round_args(*args, round=None):
+    if round is not None:
+        return tuple([np.round(arg, round) for arg in args])
+    return args

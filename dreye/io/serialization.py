@@ -21,6 +21,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from pandas.compat.pickle_compat import loads as pandasloads
 
 from dreye.constants import ureg
 from dreye.err import DreyeError
@@ -399,7 +400,10 @@ def spickleloads(binary):
     """
 
     number = binary[0]
-    data = pickle.loads(binary[1:])
+    try:
+        data = pickle.loads(binary[1:])
+    except AttributeError:
+        data = pandasloads(binary[1:])
 
     if not number:
         return data

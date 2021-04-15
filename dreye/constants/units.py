@@ -8,6 +8,9 @@ Defines units and set unit registry.
 import pint
 
 
+CONTEXTS = ('flux',)
+
+
 ureg = pint.UnitRegistry()
 """
 Standard unit registry as defined by pint package.

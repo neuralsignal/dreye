@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 
 from dreye.utilities.abstract import _AbstractContainer, inherit_docstrings
-from dreye.utilities import is_numeric
+from dreye.utilities import is_numeric, is_listlike
 from dreye.core.signal import (
     Signals, DomainSignal, Signal
 )
@@ -64,6 +64,8 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
             key = self.names.index(key)
         elif key in self.container:
             key = self.container.index(key)
+        elif is_listlike(key):
+            return type(self)([self.__getitem__(ikey) for ikey in key])
         return super().__getitem__(key)
 
     def __setitem__(self, key, value):
@@ -73,6 +75,10 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
             key = self.names.index(key)
         elif key in self.container:
             key = self.container.index(key)
+        elif is_listlike(key) and is_listlike(value):
+            for ikey, ivalue in zip(key, value):
+                self.__setitem__(ikey, ivalue)
+            return
         return super().__setitem__(key, value)
 
     @property

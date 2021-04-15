@@ -1,23 +1,27 @@
 """Class to define photoreceptor/capture model
 """
 
+import warnings
 import copy
 from abc import ABC, abstractmethod
 
 from scipy.stats import norm
 import numpy as np
 
-from dreye.core.signal import _SignalMixin, _Signal2DMixin, Signals
+from dreye.core.signal import _SignalMixin, Signals
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.core.spectral_sensitivity import Sensitivity
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.utilities import (
-    is_callable, has_units, asarray, is_integer
+    is_callable, has_units, is_integer
 )
 
 
-def get_photoreceptor_model(
+RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-2
+
+
+def create_photoreceptor_model(
     sensitivity=None, wavelengths=None, filterfunc=None, labels=None,
     photoreceptor_type='linear', **kwargs
 ):
@@ -102,7 +106,12 @@ def get_photoreceptor_model(
     )
 
 
+# deprecated!
+get_photoreceptor_model = create_photoreceptor_model
+
+
 # TODO convenience capture function
+# def capture
 
 
 class Photoreceptor(ABC):
@@ -128,7 +137,7 @@ class Photoreceptor(ABC):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -159,11 +168,11 @@ class Photoreceptor(ABC):
         labels=None, capture_noise_level=None, **kwargs
     ):
         if isinstance(sensitivity, Photoreceptor):
-            sensitivity = sensitivity.sensitivity
             if filterfunc is None:
                 filterfunc = sensitivity.filterfunc
             if capture_noise_level is None:
                 capture_noise_level = sensitivity.capture_noise_level
+            sensitivity = sensitivity.sensitivity
         if not isinstance(sensitivity, Sensitivity):
             sensitivity = Sensitivity(
                 sensitivity, domain=wavelengths, labels=labels,
@@ -173,6 +182,7 @@ class Photoreceptor(ABC):
             if wavelengths is not None:
                 sensitivity = sensitivity(wavelengths)
             if labels is not None:
+                # TODO do we want to do this inplace?
                 sensitivity.labels = labels
 
         # ensure domain axis = 0
@@ -186,7 +196,66 @@ class Photoreceptor(ABC):
         self._filterfunc = filterfunc
         self._capture_noise_level = capture_noise_level
 
+    @property
+    def data(self):
+        """
+        `numpy.ndarray` of sensitivities.
+        """
+        return self.sensitivity.magnitude
+
+    @property
+    def wls(self):
+        """
+        `numpy.ndarray` of wavelengths
+        """
+        return self.sensitivity.domain.magnitude
+
+    def compute_ratios(self, rtol=None, peak2peak=False, return_wls=False, compute=True):
+        """
+        Compute ratios of the sensitivities for all significant wavelengths.
+        """
+        wl_range = self.wavelength_range(rtol, peak2peak=peak2peak)
+        wls = np.arange(*wl_range)
+        # NB: sensitivity in pr_model always has domain on zeroth axis
+        s = self.sensitivity(
+            wls, check_bounds=False, asarr=True
+        )
+        if np.any(s < 0):
+            warnings.warn(
+                "Zeros or smaller in sensitivities array!", RuntimeWarning
+            )
+            s[s < 0] = 0
+        if compute:
+            ratios = s / np.sum(np.abs(s), axis=1, keepdims=True)
+        else:
+            ratios = s
+        if return_wls:
+            return wl_range, ratios
+        else:
+            return ratios
+
+    def wavelength_range(self, rtol=None, peak2peak=False):
+        """
+        Range of wavelengths that the photoreceptor are sensitive to.
+        Returns a tuple of the min and max wavelength value.
+        """
+        if peak2peak:
+            dmax = self.sensitivity.dmax
+            return np.min(dmax), np.max(dmax)
+        rtol = (RELATIVE_SENSITIVITY_SIGNIFICANT if rtol is None else rtol)
+        tol = (
+            (self.sensitivity.max() - self.sensitivity.min())
+            * rtol
+        )
+        return self.sensitivity.nonzero_range(tol).boundaries
+
     def __str__(self):
+        """
+        String representation of photoreceptor model.
+        """
+        return f"{type(self).__name__}(\n\t{self.sensitivity.magnitude}\n)"
+
+    def __repr__(self):
         """
         String representation of photoreceptor model.
         """
@@ -225,15 +294,15 @@ class Photoreceptor(ABC):
         """
         return copy.copy(self)
 
-    @abstractmethod
     def excitefunc(self, arr):
         """excitation function
         """
+        return arr
 
-    @abstractmethod
     def inv_excitefunc(self, arr):
         """inverse of excitation function
         """
+        return arr
 
     @property
     def sensitivity(self):
@@ -444,6 +513,8 @@ class Photoreceptor(ABC):
         # calculate capture
         # illuminant x opsin via integral
         q = np.trapz(sensitivity * illuminant, wls, axis=0)
+        if apply_noise_threshold:
+            q = self.limit_q_by_noise_level(q, inplace=True)
 
         if np.any(q < 0):
             raise ValueError("Capture values calculated are below 0; "
@@ -463,16 +534,14 @@ class Photoreceptor(ABC):
         )
         # q_bg may have different units to q
         q = q / q_bg
-        if apply_noise_threshold:
-            return self.limit_q_by_noise_level(q)
-        else:
-            return q
+        return q
 
-    def limit_q_by_noise_level(self, q):
+    def limit_q_by_noise_level(self, q, inplace=False):
         """
-        Return relative captures `q` after accounting for capture noise
-        levels.
+        Return captures `q` after accounting for capture noise levels.
         """
+        if not inplace:
+            q = q.copy()
 
         if (
             self.capture_noise_level is None
@@ -480,7 +549,6 @@ class Photoreceptor(ABC):
         ):
             return q
 
-        q = np.round(q/self.capture_noise_level, 0) * self.capture_noise_level
         q[q < self.capture_noise_level] = self.capture_noise_level
         return q
 
@@ -512,7 +580,7 @@ class LinearPhotoreceptor(Photoreceptor):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -573,7 +641,7 @@ class LogPhotoreceptor(Photoreceptor):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -634,7 +702,7 @@ class HyperbolicPhotoreceptor(Photoreceptor):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.
@@ -669,7 +737,7 @@ class HyperbolicPhotoreceptor(Photoreceptor):
         """
         Returns the `1/(1-arr)`.
         """
-        return 1 / (1-arr)
+        return 1 / (1 - arr)
 
 
 @inherit_docstrings
@@ -696,7 +764,7 @@ class LinearContrastPhotoreceptor(Photoreceptor):
         correspond to the length of the columns in `sensitivity`.
     capture_noise_level : None or float, optional
         The relative capture noise level. This is used when calculating
-        relative capture values.
+        absolute captures as a lower bound value.
     kwargs : dict, optional
         A dictionary that is directly passed to the instantiation of
         the `dreye.Sensitivity` class.

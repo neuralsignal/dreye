@@ -10,11 +10,16 @@ observers.
 
 __author__ = """gucky92"""
 __email__ = 'gucky@gucky.eu'
-__version__ = '0.0.12'
+__version__ = '0.1.0'
 
 # import all core elements and constants
 from dreye.constants.units import ureg
-from dreye.core.signal import Signals, DomainSignal, Signal
+from dreye.core.signal import (
+    Signals, DomainSignal, Signal, domain_concat, labels_concat
+)
+from dreye.core.opsin_template import (
+    stavenga1993_template, govardovskii2000_template
+)
 from dreye.core.signal_container import (
     SignalsContainer, DomainSignalContainer
 )
@@ -29,19 +34,22 @@ from dreye.core.spectral_measurement import (
 )
 from dreye.core.measurement_utils import (
     convert_measurement, create_measured_spectrum,
-    get_led_spectra_container
+    get_led_spectra_container, create_led_spectra_container
 )
 from dreye.core.spectrum_utils import create_gaussian_spectrum
 from dreye.core.spectral_sensitivity import Sensitivity
 from dreye.core.photoreceptor import (
     LinearPhotoreceptor, LogPhotoreceptor,
     get_photoreceptor_model, HyperbolicPhotoreceptor,
-    Photoreceptor, LinearContrastPhotoreceptor
+    Photoreceptor, LinearContrastPhotoreceptor,
+    create_photoreceptor_model
 )
 from dreye.estimators.excitation_models import (
     IndependentExcitationFit, TransformExcitationFit,
-    ReflectanceExcitationFit
+    ReflectanceExcitationFit, NonlinearTransformExcitationFit
 )
+from dreye.estimators.led_substitution import LedSubstitutionFit
+from dreye.estimators.silent_substitution import BestSubstitutionFit
 
 from dreye.estimators.intensity_models import (
     IntensityFit, RelativeIntensityFit
@@ -49,11 +57,21 @@ from dreye.estimators.intensity_models import (
 from dreye.io.serialization import (
     read_json, write_json, read_pickle, write_pickle
 )
+from dreye.estimators.metrics import (
+    MeasuredSpectraMetrics
+)
+from dreye.utilities import (
+    irr2flux, flux2irr
+)
 
 # modules
 from dreye import hardware
 from dreye import utilities
 from dreye import stimuli
+
+# This directory
+import os
+DREYE_DIR = os.path.dirname(__file__)
 
 
 __all__ = [
@@ -65,6 +83,9 @@ __all__ = [
     'write_pickle',
     # misc
     'ureg',
+    'stavenga1993_template',
+    'govardovskii2000_template',
+    'irr2flux', 'flux2irr',
     # domain
     'Domain',
     # signal
@@ -73,6 +94,11 @@ __all__ = [
     'DomainSignal',
     'SignalsContainer',
     'DomainSignalContainer',
+    'labels_concat',
+    'domain_concat',
+    'LedSubstitutionFit',
+    'BestSubstitutionFit',
+    'MeasuredSpectraMetrics',
     # spectrum
     'DomainSpectrum',
     'Spectra',
@@ -96,11 +122,14 @@ __all__ = [
     'HyperbolicPhotoreceptor',
     'create_gaussian_spectrum',
     'get_led_spectra_container',
+    'create_led_spectra_container',
     'get_photoreceptor_model',
+    'create_photoreceptor_model',
     # estimators
     'IndependentExcitationFit',
     'TransformExcitationFit',
     'ReflectanceExcitationFit',
     'IntensityFit',
     'RelativeIntensityFit',
+    'NonlinearTransformExcitationFit'
 ]

@@ -4,6 +4,7 @@
 import warnings
 
 import numpy as np
+import pandas as pd
 
 from dreye.utilities import (
     is_listlike, asarray, array_domain, is_uniform,
@@ -33,14 +34,14 @@ class Domain(_UnitArray):
         will return a list of interval values of length n-1.
     units: str, optional
         Units associated with the domain.
-    contexts : str or tuple, optional
-        Contexts for unit conversion. See pint documentation.
     name : str
         Name for the domain object.
+    attrs : dict
+        User-defined dictionary storage.
 
     Notes
     -----
-    The `Domain` object is used for various signal-type classes to specify
+    The :obj:`~Domain` object is used for various signal-type classes to specify
     the domain range of a signal. For example, for a spectral distribution
     of light the domain range will be various wavelengths in nanometers.
 
@@ -55,7 +56,11 @@ class Domain(_UnitArray):
     _convert_attributes = (
         'start', 'end', 'interval'
     )
-    _init_args = ('attrs', 'contexts', 'name', 'interval_')
+    _init_args = ('attrs', 'name', '_interval_')
+    _deprecated_kws = {
+        **_UnitArray._deprecated_kws,
+        'interval_': '_interval_'
+    }
 
     @property
     def _class_new_instance(self):
@@ -69,10 +74,9 @@ class Domain(_UnitArray):
         *,
         units=None,
         values=None,
-        contexts=None,
         attrs=None,
         name=None,
-        interval_=None
+        _interval_=None
     ):
         if is_listlike(start) and values is None:
             values = start
@@ -90,19 +94,18 @@ class Domain(_UnitArray):
         super().__init__(
             values=values,
             units=units,
-            contexts=contexts,
             attrs=attrs,
             name=name,
             start=start,
             end=end,
             interval=interval,
-            interval_=interval_
+            _interval_=_interval_
         )
 
     @property
-    def interval_(self):
+    def _interval_(self):
         """
-        IGNORE. This property is used internally.
+        This property is used internally.
 
         This backup interval is used in the case when values is of size 1,
         the property is used in the internal method `_test_and_assign_values`.
@@ -110,14 +113,35 @@ class Domain(_UnitArray):
         # always ensures that it is a float
         if hasattr(self, '_interval'):
             return np.mean(self._interval)
-        return self._interval_
+        if hasattr(self, '_backup_interval_'):
+            return self._backup_interval_
+
+    @_interval_.setter
+    def _interval_(self, value):
+        self._backup_interval_ = value
 
     @property
     def ndim(self):
         """
-        Dimensionality of a domain instance is always 1.
+        Dimensionality of a domain is always 1.
         """
         return 1
+
+    def to_index(self, name=None):
+        """
+        Return :obj:`~pandas.Index` instance of domain.
+
+        Parameters
+        ----------
+        name : str, optional
+            The name for instantiating :obj:`~pandas.Index`.
+
+        Returns
+        -------
+        index : :obj:`~pandas.Index`
+        """
+        name = (self.name if name is None else name)
+        return pd.Index(self.magnitude, name=name)
 
     def _test_and_assign_values(self, values, kwargs):
         """
@@ -134,9 +158,9 @@ class Domain(_UnitArray):
                                  "a range of values or pass start, end, "
                                  "and interval.")
 
-            start = optional_to(start, self.units, *self.contexts)
-            end = optional_to(end, self.units, *self.contexts)
-            interval = optional_to(interval, self.units, *self.contexts)
+            start = optional_to(start, self.units)
+            end = optional_to(end, self.units)
+            interval = optional_to(interval, self.units)
 
             start = DEFAULT_FLOAT_DTYPE(start)
             end = DEFAULT_FLOAT_DTYPE(end)
@@ -162,10 +186,11 @@ class Domain(_UnitArray):
                 interval = kwargs.get('interval', None)
                 # take backup interval
                 if interval is None:
-                    interval = self.interval_
+                    interval = self._interval_
                 assert is_numeric(interval), \
                     "Need to supply numeric interval if domain is of size 1."
-                interval = optional_to(interval, self.units, *self.contexts)
+                interval = optional_to(interval, self.units)
+                reverse = interval < 0
             else:
                 # returns start and end in ascending order
                 start, end, interval = array_domain(
@@ -323,7 +348,7 @@ class Domain(_UnitArray):
 
         Returns
         -------
-        domain : `Domain`
+        domain : :obj:`~Domain`
             A new domain with uniform intervals, or a copy of self if self
             is already uniform.
         """
@@ -346,23 +371,23 @@ class Domain(_UnitArray):
 
         Parameters
         ----------
-        other : `Domain` object or array-like
+        other : :obj:`~Domain` object or array-like
             Domain object to equalize to self.
 
         Returns
         -------
-        domain : `Domain`
+        domain : :obj:`~Domain`
             A new domain corresponding the "most common denominator" between
             self and other.
 
         Notes
         -----
         If domains do not have uniform intervals, uniformity will be enforced
-        using `Domain.enforce_uniformity`.
+        using :obj:`~Domain.enforce_uniformity`.
 
         The "most common denominator" domain between self and other is
         chosen as follows:
-        
+
         * largest `start` value
         * smalled `end` value
         * largest `interval` value
@@ -370,7 +395,7 @@ class Domain(_UnitArray):
 
         # handles only one-dimensional uniform arrays.
         if not self.is_uniform:
-            warnings.warn("Enforcing uniformity in self.")
+            warnings.warn("Enforcing uniformity in self.", RuntimeWarning)
             self = self.enforce_uniformity()
 
         self = (self[::-1] if self.is_descending else self)
@@ -379,7 +404,7 @@ class Domain(_UnitArray):
 
         if isinstance(other, Domain):
             if not other.is_uniform:
-                warnings.warn("Enforcing uniformity in other.")
+                warnings.warn("Enforcing uniformity in other.", RuntimeWarning)
                 other = other.enforce_uniformity()
             other = (other[::-1] if other.is_descending else other)
             other = other.to(self.units)
@@ -387,7 +412,7 @@ class Domain(_UnitArray):
             end = other.end
             interval = other.interval
         elif is_listlike(other):
-            other_magnitude = optional_to(other, self.units, *self.contexts)
+            other_magnitude = optional_to(other, self.units)
 
             if other_magnitude.ndim != 1:
                 raise DreyeError("Other array is not one-dimensional.")
@@ -435,7 +460,7 @@ class Domain(_UnitArray):
 
         Parameters
         ----------
-        domain : `Domain` or array-like
+        domain : :obj:`~Domain` or array-like
             Domain values to append to self.
         left : bool, optional
             Whether to append to the left side of the domain.
@@ -443,8 +468,15 @@ class Domain(_UnitArray):
 
         Returns
         -------
-        domain : `Domain`
+        domain : :obj:`~Domain`
             Returns appended domain.
+
+        Examples
+        --------
+        >>> domain1 = Domain(0, 1, 0.1, units='s')
+        >>> domain2 = Domain(1, 2, 0.1, units='s')
+        >>> domain1.append(domain2)
+        Domain(start=0.0, end=2.0, interval=0.1, units=second)
         """
 
         # Works with reverse
@@ -452,10 +484,10 @@ class Domain(_UnitArray):
             domain = domain.to(self.units)
             domain = domain.magnitude
         elif is_listlike(domain):
-            domain = optional_to(domain, self.units, *self.contexts)
+            domain = optional_to(domain, self.units)
             assert domain.ndim == 1, "Domain must be one-dimensional."
         elif is_numeric(domain):
-            domain = optional_to(domain, self.units, *self.contexts)
+            domain = optional_to(domain, self.units)
             domain = np.array([domain])
         else:
             raise DreyeError(f"Appending type '{type(domain)}' impossible.")
@@ -485,8 +517,14 @@ class Domain(_UnitArray):
 
         Returns
         -------
-        domain : `Domain`
+        domain : :obj:`~Domain`
             Returns extended domain.
+
+        Examples
+        --------
+        >>> domain = Domain(0, 1, 0.1, units='s')
+        >>> domain.extend(5)
+        Domain(start=0.0, end=1.5, interval=0.1, units=second)
         """
         # works with reversed/descending values
         assert is_integer(length), "Length must be integer type."
@@ -502,7 +540,7 @@ class Domain(_UnitArray):
             ])
         else:
             add_domain = np.array([
-                self.end + self.interval * (idx+1)
+                self.end + self.interval * (idx + 1)
                 for idx in range(length)
             ])
         # add domain
@@ -512,6 +550,11 @@ class Domain(_UnitArray):
     def gradient(self):
         """
         Calculates gradient between points.
+
+        Returns
+        -------
+        gradient : :obj:`~pint.Quantity`
+            The gradient of the domain in units of the domain.
 
         See Also
         --------
@@ -524,6 +567,11 @@ class Domain(_UnitArray):
     def span(self):
         """
         Span of the domain (max-min).
+
+        Returns
+        -------
+        span : float
+            Span of the domain
         """
         return np.max(self.magnitude) - np.min(self.magnitude)
 
@@ -531,6 +579,10 @@ class Domain(_UnitArray):
     def boundaries(self):
         """
         Tuple of minimum and maximum value.
+
+        Returns
+        -------
+        boundaries : two-tuple of floats
+            Minimum and maximum of domain.
         """
         return (np.min(self.magnitude), np.max(self.magnitude))
-        # return (self.start, self.end)

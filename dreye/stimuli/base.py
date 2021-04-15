@@ -171,9 +171,9 @@ class BaseStimulus(ABC, StimPlottingMixin):
 
         if (
             hasattr(self.estimator, 'fitted_X_')
-            and hasattr(self.estimator, 'current_X_')
+            and hasattr(self.estimator, 'X_')
         ):
-            if self.estimator.current_X_.shape == self.signal.shape:
+            if self.estimator.X_.shape == self.signal.shape:
                 self._fitted_signal = self.estimator.fitted_X_
             else:
                 self._fitted_signal = self.signal
@@ -909,7 +909,7 @@ class ChainedStimuli:
         """
         return np.concatenate([
             stim.timestamps
-            + (0 if idx == 0 else np.cumsum(self.durations)[idx-1])
+            + (0 if idx == 0 else np.cumsum(self.durations)[idx - 1])
             for idx, stim in enumerate(self.stimuli)
         ])
 

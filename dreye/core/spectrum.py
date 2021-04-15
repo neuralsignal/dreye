@@ -13,7 +13,6 @@ from dreye.utilities import has_units, get_units
 from dreye.utilities.abstract import inherit_docstrings
 
 
-
 class _SpectrumMixin:
 
     _xlabel = r'$\lambda$ (nm)'
@@ -112,34 +111,11 @@ class Spectra(_SpectrumMixin, Signals):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -173,34 +149,11 @@ class Spectrum(_SpectrumMixin, Signal):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -240,34 +193,11 @@ class IntensitySpectra(_IntensityMixin, Spectra):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -308,34 +238,11 @@ class IntensitySpectrum(_IntensityMixin, Spectrum):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -383,34 +290,11 @@ class DomainSpectrum(_SpectrumMixin, DomainSignal):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
@@ -457,34 +341,11 @@ class IntensityDomainSpectrum(_IntensityMixin, DomainSpectrum):
         Defines the minimum value in your domain for the intpolation range.
     domain_max : numeric, optional
         Defines the minimum value in your domain for the intpolation range.
-    signal_min : numeric or array-like, optional
-        Will clip your signal to a minimum. Everything below this minimum will
-        be set to the minumum.
-    signal_max : numeric or array-like, optional
-        Will clip your signal to a maximum. Everything above this maximum will
-        be set to the maximum.
     attrs : dict, optoinal
         User-defined dictionary of objects that are associated with the
         signal, but that are not used for any particular computations.
     name : str, optional
         Name of the signal instance.
-    interpolator : interpolate class, optional
-        Callable function that allows you to interpolate between points. The
-        callable should accept two positional arguments as `numpy.ndarray`
-        objects and accept the keyword argument `axis`.
-        Defaults to `scipy.interpolate.interp1d`.
-    interpolator_kwargs : dict-like, optional
-        Dictionary to specify other keyword arguments that are passed to
-        the `interpolator`.
-    smoothing_method : str, optional
-        Smoothing method used when using the `smooth` method.
-        Defaults to `savgol`.
-    smoothing_window : numeric, optional
-        Standard window size in units of the domain to smooth the signal.
-    smoothing_args : dict, optional
-        Keyword arguments passed to the `filter` method when smoothing.
-    contexts : str or tuple, optoinal
-        Contexts for unit conversion. See `pint` package.
 
     See Also
     --------
