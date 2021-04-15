@@ -349,30 +349,42 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         return 1 - res.sum(axis) / tot.sum(axis)
 
     @staticmethod
-    def _abs_rel_changes_scores(X, X_pred, axis=0, round=4):
+    def _agg_scores(scores, axis, aggfunc=None, default='mean'):
+        if aggfunc is None:
+            aggfunc = default
+        if isinstance(aggfunc, str):
+            aggfunc = getattr(np, aggfunc)
+        return aggfunc(scores, axis=axis)
+
+    def _abs_rel_changes_scores(self, X, X_pred, axis=0, round=None, aggfunc=None):
         X, X_pred = _round_args(X, X_pred, round=round)
         # absolute deviations
-        return np.abs((X_pred - X) / X).mean(axis=axis)
+        scores = np.abs((X_pred - X) / X)
+        return self._agg_scores(scores, axis, aggfunc)
 
-    @staticmethod
-    def _rel_changes_scores(X, X_pred, axis=0, round=4):
+    def _rel_changes_scores(self, X, X_pred, axis=0, round=None, aggfunc=None):
         X, X_pred = _round_args(X, X_pred, round=round)
         # deviations
-        return ((X_pred - X) / np.abs(X)).mean(axis=axis)
+        scores = ((X_pred - X) / np.abs(X))
+        return self._agg_scores(scores, axis, aggfunc)
 
-    @staticmethod
-    def _rel_changes_thresh_scores(X, X_pred, axis=0, thresh=0.01, round=4):
+    def _rel_changes_thresh_scores(self, X, X_pred, axis=0, thresh=0.01, round=None, aggfunc=None):
         X, X_pred = _round_args(X, X_pred, round=round)
         # absolute deviations below a certain threshold value
-        return (np.abs((X_pred - X) / X) < thresh).mean(axis=axis)
+        scores = (np.abs((X_pred - X) / X) < thresh)
+        return self._agg_scores(scores, axis, aggfunc)
 
-    @staticmethod
-    def _corr_dist(X, X_pred, axis=0, round=5):
+    def _corr_dist(self, X, X_pred, axis=0, round=None, aggfunc=None):
         # correlation distortion
         cX = np.corrcoef(X, rowvar=bool(axis % 2))
-        cX_pred = np.corrcoef(X, rowvar=bool(axis % 2))
+        cX_pred = np.corrcoef(X_pred, rowvar=bool(axis % 2))
         cX, cX_pred = _round_args(cX, cX_pred, round=round)
-        return (cX_pred - cX) / np.abs(cX)
+        scores = (cX_pred - cX) / np.abs(cX)
+
+        def default(x, axis):
+            return x
+
+        return self._agg_scores(scores, axis, aggfunc, default=default)
 
     def _mean_scores(self, X=None, axis=0, method='r2', **kwargs):
         # apply transformation and compare to checked_X

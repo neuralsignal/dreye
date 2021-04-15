@@ -11,6 +11,7 @@ from itertools import combinations
 from scipy import stats
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn import clone
 from sklearn.feature_selection import mutual_info_regression
 
 from dreye.utilities import (
@@ -294,6 +295,20 @@ class MeasuredSpectraMetrics(_InitDict):
             ]
         return self.random_samples[:, source_idx] @ self.A[:, source_idx].T
 
+    def get_measured_spectra(self, source_idx):
+        """
+        Get measured spectra for given LED set.
+        """
+        if isinstance(source_idx, str):
+            source_idx = [
+                self.measured_spectra.names.index(name)
+                for name in source_idx.split('+')
+            ]
+        source_idx = np.asarray(source_idx)
+        if source_idx.dtype == np.bool:
+            source_idx = np.flatnonzero(source_idx)
+        return self.measured_spectra[source_idx]
+
     def get_excitations(self, source_idx):
         """
         Get excitations values given selected LED set.
@@ -542,3 +557,58 @@ class MeasuredSpectraMetrics(_InitDict):
             idcs.ravel()
         ] = True
         return source_idcs
+
+    def compute_est_score(
+        self, est, X,
+        score_method='score',
+        name=None,
+        col_names=None,
+        normalize=False,
+        **score_kws
+    ):
+        """
+        Compute score of estimator
+        """
+        assert hasattr(est, 'measured_spectra')
+        assert hasattr(est, score_method)
+
+        if name is None:
+            name = score_method
+
+        # names of light sources
+        names = np.array(self.measured_spectra.names)
+
+        df = pd.DataFrame(
+            self.source_idcs,
+            columns=names
+        )
+        if col_names is None:
+            if score_method == 'feature_scores':
+                col_names = [f"metric_{i}" for i in range(X.shape[1])]
+            elif score_method == 'sample_scores':
+                col_names = [f"metric_{i}" for i in range(X.shape[0])]
+        for idx, source_idx in enumerate(self.source_idcs):
+            est_ = clone(est)
+            est_.measured_spectra = self.get_measured_spectra(source_idx)
+            est_.fit(X)
+            score = getattr(est_, score_method)(**score_kws)
+
+            if score_method in {'feature_scores', 'sample_scores'}:
+                df.loc[idx, col_names] = score
+                df.loc[idx, 'metric'] = score.mean()
+            else:
+                df.loc[idx, 'metric'] = score
+            df.loc[idx, 'light_combos'] = '+'.join(
+                names[source_idx]
+            )
+            df.loc[idx, 'k'] = np.sum(source_idx)
+
+        df['k'] = df['k'].astype(int)
+        df['metric_name'] = name
+
+        if normalize:
+            # TODO types of normalizations
+            df['metric'] /= df['metric'].abs().max()
+            if score_method in {'feature_scores', 'sample_scores'}:
+                df[col_names] /= df[col_names].abs().max(axis=0)
+        return df

@@ -2,6 +2,8 @@
 Model for silent substitution
 """
 
+import warnings
+
 import numpy as np
 import cvxpy as cp
 import pandas as pd
@@ -12,6 +14,7 @@ from dreye.utilities.abstract import inherit_docstrings
 from dreye.utilities import asarray
 
 EPS = 1e-4
+N = 1000
 # TODO docstrings
 
 
@@ -35,7 +38,8 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         substitution_type='diff',
         eps=EPS,
         q_aggregator=cp.min,
-        cp_kwargs=None
+        cp_kwargs=None,
+        linear_transform=None,
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -51,6 +55,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         self.eps = eps
         self.q_aggregator = q_aggregator
         self.cp_kwargs = cp_kwargs
+        self.linear_transform = linear_transform
 
     def fit(self, X):
         # format X
@@ -85,6 +90,11 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
                 "or `background`."
             )
 
+        if self.linear_transform is None:
+            self.channels_ = self.channel_names_
+        else:
+            self.channels_ = [f"comp{i}" for i in range(self.n_features_)]
+
         intensities = np.zeros((len(X), self.n_leds_))
         intensities2 = np.zeros(intensities.shape)
         captures = np.zeros((len(X), self.n_features_))
@@ -97,7 +107,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             captures2[idx] = q2
             intensities[idx] = i
             intensities2[idx] = i2
-            active.append(np.array(self.channel_names_)[ix])
+            active.append(np.array(self.channels_)[ix])
 
         excitations = self.photoreceptor_model_.excitefunc(captures)
         excitations2 = self.photoreceptor_model_.excitefunc(captures2)
@@ -144,7 +154,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         """
         edf = pd.DataFrame(
             e,
-            columns=[f"fitted_{rh}" for rh in self.channel_names_]
+            columns=[f"fitted_{rh}" for rh in self.channels_]
         )
         edf['active'] = active
         edf['direction'] = direction
@@ -165,14 +175,15 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         return constraints
 
     def _get_q_constraints(self, i, q):
-        return [
-            self._get_x_capture(i) == q
-        ]
+        pred_q = self._get_x_capture(i)
+        if self.linear_transform is not None:
+            pred_q = pred_q @ self.linear_transform
+        return [pred_q == q]
 
     def _fit_sample(self, x):
-
-        q = cp.Variable(self.n_features_)
-        i = cp.Variable(self.n_leds_)
+        # q is usually the capture, but could also be excitations
+        q = cp.Variable(self.n_features_, name='q')
+        i = cp.Variable(self.n_leds_, nonneg=True, name='i')
 
         constraints = []
 
@@ -180,8 +191,8 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         constraints.extend(self._get_q_constraints(i, q))
 
         if self.substitution_type == 'diff':
-            q2 = cp.Variable(self.n_features_)
-            i2 = cp.Variable(self.n_leds_)
+            q2 = cp.Variable(self.n_features_, name='q2')
+            i2 = cp.Variable(self.n_leds_, nonneg=True, name='i2')
 
             constraints.extend(self._get_i_constraints(i2))
             constraints.extend(self._get_q_constraints(i2, q2))
@@ -192,7 +203,6 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             ])
 
         else:
-
             constraints.extend([
                 q[~x] >= (self.capture_border_ - self.eps),
                 q[~x] <= (self.capture_border_ + self.eps),
