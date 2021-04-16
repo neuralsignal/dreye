@@ -210,7 +210,9 @@ class Photoreceptor(ABC):
         """
         return self.sensitivity.domain.magnitude
 
-    def compute_ratios(self, rtol=None, peak2peak=False, return_wls=False, compute=True):
+    def get_relevant(
+        self, rtol=None, peak2peak=False, return_wls=False, ratio=False
+    ):
         """
         Compute ratios of the sensitivities for all significant wavelengths.
         """
@@ -225,7 +227,7 @@ class Photoreceptor(ABC):
                 "Zeros or smaller in sensitivities array!", RuntimeWarning
             )
             s[s < 0] = 0
-        if compute:
+        if ratio:
             ratios = s / np.sum(np.abs(s), axis=1, keepdims=True)
         else:
             ratios = s

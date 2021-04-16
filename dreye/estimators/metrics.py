@@ -7,17 +7,20 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.spatial import ConvexHull
-from itertools import combinations
+from itertools import combinations, product
 from scipy import stats
 import seaborn as sns
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D, art3d
 from sklearn import clone
 from sklearn.feature_selection import mutual_info_regression
+from sklearn.preprocessing import normalize
 
 from dreye.utilities import (
     is_numeric, asarray, is_listlike, is_dictlike, is_string
 )
 from dreye.core.photoreceptor import Photoreceptor
+from dreye.core.spectrum import Spectra
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
 # TODO metrics that depend on estimators
@@ -26,17 +29,182 @@ from dreye.utilities.abstract import _InitDict, inherit_docstrings
 # from dreye.estimators.led_substitution import LedSubstitutionFit
 
 
-def compute_from_simplex(X):
+class Faces:
+    """
+    From: https://stackoverflow.com/questions/49098466/plot-3d-convex-closed-regions-in-matplot-lib/49115448
+    """
+
+    def __init__(self, tri, sig_dig=12, method="convexhull"):
+        self.method = method
+        self.tri = np.around(np.array(tri), sig_dig)
+        self.grpinx = list(range(len(tri)))
+        norms = np.around([self.norm(s) for s in self.tri], sig_dig)
+        _, self.inv = np.unique(norms, return_inverse=True, axis=0)
+
+    def norm(self, sq):
+        cr = np.cross(sq[2]-sq[0], sq[1]-sq[0])
+        return np.abs(cr/np.linalg.norm(cr))
+
+    def isneighbor(self, tr1, tr2):
+        a = np.concatenate((tr1, tr2), axis=0)
+        return len(a) == len(np.unique(a, axis=0))+2
+
+    def order(self, v):
+        if len(v) <= 3:
+            return v
+        v = np.unique(v, axis=0)
+        n = self.norm(v[:3])
+        y = np.cross(n, v[1]-v[0])
+        y = y/np.linalg.norm(y)
+        c = np.dot(v, np.c_[v[1]-v[0], y])
+        if self.method == "convexhull":
+            h = ConvexHull(c)
+            return v[h.vertices]
+        else:
+            mean = np.mean(c, axis=0)
+            d = c-mean
+            s = np.arctan2(d[:, 0], d[:, 1])
+            return v[np.argsort(s)]
+
+    def simplify(self):
+        for i, tri1 in enumerate(self.tri):
+            for j, tri2 in enumerate(self.tri):
+                if j > i:
+                    if (
+                        self.isneighbor(tri1, tri2)
+                        and
+                        self.inv[i] == self.inv[j]
+                    ):
+                        self.grpinx[j] = self.grpinx[i]
+        groups = []
+        for i in np.unique(self.grpinx):
+            u = self.tri[self.grpinx == i]
+            u = np.concatenate([d for d in u])
+            u = self.order(u)
+            groups.append(u)
+        return groups
+
+
+def plot_simplex(
+    n=4,
+    points=None,
+    hull=None,
+    lines=True,
+    ax=None,
+    line_color='black',
+    hull_color='gray',
+    labels=None,
+    label_size=16,
+    point_colors='blue',
+    hull_kws={},
+    point_scatter_kws={},
+    fig_kws={},
+    remove_axes=True
+):
+    assert n in {3, 4}
+
+    if ax is None:
+        if n == 4:
+            fig = plt.figure(**fig_kws)
+            ax = Axes3D(fig)
+        else:
+            fig = plt.figure(**fig_kws)
+            ax = plt.subplot(111)
+
+    if hull is not None:
+        if not isinstance(hull, ConvexHull):
+            if hull.shape[1] == n:
+                hull = barycentric_dim_reduction(hull)
+            assert hull.shape[1] == (n-1)
+            hull = ConvexHull(hull)
+
+        pts = hull.points
+        if n == 3:
+            ax.plot(
+                pts[hull.vertices, 0], pts[hull.vertices, 1],
+                color=hull_color,
+                **hull_kws
+            )
+            ax.plot(
+                pts[hull.vertics[0], 0], pts[hull.vertics[0], 1],
+                color=hull_color,
+                **hull_kws
+            )
+        else:
+            org_triangles = [pts[s] for s in hull.simplices]
+            f = Faces(org_triangles)
+            g = f.simplify()
+
+            hull_kws_default = {
+                'facecolors': hull_color,
+                'edgecolor': 'lightgray',
+                'alpha': 0.8
+            }
+            hull_kws = {**hull_kws_default, **hull_kws}
+            pc = art3d.Poly3DCollection(g, **hull_kws)
+            ax.add_collection3d(pc)
+
+    if points is not None:
+        assert points.shape[1] == n
+        X = barycentric_dim_reduction(points)
+        ax.scatter(
+            *X.T, c=point_colors, **point_scatter_kws
+        )
+
+    if lines:
+        A = barycentric_to_cartesian_transformer(n)
+        lines = combinations(A, 2)
+        for line in lines:
+            line = np.transpose(np.array(line))
+            if n == 4:
+                ax.plot3D(*line, c=line_color)
+            else:
+                ax.plot(*line, c=line_color)
+
+    if labels is not None:
+        eye = np.eye(n)
+        eye_cart = barycentric_to_cartesian(eye)
+        for idx, (point, label) in enumerate(zip(eye_cart, labels)):
+            text_kws = {}
+            if idx == 0:
+                text_kws['ha'] = 'right'
+                text_kws['va'] = 'center'
+            elif (idx+1) == n:
+                text_kws['ha'] = 'center'
+                text_kws['va'] = 'bottom'
+            else:
+                text_kws['ha'] = 'left'
+                text_kws['va'] = 'center'
+
+            ax.text(*point, label, size=label_size, **text_kws)
+
+    if remove_axes:
+        if n == 4:
+            ax._axis3don = False
+        else:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            sns.despine(left=True, bottom=True)
+
+    return ax
+
+
+def barycentric_dim_reduction(X):
     """
     Compute a simplex to a random variable.
     """
     X = np.abs(X)
-    X = X / np.sum(X, axis=-1, keepdims=True)
-    return probs_vec_to_cart(X)
+    X = normalize(X, norm='l1', axis=1)
+    return barycentric_to_cartesian(X)
 
 
-def probs_vec_to_cart(X):
+def barycentric_to_cartesian(X):
     n = X.shape[1]
+    A = barycentric_to_cartesian_transformer(n)
+    return X @ A
+
+
+def barycentric_to_cartesian_transformer(n):
     assert n > 1
     A = np.zeros((n, n-1))
     A[1, 0] = 1
@@ -46,8 +214,7 @@ def probs_vec_to_cart(X):
         assert np.unique(dis).size == 1
         x = np.sqrt(1 - dis.mean())
         A[i, i-1] = x
-
-    return X @ A
+    return A
 
 
 def compute_jensen_shannon_divergence(P, Q, base=2):
@@ -130,7 +297,10 @@ class MeasuredSpectraMetrics(_InitDict):
         measured_spectra,
         n_samples=10000,
         seed=None,
-        background=None
+        background=None,
+        rtol=None,
+        peak2peak=False,
+        random=False
     ):
         assert isinstance(photoreceptor_model, Photoreceptor)
         assert isinstance(measured_spectra, MeasuredSpectraContainer)
@@ -141,6 +311,9 @@ class MeasuredSpectraMetrics(_InitDict):
         self.n_samples = n_samples
         self.seed = seed
         self.background = background
+        self.peak2peak = peak2peak
+        self.rtol = rtol
+        self.random = random
 
         # set seed if necessary
         if seed is not None:
@@ -152,6 +325,7 @@ class MeasuredSpectraMetrics(_InitDict):
             background=self.background,
             return_units=False,
         ).T
+
         if self.background is not None:
             self.q_bg = self.photoreceptor_model.capture(
                 self.background, return_units=False
@@ -159,6 +333,51 @@ class MeasuredSpectraMetrics(_InitDict):
         self.bounds = self.measured_spectra.intensity_bounds
         self.normalized_spectra = self.measured_spectra.normalized_spectra
         self.n_sources = len(self.measured_spectra)
+
+        # perfect excitation of single wavelengths
+        peaks = self.photoreceptor_model.sensitivity.dmax
+        wl_range = self.photoreceptor_model.wavelength_range(
+            rtol=rtol, peak2peak=peak2peak
+        )
+        domain = self.normalized_spectra.domain.magnitude
+        spectra = []
+        idx_peaks = []
+        labels = []
+        for val in domain:
+            if (val < wl_range[0]) or (val > wl_range[1]):
+                continue
+            spectrum = np.zeros(domain.size)
+            spectrum[val == domain] = 1
+            if val in peaks:
+                idx = len(spectra)
+                idx_peaks.append(idx)
+            spectra.append(spectrum)
+            labels.append("{:.1f}".format(val))
+        spectra = np.array(spectra).T  # wls x dirac pulses
+        labels = np.array(labels)
+        spectra[:, idx_peaks]
+        spectra_combos = self._get_samples(len(idx_peaks), eps=0)
+        spectra_combos = spectra_combos[spectra_combos.sum(axis=1) > 1]
+        spectra_ = spectra[:, idx_peaks] @ spectra_combos.T
+        labels_ = [
+            '-'.join(labels[idx_peaks][combo]) for combo in spectra_combos.astype(bool)
+        ]
+        spectra = np.hstack([spectra, spectra_])
+        labels = np.concatenate([labels, labels_])
+        self.labels_perfect = pd.Series(labels)
+        self.s_perfect = Spectra(
+            spectra,
+            domain=domain,
+            labels=labels
+        )
+        self.capture_perfect = self.photoreceptor_model.capture(
+            self.s_perfect,
+            background=self.background,
+            return_units=False,
+        )
+        self.excite_perfect = self.photoreceptor_model.excitefunc(
+            self.capture_perfect
+        )
 
         if is_numeric(self.combos):
             self.combos = int(self.combos)
@@ -187,7 +406,7 @@ class MeasuredSpectraMetrics(_InitDict):
             )
 
         # random light source intensity levels
-        self.random_samples = self.get_random_samples()
+        self.random_samples = self.get_samples(random=random)
 
     def _get_metrics(
         self, metric_func, metric_name, B=None, as_frame=True,
@@ -274,13 +493,23 @@ class MeasuredSpectraMetrics(_InitDict):
             **kwargs
         )
 
-    def get_random_samples(self, n_samples=None):
+    def _get_samples(self, n_features, n_samples=None, random=False, eps=1e-8):
+        if n_samples is None:
+            n_samples = self.n_samples
+        if random:
+            return np.random.random((n_samples, n_features))
+        return np.array(list(product(*([[0, 1]] * n_features)))) + eps  # eps
+
+    def get_samples(self, n_samples=None, random=False):
         """
         Get random intensity samples.
         """
-        if n_samples is None:
-            n_samples = self.n_samples
-        samples = np.random.random((n_samples, self.n_sources))
+        # samples = np.random.random((n_samples, self.n_sources))
+        samples = self._get_samples(
+            self.n_sources, n_samples=n_samples,
+            random=random
+        )
+        # scale to intensity bounds
         samples = samples * (self.bounds[1] - self.bounds[0]) + self.bounds[0]
         return samples
 
@@ -450,7 +679,7 @@ class MeasuredSpectraMetrics(_InitDict):
 
     def compute_gamut(
         self, points, nonlin=None, relative=True, zscore=False,
-        gamut_metric='mean_width'
+        gamut_metric='volume', compare_to='simplex', **kwargs
     ):
         """
         Compute absolute gamut
@@ -461,13 +690,34 @@ class MeasuredSpectraMetrics(_InitDict):
         if zscore or np.any(points < 0):
             points = (points - np.min(points)) / (np.max(points) - np.min(points))
         nsize = points.shape[-1]
-        volume = gamut_metric(compute_from_simplex(points))
+        volume = gamut_metric(barycentric_dim_reduction(points), **kwargs)
         if relative:
-            points1 = np.eye(nsize)
-            points2 = 1 - points1
-            points2 = points2 / np.sum(points2, axis=-1, keepdims=True)
-            points = np.vstack([points1, points2])
-            denom_volume = gamut_metric(compute_from_simplex(points))
+            if compare_to == 'simplex':
+                points1 = np.eye(nsize)
+                points2 = 1 - points1
+                points2 = points2 / np.sum(points2, axis=-1, keepdims=True)
+                points = np.vstack([points1, points2])
+                denom_volume = gamut_metric(
+                    barycentric_dim_reduction(points), **kwargs
+                )
+            elif compare_to == 'capture_perfect':
+                denom_volume = self.compute_gamut(
+                    self.capture_perfect,
+                    nonlin=nonlin,
+                    relative=False,
+                    zscore=zscore, gamut_metric=gamut_metric,
+                    **kwargs
+                )
+            elif compare_to == 'excite_perfect':
+                denom_volume = self.compute_gamut(
+                    self.excite_perfect,
+                    nonlin=nonlin,
+                    relative=False,
+                    zscore=zscore, gamut_metric=gamut_metric,
+                    **kwargs
+                )
+            else:
+                raise NameError(f"compare_to argument `{compare_to}` not recognized.")
             return volume / denom_volume
         return volume
 
