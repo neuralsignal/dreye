@@ -7,6 +7,11 @@ import warnings
 import numpy as np
 import cvxpy as cp
 import pandas as pd
+try:
+    import dccp
+    DCCP = True
+except ImportError:
+    DCCP = False
 
 from dreye.estimators.base import _RelativeMixin
 from dreye.estimators.excitation_models import IndependentExcitationFit
@@ -40,6 +45,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         q_aggregator=cp.min,
         cp_kwargs=None,
         linear_transform=None,
+        nonlin=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -56,6 +62,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         self.q_aggregator = q_aggregator
         self.cp_kwargs = cp_kwargs
         self.linear_transform = linear_transform
+        self.nonlin = nonlin
 
     def fit(self, X):
         # format X
@@ -99,12 +106,16 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         intensities2 = np.zeros(intensities.shape)
         captures = np.zeros((len(X), self.n_features_))
         captures2 = np.zeros(captures.shape)
+        r = np.zeros(captures.shape)
+        r2 = np.zeros(captures2.shape)
         active = []
 
         for idx, ix in enumerate(X):
             q, i, q2, i2 = self._fit_sample(ix)
-            captures[idx] = q
-            captures2[idx] = q2
+            captures[idx] = self._get_x_capture(i)
+            captures2[idx] = self._get_x_capture(i2)
+            r[idx] = q
+            r2[idx] = q2
             intensities[idx] = i
             intensities2[idx] = i2
             active.append(np.array(self.channels_)[ix])
@@ -118,6 +129,8 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         self.fitted_other_excite_X_ = excitations2
         self.fitted_other_capture_X_ = captures2
         self.fitted_capture_X_ = captures
+        self.fitted_r_ = r
+        self.fitted_other_r_ = r2
         self.active_ = pd.Series(active).apply(tuple)
 
         if self.substitution_type == 'diff':
@@ -176,6 +189,8 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
 
     def _get_q_constraints(self, i, q):
         pred_q = self._get_x_capture(i)
+        if self.nonlin is not None:
+            pred_q = self.nonlin(pred_q)
         if self.linear_transform is not None:
             pred_q = pred_q @ self.linear_transform
         return [pred_q == q]

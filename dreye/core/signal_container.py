@@ -10,7 +10,7 @@ from dreye.utilities import is_numeric, is_listlike
 from dreye.core.signal import (
     Signals, DomainSignal, Signal
 )
-from dreye.core.plotting_mixin import _PlottingMixin
+from dreye.plotting.plotting_mixin import _PlottingMixin
 
 
 @inherit_docstrings
@@ -58,6 +58,9 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
         return super().plot(**kwargs)
 
     def __getitem__(self, key):
+        if isinstance(key, np.ndarray):
+            key = key.tolist()
+
         if is_numeric(key):
             pass
         elif key in self.names:
@@ -65,6 +68,8 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
         elif key in self.container:
             key = self.container.index(key)
         elif is_listlike(key):
+            if np.asarray(key).dtype == np.bool:
+                key = np.arange(len(self))[np.asarray(key)].tolist()
             return type(self)([self.__getitem__(ikey) for ikey in key])
         return super().__getitem__(key)
 

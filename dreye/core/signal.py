@@ -21,7 +21,7 @@ from dreye.constants import DEFAULT_FLOAT_DTYPE, ABSOLUTE_ACCURACY, CONTEXTS
 from dreye.core.abstract import _UnitArray
 from dreye.core.domain import Domain
 from dreye.utilities import Filter1D
-from dreye.core.plotting_mixin import _PlottingMixin
+from dreye.plotting.plotting_mixin import _PlottingMixin
 from dreye.core.numpy_mixin import _NumpyMixin
 
 
@@ -1049,7 +1049,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         return self.domain_concat(other, *args, **kwargs)
 
-    def equalize_domains(self, other):
+    def equalize_domains(self, other, **kwargs):
         """
         Equalize domains for two signal-type instances.
 
@@ -1066,7 +1066,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         if self.domain != other.domain:
             domain = self.domain.equalize_domains(other.domain)
-            return self(domain), other(domain)
+            return self(domain, **kwargs), other(domain, **kwargs)
         return self, other
 
     def _slices_ndim(self, ndim):

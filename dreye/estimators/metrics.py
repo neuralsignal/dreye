@@ -8,13 +8,10 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import ConvexHull
 from itertools import combinations, product
-from scipy import stats
 import seaborn as sns
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D, art3d
 from sklearn import clone
 from sklearn.feature_selection import mutual_info_regression
-from sklearn.preprocessing import normalize
 
 from dreye.utilities import (
     is_numeric, asarray, is_listlike, is_dictlike, is_string
@@ -23,255 +20,15 @@ from dreye.core.photoreceptor import Photoreceptor
 from dreye.core.spectrum import Spectra
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
+from dreye.utilities.barycentric import barycentric_dim_reduction
+from dreye.utilities.metrics import (
+    compute_jensen_shannon_similarity,
+    compute_mean_width
+)
 # TODO metrics that depend on estimators
 # from dreye.estimators.excitation_models import IndependentExcitationFit
 # from dreye.estimators.silent_substitution import BestSubstitutionFit
 # from dreye.estimators.led_substitution import LedSubstitutionFit
-
-
-class Faces:
-    """
-    From: https://stackoverflow.com/questions/49098466/plot-3d-convex-closed-regions-in-matplot-lib/49115448
-    """
-
-    def __init__(self, tri, sig_dig=12, method="convexhull"):
-        self.method = method
-        self.tri = np.around(np.array(tri), sig_dig)
-        self.grpinx = list(range(len(tri)))
-        norms = np.around([self.norm(s) for s in self.tri], sig_dig)
-        _, self.inv = np.unique(norms, return_inverse=True, axis=0)
-
-    def norm(self, sq):
-        cr = np.cross(sq[2]-sq[0], sq[1]-sq[0])
-        return np.abs(cr/np.linalg.norm(cr))
-
-    def isneighbor(self, tr1, tr2):
-        a = np.concatenate((tr1, tr2), axis=0)
-        return len(a) == len(np.unique(a, axis=0))+2
-
-    def order(self, v):
-        if len(v) <= 3:
-            return v
-        v = np.unique(v, axis=0)
-        n = self.norm(v[:3])
-        y = np.cross(n, v[1]-v[0])
-        y = y/np.linalg.norm(y)
-        c = np.dot(v, np.c_[v[1]-v[0], y])
-        if self.method == "convexhull":
-            h = ConvexHull(c)
-            return v[h.vertices]
-        else:
-            mean = np.mean(c, axis=0)
-            d = c-mean
-            s = np.arctan2(d[:, 0], d[:, 1])
-            return v[np.argsort(s)]
-
-    def simplify(self):
-        for i, tri1 in enumerate(self.tri):
-            for j, tri2 in enumerate(self.tri):
-                if j > i:
-                    if (
-                        self.isneighbor(tri1, tri2)
-                        and
-                        self.inv[i] == self.inv[j]
-                    ):
-                        self.grpinx[j] = self.grpinx[i]
-        groups = []
-        for i in np.unique(self.grpinx):
-            u = self.tri[self.grpinx == i]
-            u = np.concatenate([d for d in u])
-            u = self.order(u)
-            groups.append(u)
-        return groups
-
-
-def plot_simplex(
-    n=4,
-    points=None,
-    hull=None,
-    lines=True,
-    ax=None,
-    line_color='black',
-    hull_color='gray',
-    labels=None,
-    label_size=16,
-    point_colors='blue',
-    hull_kws={},
-    point_scatter_kws={},
-    fig_kws={},
-    remove_axes=True
-):
-    assert n in {3, 4}
-
-    if ax is None:
-        if n == 4:
-            fig = plt.figure(**fig_kws)
-            ax = Axes3D(fig)
-        else:
-            fig = plt.figure(**fig_kws)
-            ax = plt.subplot(111)
-
-    if hull is not None:
-        if not isinstance(hull, ConvexHull):
-            if hull.shape[1] == n:
-                hull = barycentric_dim_reduction(hull)
-            assert hull.shape[1] == (n-1)
-            hull = ConvexHull(hull)
-
-        pts = hull.points
-        if n == 3:
-            ax.plot(
-                pts[hull.vertices, 0], pts[hull.vertices, 1],
-                color=hull_color,
-                **hull_kws
-            )
-            ax.plot(
-                pts[hull.vertics[0], 0], pts[hull.vertics[0], 1],
-                color=hull_color,
-                **hull_kws
-            )
-        else:
-            org_triangles = [pts[s] for s in hull.simplices]
-            f = Faces(org_triangles)
-            g = f.simplify()
-
-            hull_kws_default = {
-                'facecolors': hull_color,
-                'edgecolor': 'lightgray',
-                'alpha': 0.8
-            }
-            hull_kws = {**hull_kws_default, **hull_kws}
-            pc = art3d.Poly3DCollection(g, **hull_kws)
-            ax.add_collection3d(pc)
-
-    if points is not None:
-        assert points.shape[1] == n
-        X = barycentric_dim_reduction(points)
-        ax.scatter(
-            *X.T, c=point_colors, **point_scatter_kws
-        )
-
-    if lines:
-        A = barycentric_to_cartesian_transformer(n)
-        lines = combinations(A, 2)
-        for line in lines:
-            line = np.transpose(np.array(line))
-            if n == 4:
-                ax.plot3D(*line, c=line_color)
-            else:
-                ax.plot(*line, c=line_color)
-
-    if labels is not None:
-        eye = np.eye(n)
-        eye_cart = barycentric_to_cartesian(eye)
-        for idx, (point, label) in enumerate(zip(eye_cart, labels)):
-            text_kws = {}
-            if idx == 0:
-                text_kws['ha'] = 'right'
-                text_kws['va'] = 'center'
-            elif (idx+1) == n:
-                text_kws['ha'] = 'center'
-                text_kws['va'] = 'bottom'
-            else:
-                text_kws['ha'] = 'left'
-                text_kws['va'] = 'center'
-
-            ax.text(*point, label, size=label_size, **text_kws)
-
-    if remove_axes:
-        if n == 4:
-            ax._axis3don = False
-        else:
-            ax.set_xticks([])
-            ax.set_yticks([])
-            sns.despine(left=True, bottom=True)
-
-    return ax
-
-
-def barycentric_dim_reduction(X):
-    """
-    Compute a simplex to a random variable.
-    """
-    X = np.abs(X)
-    X = normalize(X, norm='l1', axis=1)
-    return barycentric_to_cartesian(X)
-
-
-def barycentric_to_cartesian(X):
-    n = X.shape[1]
-    A = barycentric_to_cartesian_transformer(n)
-    return X @ A
-
-
-def barycentric_to_cartesian_transformer(n):
-    assert n > 1
-    A = np.zeros((n, n-1))
-    A[1, 0] = 1
-    for i in range(2, n):
-        A[i, :i-1] = np.mean(A[:i, :i-1], axis=0)
-        dis = np.sum((A[:i, :i-1] - A[i, :i-1])**2, axis=1)
-        assert np.unique(dis).size == 1
-        x = np.sqrt(1 - dis.mean())
-        A[i, i-1] = x
-    return A
-
-
-def compute_jensen_shannon_divergence(P, Q, base=2):
-    """
-    Jensen-Shannon divergence of P and Q.
-    """
-    assert P.shape == Q.shape, "`P` and `Q` must be the same shape"
-    P = P.ravel()
-    Q = Q.ravel()
-    _P = P / np.linalg.norm(P, ord=1)
-    _Q = Q / np.linalg.norm(Q, ord=1)
-    _M = 0.5 * (_P + _Q)
-    return 0.5 * (
-        stats.entropy(_P, _M, base=base)
-        + stats.entropy(_Q, _M, base=base)
-    )
-
-
-def compute_jensen_shannon_similarity(P, Q):
-    """
-    Compute Jensen-Shannon divergence with base 2 and subtract it from 1,
-    so that 1 is equality of distribution and 0 is no similarity.
-    """
-    return 1 - compute_jensen_shannon_divergence(P, Q)
-
-
-def compute_mean_width(X, n=1000, vectorized=False):
-    """
-    Compute mean width by projecting `X` onto random vectors
-
-    Parameters
-    ----------
-    X : numpy.ndarray
-        n x m matrix with n samples and m features.
-    n : int
-        Number of random projections to calculate width
-
-    Returns
-    -------
-    mean_width : float
-        Mean width of `X`.
-    """
-    X = X - X.mean(0)  # centering data
-    rprojs = np.random.normal(size=(X.shape[-1], n))
-    rprojs /= np.linalg.norm(rprojs, axis=0)  # normalize vectors by l2-norm
-    if vectorized:
-        proj = X @ rprojs  # project samples onto random vectors
-        max1 = proj.max(0)  # max across samples
-        max2 = (-proj).max(0)  # max across samples
-    else:
-        max1 = np.zeros(n)
-        max2 = np.zeros(n)
-        for idx, rproj in enumerate(rprojs.T):
-            proj = X @ rproj
-            max1[idx] = proj.max()
-            max2[idx] = (-proj).max()
-    return (max1 + max2).mean()
 
 
 @inherit_docstrings
@@ -300,7 +57,8 @@ class MeasuredSpectraMetrics(_InitDict):
         background=None,
         rtol=None,
         peak2peak=False,
-        random=False
+        random=False,
+        eps=1e-4
     ):
         assert isinstance(photoreceptor_model, Photoreceptor)
         assert isinstance(measured_spectra, MeasuredSpectraContainer)
@@ -314,6 +72,7 @@ class MeasuredSpectraMetrics(_InitDict):
         self.peak2peak = peak2peak
         self.rtol = rtol
         self.random = random
+        self.eps = eps
 
         # set seed if necessary
         if seed is not None:
@@ -368,8 +127,11 @@ class MeasuredSpectraMetrics(_InitDict):
         self.s_perfect = Spectra(
             spectra,
             domain=domain,
-            labels=labels
+            labels=labels, units='uE'
         )
+        # will not result in perfect excitation?
+        # if self.background is not None:
+        #     self.s_perfect = self.s_perfect + self.background
         self.capture_perfect = self.photoreceptor_model.capture(
             self.s_perfect,
             background=self.background,
@@ -406,7 +168,14 @@ class MeasuredSpectraMetrics(_InitDict):
             )
 
         # random light source intensity levels
-        self.random_samples = self.get_samples(random=random)
+        self.random_samples = self.get_samples(random=random, eps=eps)
+
+        # names of light sources
+        names = np.array(self.measured_spectra.names)
+        light_combos = []
+        for idx, source_idx in enumerate(self.source_idcs):
+            light_combos.append('+'.join(names[source_idx]))
+        self.light_combos = light_combos
 
     def _get_metrics(
         self, metric_func, metric_name, B=None, as_frame=True,
@@ -418,36 +187,14 @@ class MeasuredSpectraMetrics(_InitDict):
             getattr(metric_name, '__name__', repr(callable))
         )
 
-        # names of light sources
-        names = np.array(self.measured_spectra.names)
-
         def helper(B):
-            if as_frame:
-                metrics = pd.DataFrame(
-                    self.source_idcs,
-                    columns=names
-                )
-            else:
-                metrics = np.zeros(len(self.source_idcs))
-
-            for idx, source_idx in enumerate(self.source_idcs):
-                metric = metric_func(source_idx, metric_name, B, **kwargs)
-                if as_frame:
-                    metrics.loc[idx, 'metric'] = metric
-                    metrics.loc[idx, 'light_combos'] = '+'.join(
-                        names[source_idx]
-                    )
-                    metrics.loc[idx, 'k'] = np.sum(source_idx)
-                else:
-                    metrics[idx] = metric
-
-            if as_frame:
-                metrics['k'] = metrics['k'].astype(int)
-                metrics['metric_name'] = name
-            if normalize:
-                # TODO types of normalizations
-                metrics['metric'] /= metrics['metric'].abs().max()
-            return metrics
+            return self._metric_constructor_helper(
+                name, metric_func,
+                metric_name, B,
+                as_frame=as_frame,
+                normalize=normalize,
+                **kwargs
+            )
 
         if is_dictlike(B):
             if as_frame:
@@ -493,21 +240,21 @@ class MeasuredSpectraMetrics(_InitDict):
             **kwargs
         )
 
-    def _get_samples(self, n_features, n_samples=None, random=False, eps=1e-8):
+    def _get_samples(self, n_features, n_samples=None, random=False, eps=1e-4):
         if n_samples is None:
             n_samples = self.n_samples
         if random:
             return np.random.random((n_samples, n_features))
         return np.array(list(product(*([[0, 1]] * n_features)))) + eps  # eps
 
-    def get_samples(self, n_samples=None, random=False):
+    def get_samples(self, n_samples=None, random=False, eps=1e-4):
         """
         Get random intensity samples.
         """
         # samples = np.random.random((n_samples, self.n_sources))
         samples = self._get_samples(
             self.n_sources, n_samples=n_samples,
-            random=random
+            random=random, eps=eps
         )
         # scale to intensity bounds
         samples = samples * (self.bounds[1] - self.bounds[0]) + self.bounds[0]
@@ -721,7 +468,37 @@ class MeasuredSpectraMetrics(_InitDict):
             return volume / denom_volume
         return volume
 
-    def compute_as_peaks(self):
+    def compute_peak_metric(self, source_idx, abs=True):
+        if isinstance(source_idx, str):
+            source_idx = [
+                self.measured_spectra.names.index(name)
+                for name in source_idx.split('+')
+            ]
+        pr_max = self.photoreceptor_model.sensitivity.dmax
+        s_max = self.normalized_spectra.dmax[source_idx]
+        diff = pr_max[:, None] - s_max[None, :]
+        if abs:
+            diff = np.abs(diff)
+        amin = np.min(diff, axis=1)
+        return amin
+
+    def compute_peak_metrics(
+        self,
+        normalize=False,
+        abs=True
+    ):
+        """
+        Compute peak metrics
+        """
+        return self._metric_constructor_helper(
+            'peak', self.compute_peak_metric,
+            as_frame=True,
+            normalize=normalize,
+            cols=self.photoreceptor_model.names,
+            abs=abs
+        )
+
+    def compute_as_peaks(self, as_string=False, as_idx=False):
         """
         Compute best set according to peaks of opsins and LEDs
         """
@@ -744,7 +521,12 @@ class MeasuredSpectraMetrics(_InitDict):
                 else:
                     warnings.warn("Couldn't find unique set of LEDs for opsin set.")
                 argmin.append(amin)
-        return self.normalized_spectra.labels[argmin]
+        best = self.normalized_spectra.labels[argmin]
+        if as_string:
+            return '+'.join(best)
+        if as_idx:
+            return np.array(argmin)
+        return best
 
     def _get_metric_func(self, metric):
         if callable(metric):
@@ -848,9 +630,7 @@ class MeasuredSpectraMetrics(_InitDict):
                 df.loc[idx, 'metric'] = score.mean()
             else:
                 df.loc[idx, 'metric'] = score
-            df.loc[idx, 'light_combos'] = '+'.join(
-                names[source_idx]
-            )
+            df.loc[idx, 'light_combos'] = self.light_combos[idx]
             df.loc[idx, 'k'] = np.sum(source_idx)
 
         df['k'] = df['k'].astype(int)
@@ -862,3 +642,51 @@ class MeasuredSpectraMetrics(_InitDict):
             if score_method in {'feature_scores', 'sample_scores'}:
                 df[col_names] /= df[col_names].abs().max(axis=0)
         return df
+
+    def _metric_constructor_helper(
+        self, name, metric_func, *args, as_frame=True, normalize=False,
+        cols=None,
+        **kwargs
+    ):
+        # names of light sources
+        names = np.array(self.measured_spectra.names)
+        # pass
+        if as_frame:
+            metrics = pd.DataFrame(
+                self.source_idcs,
+                columns=names
+            )
+        else:
+            metrics = np.zeros(len(self.source_idcs))
+
+        for idx, source_idx in enumerate(self.source_idcs):
+            metric = metric_func(source_idx, *args, **kwargs)
+            if as_frame:
+                if cols is None:
+                    metrics.loc[idx, 'metric'] = metric
+                else:
+                    metrics.loc[idx, cols] = metric
+                    metrics.loc[idx, 'metric'] = metric.mean()
+                metrics.loc[idx, 'light_combos'] = self.light_combos[idx]
+                metrics.loc[idx, 'k'] = np.sum(source_idx)
+            else:
+                if cols is None:
+                    metrics[idx] = metric
+                else:
+                    raise TypeError(
+                        'Must use dataframe format'
+                        f'`as_frame` for `{name}`'
+                    )
+
+        if as_frame:
+            metrics['k'] = metrics['k'].astype(int)
+            metrics['metric_name'] = name
+        if normalize:
+            # TODO types of normalizations
+            if as_frame:
+                metrics['metric'] /= metrics['metric'].abs().max()
+            else:
+                metrics /= metrics.abs().max()
+            if cols is not None:
+                metrics[cols] /= metrics[cols].abs().max(axis=0)
+        return metrics

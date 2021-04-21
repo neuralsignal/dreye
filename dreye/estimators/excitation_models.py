@@ -235,14 +235,14 @@ class IndependentExcitationFit(_SpectraModel):
                 self.bg_ints_background_ = background_
 
                 assert np.all(
-                    background_.magnitude < self.background_.magnitude
+                    background_.magnitude <= self.background_.magnitude
                 ), "`background` spectrum does not add up with `bg_ints`."
         elif self.background_ is not None and self.bg_ints_ is None:
             if self.background_only_external:
-                warnings.warn(
-                    "Assuming `bg_ints` are all zero, "
-                    "since `background_only_external` set to True."
-                )
+                # warnings.warn(
+                #     "Assuming `bg_ints` are all zero, "
+                #     "since `background_only_external` set to True."
+                # )
                 self.bg_ints_ = np.zeros(self.n_leds_)
             elif (
                 not self._lazy_clone

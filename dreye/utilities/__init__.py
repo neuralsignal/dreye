@@ -24,6 +24,17 @@ from dreye.utilities.stats import (
 )
 from dreye.utilities.filter1d import Filter1D
 from dreye.utilities.abstract import CallableList
+from dreye.utilities.barycentric import (
+    barycentric_to_cartesian,
+    barycentric_dim_reduction,
+    barycentric_to_cartesian_transformer
+)
+from dreye.utilities.metrics import (
+    compute_mean_width,
+    compute_jensen_shannon_similarity,
+    compute_jensen_shannon_divergence
+
+)
 
 
 __all__ = [
@@ -56,5 +67,12 @@ __all__ = [
     # stats
     'convert_truncnorm_clip',
     'irr2flux',
-    'flux2irr'
+    'flux2irr',
+    # barycentric
+    'barycentric_to_cartesian',
+    'barycentric_dim_reduction',
+    'barycentric_to_cartesian_transformer',
+    'compute_mean_width',
+    'compute_jensen_shannon_similarity',
+    'compute_jensen_shannon_divergence',
 ]
