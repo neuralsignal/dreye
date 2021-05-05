@@ -632,8 +632,9 @@ class _UnitArray(_AbstractArray):
                     elif isinstance(ikey, slice):
                         continue
                     else:
+                        continue  # TODO test
                         # only allow slices and ellipsis
-                        return values
+                        # return values
                 # get new inits
                 _init_kwargs = self._init_kwargs
                 # indices are assumed to be positive

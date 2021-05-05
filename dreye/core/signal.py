@@ -81,7 +81,7 @@ def domain_concat(objs, left=False):
 class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     # defaults for interpolator and smoothing
     _interpolator = interp1d
-    _interpolator_kwargs = {}
+    _interpolator_kwargs = {'bounds_error': False}
     _smoothing_kwargs = {}
     _smoothing_window = 1.0
     _smoothing_method = 'savgol'

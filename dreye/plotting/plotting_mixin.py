@@ -46,6 +46,8 @@ class _PlottingMixin:
         data,
         xlabel=None, ylabel=None,
         palette=None,
+        highlight_col=None,
+        highlight=None,
         **kwargs
     ):
         value = {
@@ -72,6 +74,10 @@ class _PlottingMixin:
             palette, xlabel, ylabel
         )
 
+        if highlight_col is not None:
+            data['highlight'] = False
+            data.loc[data[highlight_col].isin(highlight), 'hightlight'] = True
+
         g = sns.relplot(
             data=data,
             x='domain',
@@ -94,6 +100,8 @@ class _PlottingMixin:
         self,
         xlabel=None, ylabel=None,
         palette=None,
+        highlight_col=None,
+        highlight=None,
         **kwargs
     ):
         """
@@ -126,6 +134,8 @@ class _PlottingMixin:
             xlabel=xlabel,
             ylabel=ylabel,
             palette=palette,
+            highlight_col=highlight_col,
+            highlight=highlight,
             **kwargs
         )
 

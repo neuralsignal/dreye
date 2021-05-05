@@ -54,16 +54,11 @@ def plot_simplex(
 
         pts = hull.points
         if n == 3:
-            ax.plot(
-                pts[hull.vertices, 0], pts[hull.vertices, 1],
-                color=hull_color,
-                **hull_kws
-            )
-            ax.plot(
-                pts[hull.vertics[0], 0], pts[hull.vertics[0], 1],
-                color=hull_color,
-                **hull_kws
-            )
+            for simplex in hull.simplices:
+                ax.plot(
+                    pts[simplex, 0], pts[simplex, 1],
+                    color=hull_color, **hull_kws
+                )
         else:
             org_triangles = [pts[s] for s in hull.simplices]
             f = Faces(org_triangles)

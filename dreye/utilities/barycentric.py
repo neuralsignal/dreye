@@ -2,6 +2,7 @@
 Utility functions to convert from barycentric coordinates
 """
 
+from itertools import product
 import numpy as np
 from sklearn.preprocessing import normalize
 
@@ -33,3 +34,51 @@ def barycentric_to_cartesian_transformer(n):
         x = np.sqrt(1 - dis.mean())
         A[i, i-1] = x
     return A
+
+
+def line_intersection_simplex(x1, x2, c, axis=-1, checks=True):
+    """
+    Line intersection with simplex plane with sum of `c`
+
+    See: https://math.stackexchange.com/questions/151064/calculating-line-intersection-with-hypersphere-surface-in-mathbbrn?rq=1
+    """
+    if checks:
+        assert np.all(c > 0)
+        assert np.all(x1 >= 0)
+        assert np.all(x2 >= 0)
+
+    t = (
+        c - np.sum(x1, axis=axis, keepdims=True)
+    ) / (
+        np.sum(x2 - x1, axis=axis, keepdims=True)
+    )
+    return x1 + t * (x2 - x1)
+
+
+def _find_points_to_intersect_for_simplex(points, c):
+    """
+    For `line_intersection_simplex`
+
+    Parameters
+    ----------
+    points: numpy.ndarray (n_samples x n_dim)
+    """
+    psum = np.sum(points, axis=-1)
+    threshbool = psum <= c
+
+    assert np.any(threshbool), "target `c` too low."
+    assert not np.all(threshbool), "target `c` too high."
+
+    p1 = points[threshbool]
+    p2 = points[~threshbool]
+    return product(p1, p2)
+
+
+def simplex_plane_points_in_hull(points, c):
+    assert np.all(points >= 0), 'all `points` must be positive'
+    assert np.all(c > 0), '`c` must be positive'
+    # TODO efficiency
+    return np.array([
+        line_intersection_simplex(x1, x2, c, checks=False)
+        for x1, x2 in _find_points_to_intersect_for_simplex(points, c)
+    ])

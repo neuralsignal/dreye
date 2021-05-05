@@ -20,7 +20,9 @@ from dreye.core.photoreceptor import Photoreceptor
 from dreye.core.spectrum import Spectra
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
-from dreye.utilities.barycentric import barycentric_dim_reduction
+from dreye.utilities.barycentric import (
+    barycentric_dim_reduction, simplex_plane_points_in_hull
+)
 from dreye.utilities.metrics import (
     compute_jensen_shannon_similarity,
     compute_mean_width
@@ -58,7 +60,7 @@ class MeasuredSpectraMetrics(_InitDict):
         rtol=None,
         peak2peak=False,
         random=False,
-        eps=1e-4
+        eps=0
     ):
         assert isinstance(photoreceptor_model, Photoreceptor)
         assert isinstance(measured_spectra, MeasuredSpectraContainer)
@@ -269,7 +271,10 @@ class MeasuredSpectraMetrics(_InitDict):
                 self.measured_spectra.names.index(name)
                 for name in source_idx.split('+')
             ]
-        return self.random_samples[:, source_idx] @ self.A[:, source_idx].T
+        q = self.random_samples[:, source_idx] @ self.A[:, source_idx].T
+        if self.random:
+            return q
+        return np.unique(q, axis=0)
 
     def get_measured_spectra(self, source_idx):
         """
@@ -371,8 +376,20 @@ class MeasuredSpectraMetrics(_InitDict):
         """
         if (points.ndim == 1) or (points.shape[1] < 2):
             return np.max(points) - np.min(points)
-        convex_hull = ConvexHull(points, qhull_options="QJ Pp")
-        return convex_hull.volume
+        if points.shape[0] <= points.shape[1]:
+            return 0
+        try:
+            convex_hull = ConvexHull(
+                points, qhull_options="QJ Pp"
+            )
+            return convex_hull.volume
+        except Exception:
+            points = points - np.mean(points, axis=0)
+            convex_hull = ConvexHull(
+                points,
+                qhull_options="QJ Pp"
+            )
+            return convex_hull.volume
 
     @staticmethod
     def compute_continuity(points, bins=100, **kwargs):
@@ -413,7 +430,7 @@ class MeasuredSpectraMetrics(_InitDict):
     @staticmethod
     def compute_mean_correlation(points):
         # compute correlation of each feature
-        cc = np.corrcoef(points, rowvar=False)
+        cc = np.abs(np.corrcoef(points, rowvar=False))
         return (cc - np.eye(cc.shape[0])).mean()
 
     @staticmethod
@@ -426,7 +443,7 @@ class MeasuredSpectraMetrics(_InitDict):
 
     def compute_gamut(
         self, points, nonlin=None, relative=True, zscore=False,
-        gamut_metric='volume', compare_to='simplex', **kwargs
+        gamut_metric='volume', compare_to='simplex', c=None, **kwargs
     ):
         """
         Compute absolute gamut
@@ -436,6 +453,16 @@ class MeasuredSpectraMetrics(_InitDict):
             points = nonlin(points)
         if zscore or np.any(points < 0):
             points = (points - np.min(points)) / (np.max(points) - np.min(points))
+        if c is not None:
+            assert not zscore
+            assert nonlin is None
+            psum = points.sum(axis=-1)
+            if np.all(psum <= c):
+                return 0
+            elif np.all(psum > c):
+                return 0
+            points = simplex_plane_points_in_hull(points, c)
+        points = points[points.sum(axis=-1) != 0]
         nsize = points.shape[-1]
         volume = gamut_metric(barycentric_dim_reduction(points), **kwargs)
         if relative:
