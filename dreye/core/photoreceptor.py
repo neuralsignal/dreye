@@ -484,16 +484,28 @@ class Photoreceptor(ABC):
                 illuminant
             )
         else:
-            if reflectance is not None:
-                illuminant = illuminant * reflectance
+            if not has_units(illuminant):
+                illuminant = illuminant * ureg(None)
 
             if illuminant.ndim == 1:
                 illuminant = illuminant[:, None]
 
-            if not has_units(illuminant):
-                illuminant = illuminant * ureg(None)
+            if wavelengths is not None:
+                illuminant = Signals(
+                    illuminant, domain=wavelengths, domain_units='nm'
+                )
 
-            sensitivity = self.sensitivity
+                if reflectance is not None:
+                    illuminant = illuminant * reflectance
+
+                sensitivity, illuminant = self.sensitivity.equalize_domains(
+                    illuminant
+                )
+
+            else:
+                if reflectance is not None:
+                    illuminant = illuminant * reflectance
+                sensitivity = self.sensitivity
 
         wls = sensitivity.domain
 

@@ -5,6 +5,7 @@ __pycache__/
 *.ipynb_checkpoints
 *.DS_Store
 **/*.DS_Store
+.vscode/*
 
 tests/test_data/*
 
