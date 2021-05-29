@@ -45,7 +45,9 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         q_aggregator=cp.min,
         cp_kwargs=None,
         linear_transform=None,
-        nonlin=None
+        nonlin=None, 
+        intensity_bounds=None, 
+        wavelengths=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -55,7 +57,9 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             ignore_bounds=ignore_bounds,
             bg_ints=bg_ints,
             ignore_capture_units=ignore_capture_units,
-            background_only_external=background_only_external
+            background_only_external=background_only_external, 
+            intensity_bounds=intensity_bounds, 
+            wavelengths=wavelengths
         )
         self.substitution_type = substitution_type
         self.eps = eps

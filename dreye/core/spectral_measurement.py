@@ -431,26 +431,25 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             self.magnitude,  # y
             **{**self.labels_interpolator_kwargs, **kwargs},
         )(values)
-        if is_numeric(labels):
-            values = IntensitySpectrum(
-                values,
-                units=self.units,
-                domain=self.domain,
-                name=labels,
-            )
-        else:
-            values = IntensitySpectra(
-                values,
-                units=self.units,
-                domain=self.domain,
-                labels=labels,
-            )
         if return_signal and return_units:
-            return values
+            if is_numeric(labels):
+                values = IntensitySpectrum(
+                    values,
+                    units=self.units,
+                    domain=self.domain,
+                    name=labels,
+                )
+            else:
+                values = IntensitySpectra(
+                    values,
+                    units=self.units,
+                    domain=self.domain,
+                    labels=labels,
+                )
         elif return_units:
-            return values.values
+            return values * self.units
         else:
-            return values.magnitude
+            return values
 
     def map(self, values, return_units=True, check_bounds=True):
         """

@@ -46,7 +46,9 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         rtype='weber',  # {'fechner/log', 'weber', None}
         unidirectional=False,  # allow only increase or decreases of LEDs in simulation
         keep_proportions=False,
-        keep_intensity=True
+        keep_intensity=True, 
+        intensity_bounds=None,
+        wavelengths=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -61,7 +63,9 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             ignore_bounds=ignore_bounds,
             bg_ints=bg_ints,
             ignore_capture_units=ignore_capture_units,
-            background_only_external=background_only_external
+            background_only_external=background_only_external, 
+            wavelengths=wavelengths, 
+            intensity_bounds=intensity_bounds
         )
         self.rtype = rtype
         self.unidirectional = unidirectional

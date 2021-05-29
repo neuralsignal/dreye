@@ -143,7 +143,9 @@ class IndependentExcitationFit(_SpectraModel):
         ignore_bounds=False,
         lsq_kwargs=None,
         ignore_capture_units=True,
-        background_only_external=False
+        background_only_external=False, 
+        intensity_bounds=None, 
+        wavelengths=None
     ):
         self.photoreceptor_model = photoreceptor_model
         self.measured_spectra = measured_spectra
@@ -159,6 +161,8 @@ class IndependentExcitationFit(_SpectraModel):
         self.bg_ints = bg_ints
         self.ignore_capture_units = ignore_capture_units
         self.background_only_external = background_only_external
+        self.intensity_bounds = intensity_bounds
+        self.wavelengths = wavelengths
 
     def _set_required_objects(self, size=None):
         # TODO split into separate routines
@@ -333,19 +337,30 @@ class IndependentExcitationFit(_SpectraModel):
         return self
 
     def _set_A(self):
+        if np.any(self.capture_noise_level_):
+            self.noise_term_ = self.photoreceptor_model_.capture(
+                np.zeros(self.normalized_spectra_.domain.size),
+                wavelengths=self.normalized_spectra_.domain,
+                background=self.background_, 
+                return_units=False
+            )[0]
+            # eps / (qb+eps)
+        else:
+            self.noise_term_ = np.zeros(self.n_features_)
+
         # opsin x LED (taking transpose)
         self.A_ = self.photoreceptor_model_.capture(
             self.normalized_spectra_,
             background=self.background_,
-            return_units=False,
-        ).T
+            return_units=False
+        ).T - self.noise_term_[:, None]
 
         if not self.is_measurement_background_:
             self.q_bg_ = self.photoreceptor_model_.capture(
                 self.background_ - self.bg_ints_background_,
                 background=self.background_,
-                return_units=False,
-            )[0]  # length of opsin
+                return_units=False
+            )[0] - self.noise_term_ # length of opsin
         else:
             self.q_bg_ = 0
 
@@ -533,28 +548,39 @@ class IndependentExcitationFit(_SpectraModel):
         if self.photoreceptor_model_.filterfunc is None:
             # threshold by noise if necessary and apply nonlinearity
             x_pred = self.A_ @ w
+            if self.capture_noise_level_:
+                x_pred += self.noise_term_
         else:
             if self._domain_equal_:
-                illuminant = self.normalized_spectra_.magnitude @ w
+                illuminant = self.measured_spectra_.ints_to_spectra(w)
             else:
-                illuminant = Spectra(
-                    self.normalized_spectra_.magnitude @ w,
-                    units=self.measured_spectra_.units,
-                    domain=self.normalized_spectra_.domain
+                illuminant = self.measured_spectra_.ints_to_spectra(w)(
+                    self.normalized_spectra_.domain
                 )
+
             x_pred = self.photoreceptor_model_.capture(
                 # normalized_spectrum has domain_axis=0
                 # TODO write measured spectra function that interpolates
                 # to the given spectrum
                 illuminant,
                 background=self.background_,
-                return_units=False,
-                apply_noise_level=False
+                return_units=False
             )
             # ensure vector form
             x_pred = np.atleast_1d(np.squeeze(x_pred))
         x_pred += self.q_bg_
         return x_pred
+
+    @property
+    def capture_noise_level_(self):
+        return (
+            0 if self.photoreceptor_model_.capture_noise_level is None
+            else
+            self.photoreceptor_model_.capture_noise_level
+        )
+
+    def _correct_for_noise(self, q, w):
+        pass
 
     def _get_x_pred(self, w):
         return self.photoreceptor_model_.excitefunc(self._get_x_capture(w))
@@ -712,7 +738,9 @@ class TransformExcitationFit(IndependentExcitationFit):
         fit_to_transform=False,
         lsq_kwargs=None,
         ignore_capture_units=True,
-        background_only_external=False
+        background_only_external=False, 
+        intensity_bounds=None, 
+        wavelengths=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -728,7 +756,9 @@ class TransformExcitationFit(IndependentExcitationFit):
             q1_ints=q1_ints,
             bg_ints=bg_ints,
             ignore_capture_units=ignore_capture_units,
-            background_only_external=background_only_external
+            background_only_external=background_only_external, 
+            intensity_bounds=intensity_bounds, 
+            wavelengths=wavelengths
         )
         self.linear_transform = linear_transform
         self.inv_transform = inv_transform
@@ -816,7 +846,9 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         fit_to_transform=False,
         lsq_kwargs=None,
         ignore_capture_units=True,
-        background_only_external=False
+        background_only_external=False, 
+        intensity_bounds=None,
+        wavelengths=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -832,7 +864,9 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
             q1_ints=q1_ints,
             bg_ints=bg_ints,
             ignore_capture_units=ignore_capture_units,
-            background_only_external=background_only_external
+            background_only_external=background_only_external, 
+            intensity_bounds=intensity_bounds, 
+            wavelengths=wavelengths
         )
         self.transform_func = transform_func
         self.inv_func = inv_func
@@ -1018,7 +1052,9 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
         add_background=True,
         filter_background=True,
         ignore_capture_units=True,
-        background_only_external=False
+        background_only_external=False, 
+        intensity_bounds=None, 
+        wavelengths=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -1034,7 +1070,9 @@ class ReflectanceExcitationFit(IndependentExcitationFit):
             q1_ints=q1_ints,
             bg_ints=bg_ints,
             ignore_capture_units=ignore_capture_units,
-            background_only_external=background_only_external
+            background_only_external=background_only_external, 
+            intensity_bounds=intensity_bounds, 
+            wavelengths=wavelengths
         )
         self.reflectances = reflectances
         self.add_background = add_background

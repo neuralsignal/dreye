@@ -41,8 +41,12 @@ class IntensityFit(_SpectraModel):
         self,
         *,
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
+        intensity_bounds=None, 
+        wavelengths=None
     ):
         self.measured_spectra = measured_spectra
+        self.intensity_bounds = intensity_bounds
+        self.wavelengths = wavelengths
 
     def fit(self, X, y=None):
         #
@@ -174,10 +178,14 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         bg_ints=None,  # array-like
         rtype=None,  # {'fechner/log', 'weber', None}
+        intensity_bounds=None, 
+        wavelengths=None
     ):
         self.measured_spectra = measured_spectra
         self.rtype = rtype
         self.bg_ints = bg_ints
+        self.intensity_bounds = intensity_bounds
+        self.wavelengths = wavelengths
 
     def fit(self, X, y=None):
         #

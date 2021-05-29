@@ -238,7 +238,7 @@ class Photoreceptor(ABC):
 
     def wavelength_range(self, rtol=None, peak2peak=False):
         """
-        Range of wavelengths that the photoreceptor are sensitive to.
+        Range of wavelengths that the photoreceptors are sensitive to.
         Returns a tuple of the min and max wavelength value.
         """
         if peak2peak:
@@ -327,7 +327,10 @@ class Photoreceptor(ABC):
         """
         Noise level for capture values
         """
-        return self._capture_noise_level
+        return (
+            None if ((self._capture_noise_level is None) or np.all(np.isnan(self._capture_noise_level)))
+            else self._capture_noise_level
+        )
 
     @property
     def wavelengths(self):
@@ -557,13 +560,10 @@ class Photoreceptor(ABC):
         if not inplace:
             q = q.copy()
 
-        if (
-            self.capture_noise_level is None
-            or np.isnan(self.capture_noise_level)
-        ):
+        if self.capture_noise_level is None:
             return q
 
-        q[q < self.capture_noise_level] = self.capture_noise_level
+        q += self.capture_noise_level
         return q
 
     # TODO def decomp_sensitivity(self):

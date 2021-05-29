@@ -44,7 +44,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
     def _check_measured_spectra(
         measured_spectra,
         size=None, photoreceptor_model=None,
-        change_dimensionality=True
+        change_dimensionality=True, 
+        wavelengths=None
     ):
         """
         check and create measured spectra container
@@ -84,7 +85,10 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         return measured_spectra
 
     @staticmethod
-    def _check_photoreceptor_model(photoreceptor_model, size=None):
+    def _check_photoreceptor_model(
+        photoreceptor_model, size=None, 
+        wavelengths=None
+    ):
         """
         check and create photoreceptor model
         """
@@ -108,7 +112,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _check_background(
-        background, measured_spectra, photoreceptor_model=None
+        background, measured_spectra, photoreceptor_model=None, 
+        wavelengths=None
     ):
         """
         check and create background
@@ -203,7 +208,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _check_reflectances(
-        reflectances, measured_spectra, photoreceptor_model=None
+        reflectances, measured_spectra, photoreceptor_model=None, 
+        wavelengths=None
     ):
         """
         get max normalized reflectances
@@ -500,7 +506,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             self.fit(X)
         # map fitted_intensities
         return self.measured_spectra_.map(
-            self.fitted_intensities_, return_units=False)
+            self.fitted_intensities_, 
+            return_units=False
+        )
 
     @abstractmethod
     def inverse_transform(self, X):
