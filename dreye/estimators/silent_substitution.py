@@ -37,7 +37,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         bg_ints=None,
-        ignore_bounds=False,
+        ignore_bounds=None,
         ignore_capture_units=True,
         background_only_external=False,
         substitution_type='diff',

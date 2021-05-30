@@ -15,12 +15,10 @@ from dreye.utilities import (
 )
 from dreye.utilities.abstract import _AbstractContainer
 from dreye.constants import ureg
-from dreye.core.spectrum_utils import (
-    get_spectrum, get_max_normalized_gaussian_spectra
-)
-from dreye.core.signal import Signal, Signals
+from dreye.core.spectrum_utils import create_spectrum
+from dreye.core.signal import Signal
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
-from dreye.core.measurement_utils import get_led_spectra_container
+from dreye.core.measurement_utils import create_led_spectra_container
 from dreye.core.photoreceptor import Photoreceptor, get_photoreceptor_model
 
 
@@ -45,7 +43,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         measured_spectra,
         size=None, photoreceptor_model=None,
         change_dimensionality=True, 
-        wavelengths=None
+        wavelengths=None, intensity_bounds=None
     ):
         """
         check and create measured spectra container
@@ -61,11 +59,23 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             measured_spectra['led_spectra'] = measured_spectra.get(
                 'led_spectra', size
             )
-            measured_spectra = get_led_spectra_container(
+            measured_spectra = create_led_spectra_container(
                 **measured_spectra
             )
+        elif is_listlike(measured_spectra):
+            measured_spectra = create_led_spectra_container(
+                led_spectra=measured_spectra, 
+                intensity_bounds=intensity_bounds, 
+                wavelengths=(
+                    wavelengths
+                    if photoreceptor_model is None
+                    else photoreceptor_model.domain 
+                    if wavelengths is None else
+                    wavelengths
+                )
+            )
         elif measured_spectra is None:
-            measured_spectra = get_led_spectra_container(size)
+            measured_spectra = create_led_spectra_container(size)
         else:
             raise ValueError("Measured Spectra must be Spectra "
                              "container or dict, but is type "
@@ -101,6 +111,11 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             photoreceptor_model = get_photoreceptor_model(
                 **photoreceptor_model
             )
+        elif is_listlike(photoreceptor_model):
+            photoreceptor_model = get_photoreceptor_model(
+                sensitivity=photoreceptor_model, 
+                wavelengths=wavelengths
+            )
         elif photoreceptor_model is None:
             photoreceptor_model = get_photoreceptor_model(size)
         else:
@@ -124,7 +139,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
                 'wavelengths', measured_spectra.wavelengths
             )
             background['units'] = measured_spectra.units
-            background = get_spectrum(**background)
+            background = create_spectrum(**background)
         elif background is None:
             return
         elif is_string(background) and (background == 'null'):
@@ -134,12 +149,13 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         elif is_listlike(background):
             background = optional_to(background, measured_spectra.units)
             # check size requirements
-            assert background.size == measured_spectra.normalized_spectra.shape[
-                measured_spectra.normalized_spectra.domain_axis
-            ]
-            background = get_spectrum(
+            if wavelengths is None:
+                assert background.size == measured_spectra.normalized_spectra.shape[
+                    measured_spectra.normalized_spectra.domain_axis
+                ]
+            background = create_spectrum(
                 intensities=background,
-                wavelengths=measured_spectra.wavelengths,
+                wavelengths=(measured_spectra.domain if wavelengths is None else wavelengths),
                 units=measured_spectra.units
             )
         else:
@@ -170,7 +186,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             bg_ints
             * measured_spectra.normalized_spectra.magnitude
         ).sum(axis=-1)
-        background = get_spectrum(
+        background = create_spectrum(
             intensities=background,
             wavelengths=measured_spectra.wavelengths,
             units=measured_spectra.units
@@ -205,45 +221,6 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             assert len(bg_ints) == len(measured_spectra)
             assert np.all(bg_ints >= 0)
         return bg_ints
-
-    @staticmethod
-    def _check_reflectances(
-        reflectances, measured_spectra, photoreceptor_model=None, 
-        wavelengths=None
-    ):
-        """
-        get max normalized reflectances
-        """
-        # enforce unitless
-        if is_dictlike(reflectances):
-            reflectances['wavelengths'] = reflectances.get(
-                'wavelengths', measured_spectra.wavelengths
-            )
-            reflectances = get_max_normalized_gaussian_spectra(**reflectances)
-        elif reflectances is None:
-            reflectances = get_max_normalized_gaussian_spectra(
-                wavelengths=measured_spectra.wavelengths,
-                units=measured_spectra.units
-            )
-        elif isinstance(reflectances, Signals):
-            pass
-            # reflectances = reflectances.to(ureg(None).units)
-        elif is_listlike(reflectances):
-            reflectances = get_max_normalized_gaussian_spectra(
-                intensities=reflectances,
-                wavelengths=measured_spectra.wavelengths,
-            )
-        else:
-            raise ValueError(
-                "Illuminant must be Spectra instance or dict-like, but"
-                f"is of type {type(reflectances)}."
-            )
-
-        # ensure domain axis on 0
-        if reflectances.domain_axis != 0:
-            reflectances = reflectances.copy()
-            reflectances.domain_axis = 0
-        return reflectances
 
     def fit_transform(self, X):
         """

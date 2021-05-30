@@ -13,11 +13,11 @@ import matplotlib.pyplot as plt
 from sklearn import clone
 from sklearn.feature_selection import mutual_info_regression
 
+from dreye.core.signal import Signals
 from dreye.utilities import (
     is_numeric, asarray, is_listlike, is_dictlike, is_string
 )
 from dreye.core.photoreceptor import Photoreceptor
-from dreye.core.spectrum import Spectra
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
 from dreye.utilities.barycentric import (
@@ -126,9 +126,10 @@ class MeasuredSpectraMetrics(_InitDict):
         spectra = np.hstack([spectra, spectra_])
         labels = np.concatenate([labels, labels_])
         self.labels_perfect = pd.Series(labels)
-        self.s_perfect = Spectra(
+        self.s_perfect = Signals(
             spectra,
             domain=domain,
+            domain_units='nm',
             labels=labels, units='uE'
         )
         # will not result in perfect excitation?

@@ -26,6 +26,7 @@ from pandas.compat.pickle_compat import loads as pandasloads
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.io import ignore
+from dreye.io.deprecated_class_conversions import _deprecated_classes
 
 
 ARRAY_PREFIX = "__ARRAY__"
@@ -242,10 +243,16 @@ def serializer(obj):
 
 
 def _class_deserializer(ele):
-    return getattr(
-        importlib.import_module(ele[MODULE_PREFIX]),
-        ele[CLASS_PREFIX]
-    )
+    try:
+        return getattr(
+            importlib.import_module(ele[MODULE_PREFIX]),
+            ele[CLASS_PREFIX]
+        )
+    except Exception as e:
+        if ele[CLASS_PREFIX] in _deprecated_classes:
+            return _deprecated_classes[ele[CLASS_PREFIX]]
+        else:
+            raise e
 
 
 def _deserialize_index(data, name='index'):

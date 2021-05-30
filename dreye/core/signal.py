@@ -78,7 +78,7 @@ def domain_concat(objs, left=False):
 
 
 @inherit_docstrings
-class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
+class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
     # defaults for interpolator and smoothing
     _interpolator = interp1d
     _interpolator_kwargs = {'bounds_error': False}
@@ -140,7 +140,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         **kwargs
     ):
 
-        if isinstance(values, _SignalMixin) and domain is not None:
+        if isinstance(values, _SignalAbstractClass) and domain is not None:
             if values.domain != domain:
                 values = values(domain)
 
@@ -975,7 +975,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
         domain = self.domain
 
-        if isinstance(other, _SignalMixin):
+        if isinstance(other, _SignalAbstractClass):
             # checks dimensionality, appends domain, converts units
             assert self._other_shape == other._other_shape, \
                 "Shapes are not compatible."
@@ -1122,7 +1122,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
                 return other.magnitude[
                     self._none_slices_except_domain_axis
                 ], self
-            elif isinstance(other, _SignalMixin):
+            elif isinstance(other, _SignalAbstractClass):
                 # Do reverse if self ndim is smaller
                 if self.ndim < other.ndim:
                     return NotImplemented, self
@@ -1305,8 +1305,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
 
 @inherit_docstrings
-class _Signal2DMixin(_SignalMixin):
-    _init_args = _SignalMixin._init_args + ('labels',)
+class _SignalsAbstractClass(_SignalAbstractClass):
+    _init_args = _SignalAbstractClass._init_args + ('labels',)
 
     @property
     def _init_aligned_attrs(self):
@@ -1328,7 +1328,7 @@ class _Signal2DMixin(_SignalMixin):
         Added labels to init.
         """
         # change domain axis if necessary
-        if isinstance(values, _Signal2DMixin) and domain_axis is not None:
+        if isinstance(values, _SignalsAbstractClass) and domain_axis is not None:
             if domain_axis != values.domain_axis:
                 values = values.copy()
                 values.domain_axis = domain_axis
@@ -1522,7 +1522,7 @@ class _Signal2DMixin(_SignalMixin):
 
 
 @inherit_docstrings
-class _SignalIndexLabels(_Signal2DMixin):
+class _SignalIndexLabels(_SignalsAbstractClass):
 
     def __init__(
         self,
@@ -1532,7 +1532,7 @@ class _SignalIndexLabels(_Signal2DMixin):
         **kwargs
     ):
         if (
-            isinstance(values, _SignalMixin)
+            isinstance(values, _SignalAbstractClass)
             and (values.ndim == 1)
             and labels is None
             and not hasattr(values, 'labels')
@@ -1614,7 +1614,7 @@ class _SignalIndexLabels(_Signal2DMixin):
         # docstring is copied over
         # domain_axis must be aligned
         if (
-            isinstance(other, _SignalMixin)
+            isinstance(other, _SignalAbstractClass)
             and not isinstance(other, _SignalIndexLabels)
             and other.ndim <= 2
         ):
@@ -1679,8 +1679,8 @@ class _SignalIndexLabels(_Signal2DMixin):
 
 
 @inherit_docstrings
-class _SignalDomainLabels(_Signal2DMixin):
-    _init_args = _Signal2DMixin._init_args + ('labels_min', 'labels_max')
+class _SignalDomainLabels(_SignalsAbstractClass):
+    _init_args = _SignalsAbstractClass._init_args + ('labels_min', 'labels_max')
     _domain_labels_class = Domain
 
     @property
@@ -1881,7 +1881,7 @@ class _SignalDomainLabels(_Signal2DMixin):
 
 
 @inherit_docstrings
-class Signal(_SignalMixin):
+class Signal(_SignalAbstractClass):
     """
     Defines the base class for a continuous
     one-dimensional signal (unit-aware).
@@ -1991,6 +1991,10 @@ class Signals(_SignalIndexLabels):
     @property
     def _class_new_instance(self):
         return Signals
+
+    @property
+    def _1d_signal_class(self):
+        return Signal
 
     def __init__(
         self,

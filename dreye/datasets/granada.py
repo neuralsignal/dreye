@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 from scipy.io import loadmat
 from dreye.utilities import irr2flux
-from dreye import DREYE_DIR, IntensitySpectra
+from dreye import DREYE_DIR, Signals
 
 GRANADA_DATAFILE = os.path.join(DREYE_DIR, 'datasets', 'granada_daylight.mat')
 
@@ -63,12 +63,13 @@ def load_dataset(as_spectra=False):
     ) * 10 ** 6
 
     if as_spectra:
-        return IntensitySpectra(
+        return Signals(
             df.pivot(
                 'wavelengths',
                 'data_id',
                 'microspectralphotonflux'
             ),
-            units='uE'
+            units='uE', 
+            domain_units='nm'
         )
     return df

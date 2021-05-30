@@ -10,9 +10,8 @@ from dreye.utilities import has_units, is_numeric, asarray, optional_to
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.core.domain import Domain
-from dreye.core.signal import _SignalMixin, _Signal2DMixin
-from dreye.core.spectrum import (
-    IntensitySpectra, IntensitySpectrum, DomainSpectrum
+from dreye.core.signal import (
+    _SignalAbstractClass, _SignalsAbstractClass, Signal, Signals, DomainSignal
 )
 from dreye.core.spectral_measurement import (
     CalibrationSpectrum, MeasuredSpectrum,
@@ -63,13 +62,13 @@ def convert_measurement(
         Returns `spectrum_cls` object given `signal`.
     """
 
-    assert isinstance(signal, _SignalMixin)
+    assert isinstance(signal, _SignalAbstractClass)
 
     if spectrum_cls is None:
         if signal.ndim == 1:
-            spectrum_cls = IntensitySpectrum
+            spectrum_cls = Signal
         elif signal.ndim == 2:
-            spectrum_cls = IntensitySpectra
+            spectrum_cls = Signals
         else:
             raise DreyeError("Signal instance of unknown dimensionality.")
 
@@ -179,9 +178,10 @@ def create_measured_spectrum(
         `MeasuredSpectrum` instance containing `spectrum_array`.
     """
     # create labels
-    spectrum = DomainSpectrum(
+    spectrum = DomainSignal(
         spectrum_array,
         domain=wavelengths,
+        domain_units='nm',
         labels=Domain(output, units=output_units)
     )
     if assume_contains_output_bounds:
@@ -300,7 +300,7 @@ def create_led_spectra_container(
             wavelengths = np.arange(300, 700.1, 0.5)
         led_spectra = norm.pdf(wavelengths[:, None], centers, hard_std)
     # wavelengths
-    if isinstance(led_spectra, _Signal2DMixin) and wavelengths is not None:
+    if isinstance(led_spectra, _SignalsAbstractClass) and wavelengths is not None:
         led_spectra = led_spectra(wavelengths)
         led_spectra.domain_axis = 0
     # check if we can obtain wavelengths (replace wavelengths)
@@ -315,6 +315,10 @@ def create_led_spectra_container(
 
     led_spectra = asarray(led_spectra)
     led_spectra /= np.trapz(led_spectra, asarray(wavelengths), axis=0)
+
+    if intensity_bounds is None:
+        # some very high max intensity
+        intensity_bounds = (0, 10000)
 
     intensities = np.broadcast_to(
         np.linspace(*intensity_bounds, steps).T,
@@ -365,7 +369,3 @@ def create_led_spectra_container(
         measured_spectra.append(measured_spectrum)
 
     return MeasuredSpectraContainer(measured_spectra)
-
-
-# deprecated!
-get_led_spectra_container = create_led_spectra_container
