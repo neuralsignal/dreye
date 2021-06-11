@@ -1,24 +1,27 @@
 """Class to define photoreceptor/capture model
 """
 
+from dreye.utilities.common import is_listlike
 import warnings
 import copy
-from abc import ABC, abstractmethod
+from abc import ABC
 
 from scipy.stats import norm
 import numpy as np
 
-from dreye.core.signal import _SignalMixin, Signals
+from dreye.core.signal import Signals, Signal
 from dreye.utilities.abstract import inherit_docstrings
-from dreye.core.spectral_sensitivity import Sensitivity
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.utilities import (
-    is_callable, has_units, is_integer
+    is_callable, has_units, is_numeric, 
+    is_signallike, is_integer
 )
+from dreye.core.opsin_template import govardovskii2000_template
 
 
-RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-2
+RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-1
+WL_PEAK_SPACE = 150
 
 
 def create_photoreceptor_model(
@@ -76,26 +79,39 @@ def create_photoreceptor_model(
     wavelength of the illuminant (for example, the photoreceptor model
     by Stavenga et al, 2003).
     """
-    if photoreceptor_type not in {'linear', 'log', 'hyperbolic'}:
-        raise DreyeError("Photoreceptor type must be 'linear' or 'log'.")
+    if photoreceptor_type not in {'linear', 'log', 'hyperbolic', 'contrast'}:
+        raise DreyeError("Photoreceptor type must be 'linear', 'log', 'hyperbolixc', or 'contrast'.")
     if photoreceptor_type == 'linear':
         pr_class = LinearPhotoreceptor
     elif photoreceptor_type == 'log':
         pr_class = LogPhotoreceptor
     elif photoreceptor_type == 'hyperbolic':
         pr_class = HyperbolicPhotoreceptor
+    elif photoreceptor_type == 'contrast':
+        pr_class = LinearContrastPhotoreceptor
 
-    if sensitivity is None or is_integer(sensitivity):
+    if is_signallike(sensitivity):
+        pass
+    elif (hasattr(sensitivity, 'ndim') and sensitivity.ndim > 1):
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
-        if sensitivity is None:
-            centers = np.linspace(350, 550, 3)
-        else:
+            wavelengths = np.linspace(300, 700, len(sensitivity))
+    elif is_listlike(sensitivity) or is_numeric(sensitivity):
+        if is_integer(sensitivity) and (sensitivity < 100):  # reasonable threshold for sensitivity vs number of photoreceptors
             centers = np.linspace(350, 550, sensitivity)
-        sensitivity = norm.pdf(wavelengths[:, None], centers[None, :], 40)
-        sensitivity /= np.max(sensitivity, axis=0, keepdims=True)
-    elif wavelengths is None and not isinstance(sensitivity, _SignalMixin):
-        wavelengths = np.linspace(300, 700, len(sensitivity))
+        else:
+            centers = np.atleast_1d(sensitivity)
+        if wavelengths is None:
+            wavelengths = np.arange(
+                np.min(centers)-WL_PEAK_SPACE, 
+                np.max(centers)+WL_PEAK_SPACE, 
+                1
+            )
+        sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
+    elif sensitivity is None:
+        if wavelengths is None:
+            wavelengths = np.arange(300, 701, 1)
+        centers = np.linspace(350, 550, 3)
+        sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
 
     return pr_class(
         sensitivity,
@@ -104,10 +120,6 @@ def create_photoreceptor_model(
         labels=labels,
         **kwargs
     )
-
-
-# deprecated!
-get_photoreceptor_model = create_photoreceptor_model
 
 
 # TODO convenience capture function
@@ -120,7 +132,7 @@ class Photoreceptor(ABC):
 
     Parameters
     ----------
-    sensitivity : Sensitivity instance or array-like, optional
+    sensitivity : Signals instance or array-like, optional
         An array that contains the sensitivity of different photoreceptor
         types across wavelengths (wavelengths x types).
     wavelengths : array-like, optional
@@ -144,7 +156,7 @@ class Photoreceptor(ABC):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LinearPhotoreceptor
     dreye.LogPhotoreceptor
     dreye.HyperbolicPhotoreceptor
@@ -173,16 +185,18 @@ class Photoreceptor(ABC):
             if capture_noise_level is None:
                 capture_noise_level = sensitivity.capture_noise_level
             sensitivity = sensitivity.sensitivity
-        if not isinstance(sensitivity, Sensitivity):
-            sensitivity = Sensitivity(
+        if not isinstance(sensitivity, Signals):
+            domain_units = kwargs.pop('domain_units', 'nm')
+            sensitivity = Signals(
                 sensitivity, domain=wavelengths, labels=labels,
+                domain_units=domain_units, 
                 **kwargs
             )
         else:
             if wavelengths is not None:
                 sensitivity = sensitivity(wavelengths)
             if labels is not None:
-                # TODO do we want to do this inplace?
+                sensitivity = sensitivity.copy()
                 sensitivity.labels = labels
 
         # ensure domain axis = 0
@@ -210,35 +224,21 @@ class Photoreceptor(ABC):
         """
         return self.sensitivity.domain.magnitude
 
-    def get_relevant(
-        self, rtol=None, peak2peak=False, return_wls=False, ratio=False
-    ):
+    def sensitivity_ratios(self, eps=0.01):
         """
-        Compute ratios of the sensitivities for all significant wavelengths.
+        Compute ratios of the sensitivities
         """
-        wl_range = self.wavelength_range(rtol, peak2peak=peak2peak)
-        wls = np.arange(*wl_range)
-        # NB: sensitivity in pr_model always has domain on zeroth axis
-        s = self.sensitivity(
-            wls, check_bounds=False, asarr=True
-        )
+        s = self.data + eps
         if np.any(s < 0):
             warnings.warn(
                 "Zeros or smaller in sensitivities array!", RuntimeWarning
             )
             s[s < 0] = 0
-        if ratio:
-            ratios = s / np.sum(np.abs(s), axis=1, keepdims=True)
-        else:
-            ratios = s
-        if return_wls:
-            return wl_range, ratios
-        else:
-            return ratios
+        return s / np.sum(np.abs(s), axis=1, keepdims=True)
 
     def wavelength_range(self, rtol=None, peak2peak=False):
         """
-        Range of wavelengths that the photoreceptor are sensitive to.
+        Range of wavelengths that the photoreceptors are sensitive to.
         Returns a tuple of the min and max wavelength value.
         """
         if peak2peak:
@@ -327,7 +327,10 @@ class Photoreceptor(ABC):
         """
         Noise level for capture values
         """
-        return self._capture_noise_level
+        return (
+            0 if ((self._capture_noise_level is None) or np.all(np.isnan(self._capture_noise_level)))
+            else self._capture_noise_level
+        )
 
     @property
     def wavelengths(self):
@@ -375,7 +378,7 @@ class Photoreceptor(ABC):
         background=None,
         return_units=None,
         wavelengths=None,
-        apply_noise_threshold=True,
+        add_noise=True,
         **kwargs
     ):
         """
@@ -398,7 +401,7 @@ class Photoreceptor(ABC):
         wavelengths : array-like, optional
             If given and illuminant is not a `Signals` instance, this
             corresponds to its wavelength values.
-        apply_noise_threshold : bool, optional
+        add_noise : bool, optional
             Whether to apply noise thresholding or not. Defaults to True.
         kwargs : dict
             Keyword arguments passed to the `Photoreceptor.excitefunc`
@@ -416,7 +419,7 @@ class Photoreceptor(ABC):
                          background=background,
                          return_units=return_units,
                          wavelengths=wavelengths,
-                         apply_noise_threshold=apply_noise_threshold),
+                         add_noise=add_noise),
             **kwargs
         )
 
@@ -427,14 +430,14 @@ class Photoreceptor(ABC):
         background=None,
         return_units=None,
         wavelengths=None,
-        apply_noise_threshold=True
+        add_noise=True
     ):
         """
         Calculate photoreceptor capture.
 
         Parameters
         ----------
-        illuminant : `Signals` or array-like
+        illuminant : `Signals` or array-like (wavelengths x samples)
             Illuminant spectrum. If array-like, the zeroth axis must have
             the same length as `Photoreceptor.sensitivity` (i.e. wavelength
             domain match) or `wavelengths` must be given.
@@ -449,12 +452,12 @@ class Photoreceptor(ABC):
         wavelengths : array-like, optional
             If given and illuminant is not a `Signals` instance, this
             corresponds to its wavelength values.
-        apply_noise_threshold : bool, optional
+        add_noise : bool, optional
             Whether to apply noise thresholding or not. Defaults to True.
 
         Returns
         -------
-        captures : `numpy.ndarray` or `pint.Quantity`
+        captures : `numpy.ndarray` or `pint.Quantity`  (samples x opsin)
             Array of row length equal to the number of illuminant and
             column length equal to the number of photoreceptor types.
         """
@@ -469,6 +472,7 @@ class Photoreceptor(ABC):
             and hasattr(illuminant, 'domain_axis')
         ):
             if illuminant.ndim == 1:
+                # creates a copy
                 illuminant = Signals(illuminant)
                 # set domain axis
                 illuminant.domain_axis = 0
@@ -511,8 +515,7 @@ class Photoreceptor(ABC):
 
         new_units = illuminant.units * sensitivity.units * wls.units
 
-        # TODO dealing with higher dimensional illuminant and 1-dimensional
-        # TODO efficiency
+        # TODO dealing with 1-dimensional properly
         # added_dim = illuminant.ndim - 1
         # (slice(None, None, None), ) * 2 + (None, ) * added_dim
         sensitivity = sensitivity.magnitude[:, None, :]
@@ -527,8 +530,8 @@ class Photoreceptor(ABC):
         # calculate capture
         # illuminant x opsin via integral
         q = np.trapz(sensitivity * illuminant, wls, axis=0)
-        if apply_noise_threshold:
-            q = self.limit_q_by_noise_level(q, inplace=True)
+        if add_noise:
+            q += self.capture_noise_level
 
         if np.any(q < 0):
             raise ValueError("Capture values calculated are below 0; "
@@ -549,25 +552,6 @@ class Photoreceptor(ABC):
         # q_bg may have different units to q
         q = q / q_bg
         return q
-
-    def limit_q_by_noise_level(self, q, inplace=False):
-        """
-        Return captures `q` after accounting for capture noise levels.
-        """
-        if not inplace:
-            q = q.copy()
-
-        if (
-            self.capture_noise_level is None
-            or np.isnan(self.capture_noise_level)
-        ):
-            return q
-
-        q[q < self.capture_noise_level] = self.capture_noise_level
-        return q
-
-    # TODO def decomp_sensitivity(self):
-    #     self.sensitivity.magnitude
 
 
 @inherit_docstrings
@@ -601,7 +585,7 @@ class LinearPhotoreceptor(Photoreceptor):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LogPhotoreceptor
     dreye.HyperbolicPhotoreceptor
 
@@ -662,7 +646,7 @@ class LogPhotoreceptor(Photoreceptor):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LinearPhotoreceptor
     dreye.HyperbolicPhotoreceptor
 
@@ -723,7 +707,7 @@ class HyperbolicPhotoreceptor(Photoreceptor):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LinearPhotoreceptor
     dreye.LogPhotoreceptor
 
@@ -785,7 +769,7 @@ class LinearContrastPhotoreceptor(Photoreceptor):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LinearPhotoreceptor
     dreye.LogPhotoreceptor
     dreye.HyperbolicPhotoreceptor
@@ -816,16 +800,3 @@ class LinearContrastPhotoreceptor(Photoreceptor):
         Returns the `arr`/(1 - `arr`).
         """
         return arr + 1
-
-
-# TODO
-# class SelfScreeningPhotoreceptor(LinearPhotoreceptor):
-#     """
-#     """
-#
-#     @staticmethod
-#     def filterfunc(arr):
-#         """
-#         """
-#
-#         raise NotImplementedError('self screening photoreceptor class.')

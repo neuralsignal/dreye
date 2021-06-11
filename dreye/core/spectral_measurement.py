@@ -12,17 +12,17 @@ from dreye.utilities import (
 )
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.constants import ureg, CONTEXTS
-from dreye.core.signal import Signals, Signal
-from dreye.core.spectrum import (
-    Spectra, IntensityDomainSpectrum, Spectrum, IntensitySpectrum,
-    IntensitySpectra
+from dreye.core.signal import Signals, Signal, DomainSignal
+from dreye.core.spectrum_mixin import (
+    _SpectrumMixin, 
+    _IntensityDomainSpectrumMixin
 )
 from dreye.core.signal_container import DomainSignalContainer
 from dreye.err import DreyeError
 
 
 @inherit_docstrings
-class CalibrationSpectrum(Spectrum):
+class CalibrationSpectrum(_SpectrumMixin, Signal):
     """
     Defines a calibration measurement.
 
@@ -98,7 +98,7 @@ class CalibrationSpectrum(Spectrum):
 
 # TODO allow curve fit instead of isotonic regression? - SKlearn type class
 @inherit_docstrings
-class MeasuredSpectrum(IntensityDomainSpectrum):
+class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
     """
     Two-dimensional intensity signal of LED measurements
     with wavelength domain and output labels.
@@ -147,13 +147,9 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
     See Also
     --------
     DomainSignal
-    DomainSpectrum
-    IntensitySpectrum
     """
 
     inverse_map_method = 'isotonic'
-
-    # always in uE?
 
     def __init__(
         self, values, domain=None, labels=None, *,
@@ -195,7 +191,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
         self._normalized_spectrum = None
         self._mapper = None
         self._inverse_mapper = None
-        self._intensity_labelled = None
 
         if self.name is None:
             idx = np.argmax(self.normalized_spectrum.magnitude)
@@ -320,7 +315,7 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             # threshold to zero
             values[values < 0] = 0
             # create spectrum
-            spectrum = Spectrum(
+            spectrum = Signal(
                 values=values,
                 domain=self.domain,
                 name=self.name,
@@ -330,20 +325,6 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             self._normalized_spectrum = spectrum.normalized_signal
 
         return self._normalized_spectrum
-
-    @property
-    def intensity_labelled(self):
-        """
-        Intensity labelled IntensityDomainSpectrum
-        """
-        if self._intensity_labelled is None:
-            self._intensity_labelled = IntensitySpectra(
-                self.values,
-                domain=self.domain,
-                labels=self.intensity.values,
-                name=self.name
-            )
-        return self._intensity_labelled
 
     @property
     def intensity(self):
@@ -431,26 +412,25 @@ class MeasuredSpectrum(IntensityDomainSpectrum):
             self.magnitude,  # y
             **{**self.labels_interpolator_kwargs, **kwargs},
         )(values)
-        if is_numeric(labels):
-            values = IntensitySpectrum(
-                values,
-                units=self.units,
-                domain=self.domain,
-                name=labels,
-            )
-        else:
-            values = IntensitySpectra(
-                values,
-                units=self.units,
-                domain=self.domain,
-                labels=labels,
-            )
         if return_signal and return_units:
-            return values
+            if is_numeric(labels):
+                values = Signal(
+                    values,
+                    units=self.units,
+                    domain=self.domain,
+                    name=labels,
+                )
+            else:
+                values = Signals(
+                    values,
+                    units=self.units,
+                    domain=self.domain,
+                    labels=labels,
+                )
         elif return_units:
-            return values.values
+            return values * self.units
         else:
-            return values.magnitude
+            return values
 
     def map(self, values, return_units=True, check_bounds=True):
         """
@@ -996,10 +976,10 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         if self._normalized_spectra is None:
             for idx, ele in enumerate(self):
                 if idx == 0:
-                    spectra = Spectra(ele.normalized_spectrum)
+                    spectra = Signals(ele.normalized_spectrum)
                 else:
                     spectra = spectra.labels_concat(
-                        Spectra(ele.normalized_spectrum)
+                        Signals(ele.normalized_spectrum)
                     )
 
             self._normalized_spectra = spectra

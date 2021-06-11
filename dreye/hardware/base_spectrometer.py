@@ -7,7 +7,7 @@ import warnings
 
 import numpy as np
 
-from dreye.core.spectrum import Spectrum
+from dreye.core.signal import Signal
 from dreye.core.measurement_utils import convert_measurement
 from dreye.err import DreyeError
 
@@ -249,9 +249,10 @@ class AbstractSpectrometer(ABC):
         instance, given the `calibration`.
         """
         return convert_measurement(
-            Spectrum(
+            Signal(
                 self.intensity,
                 domain=self.wls,
+                domain_units='nm',
             ),
             self.cal,
             self.current_it,
@@ -339,9 +340,10 @@ class AbstractSpectrometer(ABC):
             ints = self.avg_ints(n, sleep, return_sd=return_sd)
 
         if return_spectrum:
-            ints = Spectrum(
+            ints = Signal(
                 ints,
-                domain=self.wls
+                domain=self.wls, 
+                domain_units='nm'
             )
             ints = convert_measurement(
                 ints, calibration=self.cal,

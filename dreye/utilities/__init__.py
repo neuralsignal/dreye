@@ -11,6 +11,7 @@ from dreye.utilities.common import (
     is_callable,
     irr2flux,
     flux2irr,
+    is_signallike, is_signalslike
 )
 from dreye.utilities.array import (
     around, digits_to_decimals,
@@ -64,6 +65,8 @@ __all__ = [
     'get_units',
     'get_value',
     'is_callable',
+    'is_signallike', 
+    'is_signalslike',
     # stats
     'convert_truncnorm_clip',
     'irr2flux',

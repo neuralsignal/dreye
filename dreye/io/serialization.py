@@ -242,10 +242,17 @@ def serializer(obj):
 
 
 def _class_deserializer(ele):
-    return getattr(
-        importlib.import_module(ele[MODULE_PREFIX]),
-        ele[CLASS_PREFIX]
-    )
+    try:
+        return getattr(
+            importlib.import_module(ele[MODULE_PREFIX]),
+            ele[CLASS_PREFIX]
+        )
+    except Exception as e:
+        from dreye.io.deprecated_class_conversions import _deprecated_classes
+        if ele[CLASS_PREFIX] in _deprecated_classes:
+            return _deprecated_classes[ele[CLASS_PREFIX]]
+        else:
+            raise e
 
 
 def _deserialize_index(data, name='index'):

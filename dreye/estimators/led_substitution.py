@@ -39,14 +39,16 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         # hard_sep_value=None,  # float in capture units (1 relative capture)
         bg_ints=None,
         # fit_only_uniques=False,
-        ignore_bounds=False,
+        ignore_bounds=None,
         lsq_kwargs=None,
         ignore_capture_units=True,
         background_only_external=False,
         rtype='weber',  # {'fechner/log', 'weber', None}
         unidirectional=False,  # allow only increase or decreases of LEDs in simulation
         keep_proportions=False,
-        keep_intensity=True
+        keep_intensity=True, 
+        intensity_bounds=None,
+        wavelengths=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -61,7 +63,9 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             ignore_bounds=ignore_bounds,
             bg_ints=bg_ints,
             ignore_capture_units=ignore_capture_units,
-            background_only_external=background_only_external
+            background_only_external=background_only_external, 
+            wavelengths=wavelengths, 
+            intensity_bounds=intensity_bounds
         )
         self.rtype = rtype
         self.unidirectional = unidirectional
@@ -94,8 +98,8 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         else:
             # TODO simulate combinations of LEDs
             raise NotImplementedError("Combinations of LED steps")
-            led_idcs = X[:, 0::2].astype(int)  # every second one
-            led_bounds = X[:, 1::2]  # every second one starting at 1
+            # led_idcs = X[:, 0::2].astype(int)  # every second one
+            # led_bounds = X[:, 1::2]  # every second one starting at 1
 
         led_bgs = self.bg_ints_[led_idcs]
         if self.rtype in {'fechner', 'weber', 'log', 'total_weber', 'diff'}:
