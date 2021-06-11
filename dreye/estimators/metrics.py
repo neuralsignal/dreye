@@ -100,7 +100,7 @@ class MeasuredSpectraMetrics(_InitDict):
         wl_range = self.photoreceptor_model.wavelength_range(
             rtol=rtol, peak2peak=peak2peak
         )
-        domain = self.normalized_spectra.domain.magnitude
+        domain = self.normalized_spectra.domain.magnitude  # TODO Buggy if sensitivity and spectra do not have overlapping domain
         spectra = []
         idx_peaks = []
         labels = []

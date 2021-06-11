@@ -7,11 +7,12 @@ import pandas as pd
 from scipy.stats import norm
 
 from dreye.utilities import has_units, is_numeric, asarray, optional_to
+from dreye.utilities.common import is_signallike
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.core.domain import Domain
 from dreye.core.signal import (
-    _SignalAbstractClass, _SignalsAbstractClass, Signal, Signals, DomainSignal
+    Signal, Signals, DomainSignal
 )
 from dreye.core.spectral_measurement import (
     CalibrationSpectrum, MeasuredSpectrum,
@@ -61,8 +62,7 @@ def convert_measurement(
     object : `spectrum_cls`
         Returns `spectrum_cls` object given `signal`.
     """
-
-    assert isinstance(signal, _SignalAbstractClass)
+    assert is_signallike(signal)
 
     if spectrum_cls is None:
         if signal.ndim == 1:
@@ -104,7 +104,7 @@ def convert_measurement(
     # units are tracked
     spectrum = (signal * calibration)
     spectrum = spectrum / (integration_time * area)
-    spectrum = spectrum.piecewise_gradient
+    spectrum = spectrum / spectrum.domain.gradient
     # subtract background
     if background is not None:
         spectrum = spectrum - background.to(spectrum.units)
@@ -215,7 +215,7 @@ def create_measured_spectrum(
     )
 
 
-def create_led_spectra_container(
+def create_measured_spectra_container(
     led_spectra=None,  # wavelengths x LED (ignores units)
     intensity_bounds=(0, 100),  # two-tuple of min and max intensity
     wavelengths=None,  # wavelengths (two-tuple or array-like)
@@ -300,7 +300,7 @@ def create_led_spectra_container(
             wavelengths = np.arange(300, 700.1, 0.5)
         led_spectra = norm.pdf(wavelengths[:, None], centers, hard_std)
     # wavelengths
-    if isinstance(led_spectra, _SignalsAbstractClass) and wavelengths is not None:
+    if is_signallike(led_spectra) and (wavelengths is not None):
         led_spectra = led_spectra(wavelengths)
         led_spectra.domain_axis = 0
     # check if we can obtain wavelengths (replace wavelengths)

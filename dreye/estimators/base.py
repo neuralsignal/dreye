@@ -18,8 +18,8 @@ from dreye.constants import ureg
 from dreye.core.spectrum_utils import create_spectrum
 from dreye.core.signal import Signal
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
-from dreye.core.measurement_utils import create_led_spectra_container
-from dreye.core.photoreceptor import Photoreceptor, get_photoreceptor_model
+from dreye.core.measurement_utils import create_measured_spectra_container
+from dreye.core.photoreceptor import Photoreceptor, create_photoreceptor_model
 
 
 class OptimizeResultContainer(_AbstractContainer):
@@ -37,6 +37,15 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
     # other attributes that are the length of X but not X
     # and are not the fitted signal
     _X_length = []
+
+    def _get_ignore_bounds(self):
+        # ignore bounds depending on logic
+        if self.ignore_bounds is None:
+            return (
+                not isinstance(self.measured_spectra, MeasuredSpectraContainer) 
+                and self.intensity_bounds is None
+            )
+        return self.ignore_bounds
 
     @staticmethod
     def _check_measured_spectra(
@@ -59,11 +68,11 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             measured_spectra['led_spectra'] = measured_spectra.get(
                 'led_spectra', size
             )
-            measured_spectra = create_led_spectra_container(
+            measured_spectra = create_measured_spectra_container(
                 **measured_spectra
             )
         elif is_listlike(measured_spectra):
-            measured_spectra = create_led_spectra_container(
+            measured_spectra = create_measured_spectra_container(
                 led_spectra=measured_spectra, 
                 intensity_bounds=intensity_bounds, 
                 wavelengths=(
@@ -75,7 +84,7 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
                 )
             )
         elif measured_spectra is None:
-            measured_spectra = create_led_spectra_container(size)
+            measured_spectra = create_measured_spectra_container(size)
         else:
             raise ValueError("Measured Spectra must be Spectra "
                              "container or dict, but is type "
@@ -108,16 +117,16 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
             photoreceptor_model['sensitivity'] = photoreceptor_model.get(
                 'sensitivity', size
             )
-            photoreceptor_model = get_photoreceptor_model(
+            photoreceptor_model = create_photoreceptor_model(
                 **photoreceptor_model
             )
         elif is_listlike(photoreceptor_model):
-            photoreceptor_model = get_photoreceptor_model(
+            photoreceptor_model = create_photoreceptor_model(
                 sensitivity=photoreceptor_model, 
                 wavelengths=wavelengths
             )
         elif photoreceptor_model is None:
-            photoreceptor_model = get_photoreceptor_model(size)
+            photoreceptor_model = create_photoreceptor_model(size)
         else:
             raise ValueError("Photoreceptor model must be Photoreceptor "
                              "instance or dict, but is type "
@@ -484,7 +493,8 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         # map fitted_intensities
         return self.measured_spectra_.map(
             self.fitted_intensities_, 
-            return_units=False
+            return_units=False, 
+            check_bounds=not self._get_ignore_bounds()
         )
 
     @abstractmethod

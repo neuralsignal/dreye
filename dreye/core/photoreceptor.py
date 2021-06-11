@@ -1,6 +1,7 @@
 """Class to define photoreceptor/capture model
 """
 
+from dreye.utilities.common import is_listlike
 import warnings
 import copy
 from abc import ABC
@@ -8,16 +9,19 @@ from abc import ABC
 from scipy.stats import norm
 import numpy as np
 
-from dreye.core.signal import _SignalAbstractClass, Signals
+from dreye.core.signal import Signals, Signal
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.utilities import (
-    is_callable, has_units, is_integer
+    is_callable, has_units, is_numeric, 
+    is_signallike, is_integer
 )
+from dreye.core.opsin_template import govardovskii2000_template
 
 
-RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-2
+RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-1
+WL_PEAK_SPACE = 150
 
 
 def create_photoreceptor_model(
@@ -75,26 +79,39 @@ def create_photoreceptor_model(
     wavelength of the illuminant (for example, the photoreceptor model
     by Stavenga et al, 2003).
     """
-    if photoreceptor_type not in {'linear', 'log', 'hyperbolic'}:
-        raise DreyeError("Photoreceptor type must be 'linear' or 'log'.")
+    if photoreceptor_type not in {'linear', 'log', 'hyperbolic', 'contrast'}:
+        raise DreyeError("Photoreceptor type must be 'linear', 'log', 'hyperbolixc', or 'contrast'.")
     if photoreceptor_type == 'linear':
         pr_class = LinearPhotoreceptor
     elif photoreceptor_type == 'log':
         pr_class = LogPhotoreceptor
     elif photoreceptor_type == 'hyperbolic':
         pr_class = HyperbolicPhotoreceptor
+    elif photoreceptor_type == 'contrast':
+        pr_class = LinearContrastPhotoreceptor
 
-    if sensitivity is None or is_integer(sensitivity):
+    if is_signallike(sensitivity):
+        pass
+    elif (hasattr(sensitivity, 'ndim') and sensitivity.ndim > 1):
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
-        if sensitivity is None:
-            centers = np.linspace(350, 550, 3)
-        else:
+            wavelengths = np.linspace(300, 700, len(sensitivity))
+    elif is_listlike(sensitivity) or is_numeric(sensitivity):
+        if is_integer(sensitivity) and (sensitivity < 100):  # reasonable threshold for sensitivity vs number of photoreceptors
             centers = np.linspace(350, 550, sensitivity)
-        sensitivity = norm.pdf(wavelengths[:, None], centers[None, :], 40)
-        sensitivity /= np.max(sensitivity, axis=0, keepdims=True)
-    elif wavelengths is None and not isinstance(sensitivity, _SignalAbstractClass):
-        wavelengths = np.linspace(300, 700, len(sensitivity))
+        else:
+            centers = np.atleast_1d(sensitivity)
+        if wavelengths is None:
+            wavelengths = np.arange(
+                np.min(centers)-WL_PEAK_SPACE, 
+                np.max(centers)+WL_PEAK_SPACE, 
+                1
+            )
+        sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
+    elif sensitivity is None:
+        if wavelengths is None:
+            wavelengths = np.arange(300, 701, 1)
+        centers = np.linspace(350, 550, 3)
+        sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
 
     return pr_class(
         sensitivity,
@@ -103,10 +120,6 @@ def create_photoreceptor_model(
         labels=labels,
         **kwargs
     )
-
-
-# deprecated!
-get_photoreceptor_model = create_photoreceptor_model
 
 
 # TODO convenience capture function
@@ -143,7 +156,7 @@ class Photoreceptor(ABC):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LinearPhotoreceptor
     dreye.LogPhotoreceptor
     dreye.HyperbolicPhotoreceptor
@@ -211,31 +224,17 @@ class Photoreceptor(ABC):
         """
         return self.sensitivity.domain.magnitude
 
-    def get_relevant(
-        self, rtol=None, peak2peak=False, return_wls=False, ratio=False
-    ):
+    def sensitivity_ratios(self, eps=0.01):
         """
-        Compute ratios of the sensitivities for all significant wavelengths.
+        Compute ratios of the sensitivities
         """
-        wl_range = self.wavelength_range(rtol, peak2peak=peak2peak)
-        wls = np.arange(*wl_range)
-        # NB: sensitivity in pr_model always has domain on zeroth axis
-        s = self.sensitivity(
-            wls, check_bounds=False, asarr=True
-        )
+        s = self.data + eps
         if np.any(s < 0):
             warnings.warn(
                 "Zeros or smaller in sensitivities array!", RuntimeWarning
             )
             s[s < 0] = 0
-        if ratio:
-            ratios = s / np.sum(np.abs(s), axis=1, keepdims=True)
-        else:
-            ratios = s
-        if return_wls:
-            return wl_range, ratios
-        else:
-            return ratios
+        return s / np.sum(np.abs(s), axis=1, keepdims=True)
 
     def wavelength_range(self, rtol=None, peak2peak=False):
         """
@@ -473,6 +472,7 @@ class Photoreceptor(ABC):
             and hasattr(illuminant, 'domain_axis')
         ):
             if illuminant.ndim == 1:
+                # creates a copy
                 illuminant = Signals(illuminant)
                 # set domain axis
                 illuminant.domain_axis = 0
@@ -515,8 +515,7 @@ class Photoreceptor(ABC):
 
         new_units = illuminant.units * sensitivity.units * wls.units
 
-        # TODO dealing with higher dimensional illuminant and 1-dimensional
-        # TODO efficiency
+        # TODO dealing with 1-dimensional properly
         # added_dim = illuminant.ndim - 1
         # (slice(None, None, None), ) * 2 + (None, ) * added_dim
         sensitivity = sensitivity.magnitude[:, None, :]
@@ -554,9 +553,6 @@ class Photoreceptor(ABC):
         q = q / q_bg
         return q
 
-    # TODO def decomp_sensitivity(self):
-    #     self.sensitivity.magnitude
-
 
 @inherit_docstrings
 class LinearPhotoreceptor(Photoreceptor):
@@ -589,7 +585,7 @@ class LinearPhotoreceptor(Photoreceptor):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LogPhotoreceptor
     dreye.HyperbolicPhotoreceptor
 
@@ -650,7 +646,7 @@ class LogPhotoreceptor(Photoreceptor):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LinearPhotoreceptor
     dreye.HyperbolicPhotoreceptor
 
@@ -711,7 +707,7 @@ class HyperbolicPhotoreceptor(Photoreceptor):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LinearPhotoreceptor
     dreye.LogPhotoreceptor
 
@@ -773,7 +769,7 @@ class LinearContrastPhotoreceptor(Photoreceptor):
 
     See Also
     --------
-    dreye.get_photoreceptor_model
+    dreye.create_photoreceptor_model
     dreye.LinearPhotoreceptor
     dreye.LogPhotoreceptor
     dreye.HyperbolicPhotoreceptor

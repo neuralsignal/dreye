@@ -26,7 +26,6 @@ from pandas.compat.pickle_compat import loads as pandasloads
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.io import ignore
-from dreye.io.deprecated_class_conversions import _deprecated_classes
 
 
 ARRAY_PREFIX = "__ARRAY__"
@@ -249,6 +248,7 @@ def _class_deserializer(ele):
             ele[CLASS_PREFIX]
         )
     except Exception as e:
+        from dreye.io.deprecated_class_conversions import _deprecated_classes
         if ele[CLASS_PREFIX] in _deprecated_classes:
             return _deprecated_classes[ele[CLASS_PREFIX]]
         else:

@@ -132,6 +132,22 @@ def is_dictlike(obj):
     return isinstance(obj, Mapping)
 
 
+def is_signallike(obj):
+    """
+    Return True if object is dreye.Signal, dreye.Signals, or dreye.DomainSignal.
+    """
+    from dreye import Signal, Signals, DomainSignal
+    return isinstance(obj, (Signal, Signals, DomainSignal))
+
+
+def is_signalslike(obj):
+    """
+    Return True if object is dreye.Signals or dreye.DomainSignal.
+    """
+    from dreye import Signals, DomainSignal
+    return isinstance(obj, (Signals, DomainSignal))
+
+
 def is_callable(obj):
     """
     Check if object if callable

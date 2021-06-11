@@ -29,12 +29,12 @@ from dreye.core.spectral_measurement import (
 )
 from dreye.core.measurement_utils import (
     convert_measurement, create_measured_spectrum,
-    create_led_spectra_container, create_led_spectra_container
+    create_measured_spectra_container, create_measured_spectra_container
 )
 from dreye.core.spectrum_utils import create_gaussian_spectrum
 from dreye.core.photoreceptor import (
     LinearPhotoreceptor, LogPhotoreceptor,
-    get_photoreceptor_model, HyperbolicPhotoreceptor,
+    create_photoreceptor_model, HyperbolicPhotoreceptor,
     Photoreceptor, LinearContrastPhotoreceptor,
     create_photoreceptor_model
 )
@@ -107,9 +107,9 @@ __all__ = [
     'LogPhotoreceptor',
     'HyperbolicPhotoreceptor',
     'create_gaussian_spectrum',
-    'create_led_spectra_container',
-    'create_led_spectra_container',
-    'get_photoreceptor_model',
+    'create_measured_spectra_container',
+    'create_measured_spectra_container',
+    'create_photoreceptor_model',
     'create_photoreceptor_model',
     # estimators
     'IndependentExcitationFit',

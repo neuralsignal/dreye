@@ -151,8 +151,6 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
 
     inverse_map_method = 'isotonic'
 
-    # always in uE?
-
     def __init__(
         self, values, domain=None, labels=None, *,
         zero_intensity_bound=None,

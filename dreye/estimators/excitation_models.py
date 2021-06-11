@@ -189,14 +189,7 @@ class IndependentExcitationFit(_SpectraModel):
             rtype=getattr(self, 'rtype', None)
         )
 
-        # ignore bounds depending on logic
-        if self.ignore_bounds is None:
-            ignore_bounds = (
-                not isinstance(self.measured_spectra, MeasuredSpectraContainer) 
-                and self.intensity_bounds is None
-            )
-        else:
-            ignore_bounds = self.ignore_bounds
+        ignore_bounds = self._get_ignore_bounds()
 
         # measured_spectra attributes
         # intensity bounds as two-tuple
@@ -892,7 +885,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
 
     def inverse_transform(self, X):
         excite_X = super().inverse_transform(X)
-        return excite_X @ self.Winv_
+        return self.inv_func_(excite_X)
 
     @property
     def fitted_X_(self):
