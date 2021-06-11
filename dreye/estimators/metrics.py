@@ -31,6 +31,7 @@ from dreye.utilities.metrics import (
 # from dreye.estimators.excitation_models import IndependentExcitationFit
 # from dreye.estimators.silent_substitution import BestSubstitutionFit
 # from dreye.estimators.led_substitution import LedSubstitutionFit
+# TODO simplify
 
 
 @inherit_docstrings
