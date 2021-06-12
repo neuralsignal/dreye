@@ -517,7 +517,7 @@ class Photoreceptor(ABC):
             illuminant = illuminant(
                 self.wavelengths, 
                 check_bounds=False, 
-                bound_error=False, fill_value=0
+                bounds_error=False, fill_value=0
             )
 
         elif wavelengths is None:
@@ -540,7 +540,7 @@ class Photoreceptor(ABC):
             illuminant = illuminant(
                 self.wavelengths, 
                 check_bounds=False, 
-                bound_error=False, fill_value=0
+                bounds_error=False, fill_value=0
             )
 
         return illuminant
