@@ -520,21 +520,6 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
             raise TypeError('interpolator_kwargs must be dict.')
 
     @property
-    def _interp_function(self):
-        """
-        interpolate callable.
-        """
-        if self._interpolate is None:
-
-            self._interpolate = self.interpolator(
-                self.domain.magnitude,
-                self.magnitude,
-                **self.interpolator_kwargs,
-            )
-
-        return self._interpolate
-
-    @property
     def domain_axis(self):
         """
         The axis that corresponds to the domain.
@@ -585,11 +570,12 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
         )
 
     def _abstract_call(
-        self, interp_function, self_domain, domain,
+        self, self_domain, domain,
         domain_min, domain_max,
         domain_class, assign_to_name,
         check_bounds=True,
-        asarr=False
+        asarr=False, 
+        kwargs={}
     ):
         """
         Method used for `domain_interp`.
@@ -615,7 +601,11 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
                 domain_max=domain_max.magnitude
             )
 
-        values = interp_function(domain_values)
+        values = self.interpolator(
+            self_domain.magnitude,  # x
+            self.magnitude,  # y
+            **kwargs,
+        )(domain_values)
 
         if asarr:
             return values
@@ -636,7 +626,7 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
             )
             return new
 
-    def __call__(self, domain, check_bounds=True, asarr=False):
+    def __call__(self, domain, check_bounds=True, asarr=False, **kwargs):
         """
         Interpolate to signal to new domain values.
 
@@ -654,9 +644,9 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
         domain_interp
         """
 
-        return self.domain_interp(domain, check_bounds=check_bounds, asarr=asarr)
+        return self.domain_interp(domain, check_bounds=check_bounds, asarr=asarr, **kwargs)
 
-    def domain_interp(self, domain, check_bounds=True, asarr=False):
+    def domain_interp(self, domain, check_bounds=True, asarr=False, **kwargs):
         """
         Interpolate to signal to new domain values.
 
@@ -673,10 +663,11 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
 
         return self._abstract_call(
-            self._interp_function, self.domain, domain,
+            self.domain, domain,
             self.domain_min, self.domain_max,
             self._domain_class, '_domain',
-            check_bounds=check_bounds, asarr=asarr
+            check_bounds=check_bounds, asarr=asarr, 
+            kwargs={**self.interpolator_kwargs, **kwargs}
         )
 
     @staticmethod
@@ -1746,11 +1737,7 @@ class Signals(_SignalsAbstractClass):
 
         # docstring is copied over
         # domain_axis must be aligned
-        if (
-            is_signallike(other)
-            and not isinstance(other, Signals)
-            and other.ndim <= 2
-        ):
+        if isinstance(other, Signal):
             other = self._class_new_instance(other)
             other.domain_axis = self.domain_axis
 
@@ -1855,6 +1842,8 @@ class DomainSignal(_SignalsAbstractClass):
     """
     _init_args = _SignalsAbstractClass._init_args + ('labels_min', 'labels_max')
     _domain_labels_class = Domain
+
+    # TODO proper concatenation with interpolation of other axis
 
     def __init__(
         self,
@@ -1971,21 +1960,6 @@ class DomainSignal(_SignalsAbstractClass):
         )
 
     @property
-    def _labels_interp_function(self):
-        """
-        interpolate callable
-        """
-        if self._labels_interpolate is None:
-
-            self._labels_interpolate = self.interpolator(
-                self.labels.magnitude,
-                self.magnitude,
-                **self.labels_interpolator_kwargs,
-            )
-
-        return self._labels_interpolate
-
-    @property
     def labels_interpolator_kwargs(self):
         """
         Interpolator arguments for labels axis. Same as `interpolator_kwargs`
@@ -1995,7 +1969,7 @@ class DomainSignal(_SignalsAbstractClass):
         interpolator_kwargs['axis'] = self.labels_axis
         return interpolator_kwargs
 
-    def labels_interp(self, domain, check_bounds=True, asarr=False):
+    def labels_interp(self, domain, check_bounds=True, asarr=False, **kwargs):
         """
         Interpolate to new labels.
 
@@ -2013,12 +1987,13 @@ class DomainSignal(_SignalsAbstractClass):
         """
 
         values = self._abstract_call(
-            self._labels_interp_function, self.labels, domain,
+            self.labels, domain,
             self.labels_min, self.labels_max,
             self._domain_labels_class, '_labels',
-            check_bounds=check_bounds, asarr=False
+            check_bounds=check_bounds, asarr=asarr, 
+            kwargs={**self.labels_interpolator_kwargs, **kwargs}
         )
-        if values.ndim == 1:
+        if (values.ndim == 1) and not asarr:
             values = self._1d_signal_class(
                 values,
                 domain=self.domain,

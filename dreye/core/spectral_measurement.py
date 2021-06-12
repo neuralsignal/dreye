@@ -96,7 +96,6 @@ class CalibrationSpectrum(_SpectrumMixin, Signal):
         return self.attrs['area_']
 
 
-# TODO allow curve fit instead of isotonic regression? - SKlearn type class
 @inherit_docstrings
 class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
     """
@@ -407,6 +406,13 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
         """
         labels = values
         values = optional_to(values, self.intensity.units)
+        # TODO decide
+        # DomainSignal(
+        #     self.magnitude, 
+        #     domain=self.domain, 
+        #     labels=self.intensity.values,
+        #     units=self.units, 
+        # ).labels_interp(values, **kwargs)
         values = self.interpolator(
             self.intensity.magnitude,  # x
             self.magnitude,  # y

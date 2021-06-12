@@ -6,7 +6,8 @@ import numpy as np
 from scipy.stats import norm
 
 from dreye.utilities import optional_to, is_integer, asarray
-from dreye.core.signal import _SignalAbstractClass, Signal, Signals
+from dreye.utilities.common import is_signallike
+from dreye.core.signal import Signal, Signals
 from dreye.constants import ureg
 
 
@@ -124,7 +125,7 @@ def create_gaussian_spectrum(
     kwargs : dict, optional
         Keyword arguments passed to the `Spectra` class.
     """
-    if isinstance(background, _SignalAbstractClass):
+    if is_signallike(background):
         background = background(wavelengths).to(units)
 
     if isinstance(units, str) or units is None:
