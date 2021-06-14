@@ -639,7 +639,7 @@ class _UnitArray(_AbstractArray):
                     elif isinstance(ikey, slice):
                         continue
                     else:
-                        continue  # TODO test
+                        continue
                 _reduced_dims = []
                 for idx, ikey in enumerate(key):
                     if is_numeric(ikey) or is_string(ikey):

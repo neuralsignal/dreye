@@ -81,9 +81,11 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
     """
 
     # other attributes that are the length of X but not X
-    _X_length = [
-        'fitted_intensities_'
-    ]
+    @property
+    def _X_length(self):
+        if self.rtype == 'absolute':
+            return []
+        return ['fitted_intensities_']
 
     def __init__(
         self,

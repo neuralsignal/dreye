@@ -5,6 +5,7 @@ Various sensitivity template functions
 import numpy as np
 
 from dreye.utilities import optional_to
+from dreye.utilities.common import is_listlike
 
 # TODO docstring
 
@@ -98,7 +99,6 @@ def govardovskii2000_template(
     """
     Calculate Opsin template according to Govardovskii et al (2000).
     """
-    # TODO handling alpha_max as array
     wavelengths = optional_to(wavelengths, units='nm')
     alpha_max = optional_to(alpha_max, units='nm')
 

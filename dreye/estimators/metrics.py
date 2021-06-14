@@ -31,6 +31,7 @@ from dreye.utilities.metrics import (
 # from dreye.estimators.excitation_models import IndependentExcitationFit
 # from dreye.estimators.silent_substitution import BestSubstitutionFit
 # from dreye.estimators.led_substitution import LedSubstitutionFit
+# TODO simplify
 
 
 @inherit_docstrings
@@ -90,7 +91,7 @@ class MeasuredSpectraMetrics(_InitDict):
         if self.background is not None:
             self.q_bg = self.photoreceptor_model.capture(
                 self.background, return_units=False
-            )[0]
+            )
         self.bounds = self.measured_spectra.intensity_bounds
         self.normalized_spectra = self.measured_spectra.normalized_spectra
         self.n_sources = len(self.measured_spectra)

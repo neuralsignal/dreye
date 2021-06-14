@@ -143,7 +143,7 @@ class Photoreceptor(ABC):
         wavelengths, illuminant, and sensitivity. All three arguments are
         `numpy.ndarray` objects that are broadcastable to each other.
         The function should return the illuminant after the wavelength-specific
-        filter has been applied.
+        filter has been applied. The shape is `samples x opsins x wls`.
     labels : array-like, optional
         The labels for each photoreceptor. The length of labels must
         correspond to the length of the columns in `sensitivity`.
@@ -337,7 +337,7 @@ class Photoreceptor(ABC):
         """
         A `dreye.Domain` instance of the wavelength values.
         """
-        return self.sensitivity.wavelengths
+        return self.sensitivity.domain
 
     @property
     def labels(self):
@@ -374,7 +374,6 @@ class Photoreceptor(ABC):
     def excitation(
         self,
         illuminant,
-        reflectance=None,
         background=None,
         return_units=None,
         wavelengths=None,
@@ -390,8 +389,6 @@ class Photoreceptor(ABC):
             Illuminant spectrum. If array-like, the zeroth axis must have
             the same length as `Photoreceptor.sensitivity` (i.e. wavelength
             domain match) or `wavelengths` must be given.
-        reflectance : `Signals` or array-like, optional
-            If given, illuminant is multiplied by the reflectance.
         background : `Signal` or array-like, optional
             If given, the relative photon capture is calculated. By
             calculating the capture for the background.
@@ -415,7 +412,6 @@ class Photoreceptor(ABC):
         """
         return self.excitefunc(
             self.capture(illuminant=illuminant,
-                         reflectance=reflectance,
                          background=background,
                          return_units=return_units,
                          wavelengths=wavelengths,
@@ -426,7 +422,6 @@ class Photoreceptor(ABC):
     def capture(
         self,
         illuminant,
-        reflectance=None,
         background=None,
         return_units=None,
         wavelengths=None,
@@ -441,8 +436,6 @@ class Photoreceptor(ABC):
             Illuminant spectrum. If array-like, the zeroth axis must have
             the same length as `Photoreceptor.sensitivity` (i.e. wavelength
             domain match) or `wavelengths` must be given.
-        reflectance : `Signals` or array-like, optional
-            If given, illuminant is multiplied by the reflectance.
         background : `Signal` or array-like, optional
             If given, the relative photon capture is calculated. By
             calculating the capture for the background.
@@ -464,78 +457,30 @@ class Photoreceptor(ABC):
         if return_units is None:
             return_units = has_units(illuminant)
 
-        if illuminant.ndim > 2:
-            raise ValueError("Illuminant must be 1- or 2-dimensional.")
+        illuminant = self._process_spectra(illuminant, wavelengths)
 
-        if (
-            hasattr(illuminant, 'equalize_domains')
-            and hasattr(illuminant, 'domain_axis')
-        ):
-            if illuminant.ndim == 1:
-                # creates a copy
-                illuminant = Signals(illuminant)
-                # set domain axis
-                illuminant.domain_axis = 0
-
-            if illuminant.domain_axis != 0:
-                illuminant = illuminant.copy()
-                illuminant.domain_axis = 0
-
-            if reflectance is not None:
-                illuminant = illuminant * reflectance
-
-            sensitivity, illuminant = self.sensitivity.equalize_domains(
-                illuminant
-            )
-        else:
-            if not has_units(illuminant):
-                illuminant = illuminant * ureg(None)
-
-            if illuminant.ndim == 1:
-                illuminant = illuminant[:, None]
-
-            if wavelengths is not None:
-                illuminant = Signals(
-                    illuminant, domain=wavelengths, domain_units='nm'
-                )
-
-                if reflectance is not None:
-                    illuminant = illuminant * reflectance
-
-                sensitivity, illuminant = self.sensitivity.equalize_domains(
-                    illuminant
-                )
-
-            else:
-                if reflectance is not None:
-                    illuminant = illuminant * reflectance
-                sensitivity = self.sensitivity
-
-        wls = sensitivity.domain
-
-        new_units = illuminant.units * sensitivity.units * wls.units
+        # units of calculated absolute capture
+        new_units = illuminant.units * self.sensitivity.units * self.wavelengths.units
 
         # TODO dealing with 1-dimensional properly
-        # added_dim = illuminant.ndim - 1
-        # (slice(None, None, None), ) * 2 + (None, ) * added_dim
-        sensitivity = sensitivity.magnitude[:, None, :]
-        illuminant = illuminant.magnitude[:, :, None]
-        wls = wls.magnitude[:, None, None]
+        # Ensure proper broadcasting (samples x opsins x wavelengths)
+        wls = self.wls
+        illuminant = illuminant.magnitude.T[..., None, :]  # wavelengths at the end
+        sensitivity = self.data.T
 
         # illuminant can be filtered after equalizing domains
-        # TODO how to handle background (also filter?)
         if self.filterfunc is not None:
             illuminant = self.filterfunc(wls, illuminant, sensitivity)
 
         # calculate capture
         # illuminant x opsin via integral
-        q = np.trapz(sensitivity * illuminant, wls, axis=0)
+        q = np.trapz(sensitivity * illuminant, wls, axis=-1)
         if add_noise:
             q += self.capture_noise_level
 
         if np.any(q < 0):
             raise ValueError("Capture values calculated are below 0; "
-                             "Make sure illuminant, reflectance, background "
+                             "Make sure illuminant and background "
                              "and sensitivities do not contain negative "
                              "values.")
 
@@ -552,6 +497,53 @@ class Photoreceptor(ABC):
         # q_bg may have different units to q
         q = q / q_bg
         return q
+
+    def _process_spectra(self, illuminant, wavelengths):
+        """
+        Processing spectra. Used in `capture` method.
+        """
+        if not hasattr(illuminant, 'ndim'):
+            illuminant = np.asarray(illuminant)
+
+        if illuminant.ndim > 2:
+            raise ValueError("Illuminant must be 1- or 2-dimensional.")
+
+        if is_signallike(illuminant):  # always one or two dimensional
+            # ensure domain axis is first axis
+            if illuminant.domain_axis != 0:
+                illuminant = illuminant.copy()
+                illuminant.domain_axis = 0
+
+            illuminant = illuminant(
+                self.wavelengths, 
+                check_bounds=False, 
+                bounds_error=False, fill_value=0
+            )
+
+        elif wavelengths is None:
+            if illuminant.ndim == 1:
+                illuminant = Signal(illuminant, domain=self.wavelengths)
+            else:
+                illuminant = Signals(illuminant, domain=self.wavelengths)
+        
+        else:
+            # equalize domains if wavelengths is not None
+            if illuminant.ndim == 1:
+                illuminant = Signal(
+                    illuminant, domain=wavelengths, domain_units='nm'
+                )
+            else:
+                illuminant = Signals(
+                    illuminant, domain=wavelengths, domain_units='nm'
+                )
+
+            illuminant = illuminant(
+                self.wavelengths, 
+                check_bounds=False, 
+                bounds_error=False, fill_value=0
+            )
+
+        return illuminant
 
 
 @inherit_docstrings

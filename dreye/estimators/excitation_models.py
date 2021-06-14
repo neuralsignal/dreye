@@ -14,7 +14,6 @@ from dreye.utilities import (
     optional_to, asarray, is_listlike, is_callable
 )
 from dreye.constants import ureg
-from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.estimators.base import _SpectraModel, OptimizeResultContainer
 from dreye.err import DreyeError
 from dreye.utilities.abstract import inherit_docstrings
@@ -333,24 +332,25 @@ class IndependentExcitationFit(_SpectraModel):
                 wavelengths=self.normalized_spectra_.domain,
                 background=self.background_, 
                 return_units=False
-            )[0]
-            # eps / (qb+eps)
+            )
         else:
-            self.noise_term_ = np.zeros(self.n_features_)
+            self.noise_term_ = 0
 
         # opsin x LED (taking transpose)
-        self.A_ = self.photoreceptor_model_.capture(
-            self.normalized_spectra_,
-            background=self.background_,
-            return_units=False
-        ).T - self.noise_term_[:, None]
+        self.A_ = (
+            self.photoreceptor_model_.capture(
+                self.normalized_spectra_,
+                background=self.background_,
+                return_units=False
+            ) - self.noise_term_
+        ).T
 
         if not self.is_measurement_background_:
             self.q_bg_ = self.photoreceptor_model_.capture(
                 self.background_ - self.bg_ints_background_,
                 background=self.background_,
                 return_units=False
-            )[0] - self.noise_term_ # length of opsin
+            ) - self.noise_term_ # length of opsin
         else:
             self.q_bg_ = 0
 
