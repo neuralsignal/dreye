@@ -15,6 +15,8 @@ class ReflectanceExcitationFit:
         'filter_background',
     ]
 
+    _deprecated_kws = IndependentExcitationFit._deprecated_kws
+
     @classmethod
     def from_dict(cls, data):
         for k in cls._rm_kwargs:
@@ -23,6 +25,8 @@ class ReflectanceExcitationFit:
 
 
 class IntensityFit:
+
+    _deprecated_kws = RelativeIntensityFit._deprecated_kws
 
     @classmethod
     def from_dict(cls, data):

@@ -10,7 +10,7 @@ with open(os.path.join(path, 'requirements.txt')) as f:
 
 setuptools.setup(
     name='dreye',
-    version='0.2.0dev1',
+    version='0.2.0dev2',
     description='Dreye: Color models and stimuli for all model organisms',
     author='Matthias Christenson',
     author_email='gucky@gucky.eu',
