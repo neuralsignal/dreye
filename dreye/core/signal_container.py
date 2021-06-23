@@ -373,5 +373,5 @@ class DomainSignalContainer(_SignalContainer):
                     self.equalized_labels
                 ).magnitude
 
-            self._stack_values = values * self.units
+            self._stacked_values = values * self.units
         return self._stacked_values

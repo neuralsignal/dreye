@@ -12,7 +12,7 @@ from dreye.err import DreyeError
 from dreye.utilities import (
     has_units, is_listlike, is_string,
     is_dictlike, is_hashable, array_equal,
-    is_numeric, get_units, get_value
+    is_numeric, get_units, get_value, optional_to
 )
 from dreye.utilities.abstract import _AbstractArray
 from dreye.constants import ureg, CONTEXTS
@@ -691,6 +691,10 @@ class _UnitArray(_AbstractArray):
                     return _reduced_dims_handler(values, **_init_kwargs)
                     
         return values
+
+    def __setitem__(self, key, value):
+        value = optional_to(value, self.units)
+        return self._values.__setitem__(key, value)
 
     def __eq__(self, other):
         """
