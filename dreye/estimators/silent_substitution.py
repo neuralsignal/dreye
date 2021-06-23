@@ -2,16 +2,9 @@
 Model for silent substitution
 """
 
-import warnings
-
 import numpy as np
 import cvxpy as cp
 import pandas as pd
-try:
-    import dccp
-    DCCP = True
-except ImportError:
-    DCCP = False
 
 from dreye.estimators.base import _RelativeMixin
 from dreye.estimators.excitation_models import IndependentExcitationFit

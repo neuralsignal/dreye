@@ -10,4 +10,3 @@ pytest>=6.1.0
 cvxpy>=1.1.10
 pyarrow>=3.0.0
 pygam>=0.8.0
-dccp

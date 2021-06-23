@@ -18,6 +18,7 @@ from dreye.core.spectral_measurement import (
     CalibrationSpectrum, MeasuredSpectrum,
     MeasuredSpectraContainer
 )
+from dreye.constants.common import DEFAULT_WL_RANGE
 
 
 def convert_measurement(
@@ -288,7 +289,7 @@ def create_measured_spectra_container(
     # create fake LEDs
     if led_spectra is None or is_numeric(led_spectra):
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         if led_spectra is None:
             centers = np.arange(350, 700, 50)[None, :]  # 7 LEDs
         else:
@@ -297,7 +298,7 @@ def create_measured_spectra_container(
     elif asarray(led_spectra).ndim == 1:
         centers = optional_to(led_spectra, 'nm')
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         led_spectra = norm.pdf(wavelengths[:, None], centers, hard_std)
     # wavelengths
     if is_signallike(led_spectra) and (wavelengths is not None):

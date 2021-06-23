@@ -45,7 +45,6 @@ def load_dataset(as_spectra=False):
         Color and spectral analysis of daylight in southern Europe.
         J. Opt. Soc. Am. A 18, 1325-1335.
     """
-    # TODO docstring
     irr = loadmat(GRANADA_DATAFILE)['final'].T
     wls = np.linspace(300, 1100, 161)
 

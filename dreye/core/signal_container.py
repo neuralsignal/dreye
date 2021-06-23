@@ -350,7 +350,7 @@ class DomainSignalContainer(_SignalContainer):
         if self._equalized_labels is None:
             labels = self[0].labels
             for signal in self[1:]:
-                labels = labels.equalize_labels(signal.labels)
+                labels = labels.equalize_domains(signal.labels)
             self._equalized_labels = labels.copy()
         return self._equalized_labels
 

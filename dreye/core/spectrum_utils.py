@@ -9,6 +9,7 @@ from dreye.utilities import optional_to, is_integer, asarray
 from dreye.utilities.common import is_signallike
 from dreye.core.signal import Signal, Signals
 from dreye.constants import ureg
+from dreye.constants.common import DEFAULT_WL_RANGE
 
 
 def create_spectrum(
@@ -22,7 +23,7 @@ def create_spectrum(
 
     if intensities is None:
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         intensities = np.ones(len(wavelengths))
         intensities /= np.trapz(intensities, wavelengths)
     elif wavelengths is None:
@@ -50,7 +51,7 @@ def create_max_normalized_gaussian_spectra(
     kwargs['units'] = kwargs.get('units', None)
     if intensities is None or is_integer(intensities):
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         if intensities is None:
             intensities = 10
         spectra = create_gaussian_spectrum(
@@ -60,7 +61,7 @@ def create_max_normalized_gaussian_spectra(
         return spectra.max_normalized
     elif asarray(intensities).ndim == 1:
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         spectra = create_gaussian_spectrum(
             wavelengths, intensities,
             **kwargs

@@ -1,7 +1,7 @@
 """Class to define photoreceptor/capture model
 """
 
-from dreye.utilities.common import is_listlike
+
 import warnings
 import copy
 from abc import ABC
@@ -13,10 +13,12 @@ from dreye.core.signal import Signals, Signal
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.constants import ureg
 from dreye.err import DreyeError
+from dreye.utilities.common import is_listlike, is_string
 from dreye.utilities import (
     is_callable, has_units, is_numeric, 
     is_signallike, is_integer
 )
+from dreye.constants.common import DEFAULT_WL_RANGE
 from dreye.core.opsin_template import govardovskii2000_template
 
 
@@ -109,7 +111,7 @@ def create_photoreceptor_model(
         sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
     elif sensitivity is None:
         if wavelengths is None:
-            wavelengths = np.arange(300, 701, 1)
+            wavelengths = DEFAULT_WL_RANGE
         centers = np.linspace(350, 550, 3)
         sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
 
@@ -235,6 +237,13 @@ class Photoreceptor(ABC):
             )
             s[s < 0] = 0
         return s / np.sum(np.abs(s), axis=1, keepdims=True)
+
+    def best_isolation(self, eps=0.01):
+        """
+        Find wavelength that best isolates each opsin.
+        """
+        ratios = self.sensitivity_ratios(eps)
+        return self.wls[np.argmax(ratios, axis=0)]
 
     def wavelength_range(self, rtol=None, peak2peak=False):
         """
@@ -462,11 +471,11 @@ class Photoreceptor(ABC):
         # units of calculated absolute capture
         new_units = illuminant.units * self.sensitivity.units * self.wavelengths.units
 
-        # TODO dealing with 1-dimensional properly
         # Ensure proper broadcasting (samples x opsins x wavelengths)
         wls = self.wls
-        illuminant = illuminant.magnitude.T[..., None, :]  # wavelengths at the end
-        sensitivity = self.data.T
+        # move wavelengths axis back
+        illuminant = np.moveaxis(illuminant.magnitude, 0, -1)[..., None, :]
+        sensitivity = np.moveaxis(self.data, 0, -1)
 
         # illuminant can be filtered after equalizing domains
         if self.filterfunc is not None:
@@ -489,6 +498,12 @@ class Photoreceptor(ABC):
 
         if background is None:
             return q
+
+        if is_string(background):
+            if background == 'mean':
+                return q / np.mean(q, axis=0)
+            else:
+                raise TypeError("`background` must be array-like or string 'mean'.")
 
         # calculate relative capture
         q_bg = self.capture(
@@ -514,12 +529,6 @@ class Photoreceptor(ABC):
                 illuminant = illuminant.copy()
                 illuminant.domain_axis = 0
 
-            illuminant = illuminant(
-                self.wavelengths, 
-                check_bounds=False, 
-                bounds_error=False, fill_value=0
-            )
-
         elif wavelengths is None:
             if illuminant.ndim == 1:
                 illuminant = Signal(illuminant, domain=self.wavelengths)
@@ -537,10 +546,17 @@ class Photoreceptor(ABC):
                     illuminant, domain=wavelengths, domain_units='nm'
                 )
 
+        # try interpolation with fill value (assumes use of scipy.interpolate.interp1d)
+        try:
             illuminant = illuminant(
                 self.wavelengths, 
                 check_bounds=False, 
                 bounds_error=False, fill_value=0
+            )
+        except TypeError:
+            illuminant = illuminant(
+                self.wavelengths, 
+                check_bounds=False, 
             )
 
         return illuminant

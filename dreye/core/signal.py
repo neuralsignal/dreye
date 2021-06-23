@@ -490,6 +490,7 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         if value is None:
             self._interpolator = interp1d
+            self._interpolate = None
         elif is_callable(value):
             self._interpolator = value
             self._interpolate = None
