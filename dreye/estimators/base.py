@@ -639,7 +639,7 @@ class _PrModelMixin:
             if np.any(self.photoreceptor_model_.capture_noise_level):
                 x_pred += self.noise_term_
         else:
-            warnings.warn("Fitting with filterfunc not tested.")
+            warnings.warn("Fitting with filterfunc not tested!", RuntimeWarning)
             illuminant = self.measured_spectra_.ints_to_spectra(w)
             x_pred = self.photoreceptor_model_.capture(
                 illuminant,

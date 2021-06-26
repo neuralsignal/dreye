@@ -18,7 +18,7 @@ from dreye.err import DreyeError
 from dreye.utilities.abstract import inherit_docstrings
 
 
-# TODO what if people want to supply q_bg instead of background
+# TODO what if people want to supply q_bg instead of background - could just scale the sensitivities
 
 
 @inherit_docstrings
@@ -229,10 +229,7 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
 
         self.fitted_intensities_ = np.array(self.container_.x)
         # get fitted X
-        self.fitted_excite_X_ = np.array([
-            self.get_excitation(w)
-            for w in self.fitted_intensities_
-        ])
+        self.fitted_excite_X_ = self.get_excitation(self.fitted_intensities_.T)
         self.fitted_capture_X_ = self.photoreceptor_model_.inv_excitefunc(
             self.fitted_excite_X_
         )
@@ -263,7 +260,8 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         # got from output to intensity
         X = self.measured_spectra_.inverse_map(X, return_units=False)
         # get excitation given intensity
-        X = np.array([self.get_excitation(x) for x in X])
+        # n_sources x samples passed returns samples x n_opsins
+        X = self.get_excitation(X.T)
         return X
 
     def _fit_sample(self, capture_x, excite_x):

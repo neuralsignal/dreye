@@ -49,7 +49,7 @@ def check_measured_spectra(
             wavelengths=(
                 wavelengths
                 if photoreceptor_model is None
-                else photoreceptor_model.domain 
+                else photoreceptor_model.wavelengths 
                 if wavelengths is None else
                 wavelengths
             )
@@ -61,7 +61,7 @@ def check_measured_spectra(
             wavelengths=(
                 wavelengths
                 if photoreceptor_model is None
-                else photoreceptor_model.domain 
+                else photoreceptor_model.wavelengths 
                 if wavelengths is None else
                 wavelengths
             )

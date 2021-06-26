@@ -93,7 +93,7 @@ from dreye.estimators.base import _SpectraStaticMethodsMixin
 #     )
 #     return self.sensitivity.nonzero_range(tol).boundaries
 
-
+# scale sensitivity by l1-norm?
 
 @inherit_docstrings
 class Metrics(_InitDict, _SpectraStaticMethodsMixin):
