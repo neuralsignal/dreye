@@ -3,23 +3,22 @@ LED Estimators for intensities and spectra
 """
 
 from abc import abstractmethod
+import warnings
 
 from scipy.optimize import OptimizeResult
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from dreye.utilities import (
-    is_dictlike, optional_to, is_listlike, is_string,
-    is_numeric
-)
+from dreye.utilities import optional_to
 from dreye.utilities.abstract import _AbstractContainer
-from dreye.constants import ureg
-from dreye.core.spectrum_utils import create_spectrum
-from dreye.core.signal import Signal
-from dreye.core.spectral_measurement import MeasuredSpectraContainer
-from dreye.core.measurement_utils import create_measured_spectra_container
-from dreye.core.photoreceptor import Photoreceptor, create_photoreceptor_model
+from dreye.estimators.utils import (
+    check_background, check_measured_spectra, 
+    check_photoreceptor_model, 
+    estimate_bg_ints_from_background, get_background_from_bg_ints, 
+    get_bg_ints, get_ignore_bounds
+)
+from dreye.utilities.common import is_string
 
 
 class OptimizeResultContainer(_AbstractContainer):
@@ -37,199 +36,6 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
     # other attributes that are the length of X but not X
     # and are not the fitted signal
     _X_length = []
-
-    def _get_ignore_bounds(self):
-        # ignore bounds depending on logic
-        if self.ignore_bounds is None:
-            return (
-                not isinstance(self.measured_spectra, MeasuredSpectraContainer) 
-                and self.intensity_bounds is None
-            )
-        return self.ignore_bounds
-
-    @staticmethod
-    def _check_measured_spectra(
-        measured_spectra,
-        size=None, photoreceptor_model=None,
-        change_dimensionality=True, 
-        wavelengths=None, intensity_bounds=None
-    ):
-        """
-        check and create measured spectra container
-        """
-        if isinstance(measured_spectra, MeasuredSpectraContainer):
-            pass
-        elif is_dictlike(measured_spectra):
-            if photoreceptor_model is not None:
-                # assumes Photoreceptor instance
-                measured_spectra['wavelengths'] = measured_spectra.get(
-                    'wavelengths', photoreceptor_model.wavelengths
-                )
-            measured_spectra['led_spectra'] = measured_spectra.get(
-                'led_spectra', size
-            )
-            measured_spectra = create_measured_spectra_container(
-                **measured_spectra
-            )
-        elif is_listlike(measured_spectra):
-            measured_spectra = create_measured_spectra_container(
-                led_spectra=measured_spectra, 
-                intensity_bounds=intensity_bounds, 
-                wavelengths=(
-                    wavelengths
-                    if photoreceptor_model is None
-                    else photoreceptor_model.domain 
-                    if wavelengths is None else
-                    wavelengths
-                )
-            )
-        elif measured_spectra is None:
-            measured_spectra = create_measured_spectra_container(size)
-        else:
-            raise ValueError("Measured Spectra must be Spectra "
-                             "container or dict, but is type "
-                             f"'{type(measured_spectra)}'.")
-
-        # enforce photon flux for photoreceptor models
-        if (
-            photoreceptor_model is not None
-            and (
-                measured_spectra.units.dimensionality
-                != ureg('uE').units.dimensionality
-            )
-            and change_dimensionality
-        ):
-            return measured_spectra.to('uE')
-
-        return measured_spectra
-
-    @staticmethod
-    def _check_photoreceptor_model(
-        photoreceptor_model, size=None, 
-        wavelengths=None
-    ):
-        """
-        check and create photoreceptor model
-        """
-        if isinstance(photoreceptor_model, Photoreceptor):
-            pass
-        elif is_dictlike(photoreceptor_model):
-            photoreceptor_model['sensitivity'] = photoreceptor_model.get(
-                'sensitivity', size
-            )
-            photoreceptor_model = create_photoreceptor_model(
-                **photoreceptor_model
-            )
-        elif is_listlike(photoreceptor_model):
-            photoreceptor_model = create_photoreceptor_model(
-                sensitivity=photoreceptor_model, 
-                wavelengths=wavelengths
-            )
-        elif photoreceptor_model is None:
-            photoreceptor_model = create_photoreceptor_model(size)
-        else:
-            raise ValueError("Photoreceptor model must be Photoreceptor "
-                             "instance or dict, but is type "
-                             f"'{type(photoreceptor_model)}'.")
-
-        return photoreceptor_model
-
-    @staticmethod
-    def _check_background(
-        background, measured_spectra, photoreceptor_model=None, 
-        wavelengths=None
-    ):
-        """
-        check and create background
-        """
-        # enforce measured_spectra units
-        if is_dictlike(background):
-            background['wavelengths'] = background.get(
-                'wavelengths', measured_spectra.wavelengths
-            )
-            background['units'] = measured_spectra.units
-            background = create_spectrum(**background)
-        elif background is None:
-            return
-        elif is_string(background) and (background == 'null'):
-            return
-        elif isinstance(background, Signal):
-            background = background.to(measured_spectra.units)
-        elif is_listlike(background):
-            background = optional_to(background, measured_spectra.units)
-            # check size requirements
-            if wavelengths is None:
-                assert background.size == measured_spectra.normalized_spectra.shape[
-                    measured_spectra.normalized_spectra.domain_axis
-                ]
-            background = create_spectrum(
-                intensities=background,
-                wavelengths=(measured_spectra.domain if wavelengths is None else wavelengths),
-                units=measured_spectra.units
-            )
-        else:
-            raise ValueError(
-                "Background must be Spectrum instance or dict-like, but"
-                f"is of type {type(background)}."
-            )
-
-        if np.allclose(background.magnitude, 0):
-            # return None if background is just a bunch of zeros
-            return
-
-        return background
-
-    @staticmethod
-    def _get_background_from_bg_ints(
-        bg_ints, measured_spectra, skip_zero=True
-    ):
-        """
-        Get background from `bg_ints` attribute
-        """
-        if np.allclose(bg_ints, 0) and skip_zero:
-            # if background intensities are zero return None
-            return
-        # sanity check
-        assert measured_spectra.normalized_spectra.domain_axis == 0
-        background = (
-            bg_ints
-            * measured_spectra.normalized_spectra.magnitude
-        ).sum(axis=-1)
-        background = create_spectrum(
-            intensities=background,
-            wavelengths=measured_spectra.wavelengths,
-            units=measured_spectra.units
-        )
-        return background
-
-    @staticmethod
-    def _get_bg_ints(bg_ints, measured_spectra, skip=True, rtype=None):
-        """
-        Get background intensity values
-        """
-        if skip and bg_ints is None:
-            return
-        # set background intensities to default
-        if bg_ints is None:
-            if rtype in {'absolute', 'diff'}:
-                bg_ints = np.zeros(len(measured_spectra))
-            else:
-                bg_ints = np.ones(len(measured_spectra))
-        elif is_numeric(bg_ints):
-            bg_ints = np.ones(
-                len(measured_spectra)
-            ) * optional_to(bg_ints, measured_spectra.intensities.units)
-        else:
-            if is_dictlike(bg_ints):
-                names = measured_spectra.names
-                bg_ints = [bg_ints.get(name, 1) for name in names]
-            bg_ints = optional_to(
-                bg_ints,
-                measured_spectra.intensities.units
-            )
-            assert len(bg_ints) == len(measured_spectra)
-            assert np.all(bg_ints >= 0)
-        return bg_ints
 
     def fit_transform(self, X):
         """
@@ -494,7 +300,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         return self.measured_spectra_.map(
             self.fitted_intensities_, 
             return_units=False, 
-            check_bounds=not self._get_ignore_bounds()
+            check_bounds=not get_ignore_bounds(
+                self.ignore_bounds, self.measured_spectra, self.intensity_bounds
+            )
         )
 
     @abstractmethod
@@ -544,8 +352,11 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
 
 
 class _RelativeMixin:
+    # requires setting bg_ints_
+    rtype = None
 
     def _to_absolute_intensity(self, X, bg_ints=None):
+        assert self.rtype is not None, "`rtype` cannot be NoneType."
         if bg_ints is None:
             bg_ints = self.bg_ints_
         if self.rtype == 'absolute':
@@ -567,6 +378,7 @@ class _RelativeMixin:
         return X
 
     def _to_relative_intensity(self, X, bg_ints=None):
+        assert self.rtype is not None, "`rtype` cannot be NoneType."
         if bg_ints is None:
             bg_ints = self.bg_ints_
         if self.rtype == 'absolute':
@@ -589,6 +401,265 @@ class _RelativeMixin:
             assert np.all(X >= 0), 'If not log, X must be positive.'
 
         return X
+
+
+class _PrModelMixin:
+    _lazy_background_estimation = False
+    # required attributes
+    ignore_bounds = None
+    measured_spectra = None
+    photoreceptor_model = None
+    wavelengths = None
+    intensity_bounds = None
+    background = None
+    bg_ints = None
+    background_external = None
+    """
+    The following attributes will be set (using `_set_pr_model_related_objects` method):
+    * photoreceptor_model_
+    * measured_spectra_
+    * noise_term_
+    * A_
+    * q_bg_
+    * intensity_bounds_
+    * background_
+    * bg_ints_
+
+    Adds methods:
+    * get_capture
+    * get_excitation
+    """
+
+    def _set_photoreceptor_model_and_measured_spectra_object(self, size=None):
+        # create photoreceptor model
+        self.photoreceptor_model_ = check_photoreceptor_model(
+            self.photoreceptor_model, size=size, 
+            wavelengths=self.wavelengths
+        )
+
+        # create measured_spectra_
+        self.measured_spectra_ = check_measured_spectra(
+            self.measured_spectra,
+            photoreceptor_model=self.photoreceptor_model_, 
+            wavelengths=self.wavelengths, 
+            intensity_bounds=self.intensity_bounds
+        )
+
+    def _set_A(self):
+        if np.any(self.photoreceptor_model_.capture_noise_level):
+            self.noise_term_ = self.photoreceptor_model_.capture(
+                np.zeros(self.measured_spectra_.normalized_spectra.domain.size),
+                wavelengths=self.measured_spectra_.normalized_spectra.domain,
+                background=self.background_, 
+                return_units=False
+            )
+        else:
+            self.noise_term_ = 0
+
+        # opsin x LED (taking transpose)
+        self.A_ = (
+            self.photoreceptor_model_.capture(
+                self.measured_spectra_.normalized_spectra,
+                background=self.background_,
+                return_units=False
+            ) - self.noise_term_
+        ).T
+
+        # capture from a background light source (not in measured_spectra)
+        if self._background_external_:
+            # q_bg_ has the noise term removed
+            # 1d array
+            self.q_bg_ = self.photoreceptor_model_.capture(
+                self.background_ - self._bg_ints_background_,
+                background=self.background_,
+                return_units=False
+            ) - self.noise_term_ # length of opsin
+        else:
+            # no noise term to remove if all the 
+            # light is coming from the sources
+            self.q_bg_ = 0
+
+        return self
+
+    def _set_intensity_bounds(self):
+        ignore_bounds = get_ignore_bounds(
+            self.ignore_bounds, self.measured_spectra, self.intensity_bounds
+        )
+        # measured_spectra attributes
+        # intensity bounds as two-tuple
+        if ignore_bounds:
+            self.intensity_bounds_ = (
+                np.zeros(len(self.measured_spectra_)),
+                np.inf * np.ones(len(self.measured_spectra_))
+            )
+        elif self.intensity_bounds is not None:
+            self.intensity_bounds_ = self.intensity_bounds
+        else:
+            self.intensity_bounds_ = self.measured_spectra_.intensity_bounds
+
+    def _set_background(self):
+        """
+        set `background_` and `bg_ints_`
+
+        also sets internals _background_external_ and _bg_ints_background_
+        """
+        # create background
+        self.background_ = check_background(
+            self.background, self.measured_spectra_, 
+            wavelengths=self.wavelengths
+        )
+
+        # set background intensities if exist
+        self.bg_ints_ = get_bg_ints(
+            self.bg_ints, self.measured_spectra_,
+            rtype=getattr(self, 'rtype', None)
+        )
+
+        if self.background_ is None:
+            self._background_external_ = False
+            self._bg_ints_background_ = get_background_from_bg_ints(
+                self.bg_ints_, self.measured_spectra_
+            )
+            
+            if self.background_external:
+                warnings.warn(
+                    "Ignoring `background_external` argument, "
+                    "automatically set to False as `background` is None."
+                )
+
+            if (
+                not np.allclose(self.bg_ints_, 0) 
+                or np.all(self.photoreceptor_model_.capture_noise_level)
+            ):
+                # will integrate with normalized spectra
+                # all have noise - then do relative q
+                self.background_ = self._bg_ints_background_
+                # otherwise keep background_ None
+
+        elif is_string(self.background_) and (self.background_ == 'mean'):
+            self._background_external_ = False
+            self._bg_ints_background_ = 0
+            assert not np.any(self.photoreceptor_model_.capture_noise_level), "Capture noise must be zero, if using `mean` for background"
+            assert np.allclose(self.bg_ints_, 0), "If background is `{self.background_}`, bg_ints must be all zeros."
+
+        elif self.background_external or self.background_external is None:
+            # if background is not None assume it is from an external source (default)
+            self._background_external_ = True
+            self._bg_ints_background_ = get_background_from_bg_ints(
+                self.bg_ints_, self.measured_spectra_
+            )
+            self.background_ = self.background_ + self._bg_ints_background_
+
+        # if background and bg_ints were given, and background_external was set to False
+        # check that things match accordingly
+        # NB: have to use bg_ints as bg_ints_ is never None except for lazy_background_estimation
+        elif self.bg_ints is not None:
+            self._background_external_ = False
+            self._bg_ints_background_ = get_background_from_bg_ints(
+                self.bg_ints_, self.measured_spectra_
+            )
+
+            if not np.allclose(
+                self.background_.magnitude, self._bg_ints_background_.magnitude
+            ):
+                raise ValueError(
+                    "The provided `background` and `bg_ints` do not match even though "
+                    "`background_external` was set to False." 
+                )
+
+        elif self._lazy_background_estimation:
+            # set bg_ints_ to None for lazy background estimation
+            self.bg_ints_ = None
+            self._background_external_ = False
+            self._bg_ints_background_ = 0
+
+        # Not having run estimation process of background intensities before
+        # background_external was set to False
+        else:
+            self._background_external_ = False
+            self._bg_ints_background_ = 0
+            Xbg = np.ones(self.photoreceptor_model_.n_opsins)
+            Xbg = self.photoreceptor_model_.excitefunc(Xbg)
+            self.bg_ints_ = estimate_bg_ints_from_background(
+                Xbg,
+                self.photoreceptor_model,
+                self.background, 
+                self.measured_spectra, 
+                fit_weights=getattr(self, 'fit_weights', None),
+                max_iter=getattr(self, 'max_iter', None),
+                ignore_bounds=getattr(self, 'ignore_bounds', None),
+                lsq_kwargs=getattr(self, 'lsq_kwargs', None),
+                intensity_bounds=self.intensity_bounds, 
+                wavelengths=self.wavelengths
+            )
+            warnings.warn(
+                "Assuming the `background` illuminant will be simulated "
+                f"using the LEDs. Fitted background intensities lazily: "
+                f"{self.bg_ints_.tolist()}."
+            )
+
+        # sanity
+        if (
+            not (is_string(self.background_) or self.background_ is None)
+            and np.allclose(self.background_.magnitude, 0)
+            and not np.all(self.photoreceptor_model_.capture_noise_level)  # not all are noisy - then don't keep relative q
+        ):
+            warnings.warn(
+                "background array is all zero and no capture noise, "
+                "setting `background` illuminant to None."
+            )
+            self.background_ = None
+
+    def _set_pr_model_related_objects(self, size=None):
+        # set photoreceptor_model_ and measured_spectra_
+        self._set_photoreceptor_model_and_measured_spectra_object(size)
+
+        # set intensity_bounds_
+        self._set_intensity_bounds()
+
+        # sets background_, bg_ints_, and internals
+        self._set_background()
+
+        # set A_, noise_term_, and q_bg_
+        self._set_A()
+
+    def get_capture(self, w):
+        """
+        Get capture given `w`.
+
+        Parameters
+        ----------
+        w : array-like
+            Array-like object with the zeroth axes equal to the number of light sources. 
+            Can also be multidimensional.
+        """
+        if self.photoreceptor_model_.filterfunc is None:
+            # threshold by noise if necessary and apply nonlinearity
+            x_pred = (self.A_ @ w).T
+            if np.any(self.photoreceptor_model_.capture_noise_level):
+                x_pred += self.noise_term_
+        else:
+            warnings.warn("Fitting with filterfunc not tested.")
+            illuminant = self.measured_spectra_.ints_to_spectra(w)
+            x_pred = self.photoreceptor_model_.capture(
+                illuminant,
+                background=self.background_,
+                return_units=False
+            )
+        x_pred += self.q_bg_
+        return x_pred
+
+    def get_excitation(self, w):
+        """
+        Get excitation given `w`.
+
+        Parameters
+        ----------
+        w : array-like
+            Array-like object with the zeroth axes equal to the number of light sources. 
+            Can also be multidimensional.
+        """
+        return self.photoreceptor_model_.excitefunc(self.get_capture(w))
 
 
 # -- misc helper functions

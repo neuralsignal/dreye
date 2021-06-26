@@ -83,6 +83,11 @@ def load_dataset(as_spectra=False, label_cols='data_id'):
                 df_['data_id'] += (df['data_id'].max() + 1)
             df = df.append(df_, ignore_index=True)
 
+    df.loc[:, 'microspectralphotonflux'] = df['microspectralphotonflux'].fillna(0)
+    df.loc[df['microspectralphotonflux'] < 0, 'microspectralphotonflux'] = 0
+    df.loc[:, 'spectralirradiance'] = df['spectralirradiance'].fillna(0)
+    df.loc[df['spectralirradiance'] < 0, 'spectralirradiance'] = 0
+
     if as_spectra:
         return Signals(
             pd.pivot_table(
@@ -90,7 +95,7 @@ def load_dataset(as_spectra=False, label_cols='data_id'):
                 'microspectralphotonflux',
                 'wavelengths',
                 label_cols
-            ),
+            ).fillna(0),
             units='uE', 
             domain_units='nm'
         )

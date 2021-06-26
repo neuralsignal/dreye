@@ -6,7 +6,6 @@ import warnings
 import copy
 from abc import ABC
 
-from scipy.stats import norm
 import numpy as np
 
 from dreye.core.signal import Signals, Signal
@@ -226,40 +225,6 @@ class Photoreceptor(ABC):
         """
         return self.sensitivity.domain.magnitude
 
-    def sensitivity_ratios(self, eps=0.01):
-        """
-        Compute ratios of the sensitivities
-        """
-        s = self.data + eps
-        if np.any(s < 0):
-            warnings.warn(
-                "Zeros or smaller in sensitivities array!", RuntimeWarning
-            )
-            s[s < 0] = 0
-        return s / np.sum(np.abs(s), axis=1, keepdims=True)
-
-    def best_isolation(self, eps=0.01):
-        """
-        Find wavelength that best isolates each opsin.
-        """
-        ratios = self.sensitivity_ratios(eps)
-        return self.wls[np.argmax(ratios, axis=0)]
-
-    def wavelength_range(self, rtol=None, peak2peak=False):
-        """
-        Range of wavelengths that the photoreceptors are sensitive to.
-        Returns a tuple of the min and max wavelength value.
-        """
-        if peak2peak:
-            dmax = self.sensitivity.dmax
-            return np.min(dmax), np.max(dmax)
-        rtol = (RELATIVE_SENSITIVITY_SIGNIFICANT if rtol is None else rtol)
-        tol = (
-            (self.sensitivity.max() - self.sensitivity.min())
-            * rtol
-        )
-        return self.sensitivity.nonzero_range(tol).boundaries
-
     def __str__(self):
         """
         String representation of photoreceptor model.
@@ -324,7 +289,7 @@ class Photoreceptor(ABC):
         return self._sensitivity
 
     @property
-    def pr_number(self):
+    def n_opsins(self):
         """
         The number of photoreceptor types. This correspond to the number
         of spectral sensitivities of the `sensitivity` attribute.
@@ -332,14 +297,24 @@ class Photoreceptor(ABC):
         return self.sensitivity.shape[1]
 
     @property
+    def pr_number(self):
+        warnings.warn(
+            "`pr_number` is deprecated and will be removed "
+            "in future releases; use `n_opsins` instead", DeprecationWarning
+        )
+        return self.n_opsins
+
+    @property
     def capture_noise_level(self):
         """
         Noise level for capture values
         """
-        return (
-            0 if ((self._capture_noise_level is None) or np.all(np.isnan(self._capture_noise_level)))
-            else self._capture_noise_level
-        )
+        if self._capture_noise_level is None:
+            return 0
+        elif np.any(np.isnan(self._capture_noise_level)):
+            warnings.warn("NaNs in `capture_noise_level`; setting them to zero!", RuntimeWarning)
+            return np.where(np.isnan(self._capture_noise_level), 0, self._capture_noise_level)
+        return self._capture_noise_level
 
     @property
     def wavelengths(self):

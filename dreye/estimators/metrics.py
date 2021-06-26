@@ -3,6 +3,7 @@ Class to calculate various metrics given
 a photoreceptor model and measured spectra
 """
 
+from dreye.estimators.utils import check_background, check_measured_spectra, check_photoreceptor_model
 import warnings
 import numpy as np
 import pandas as pd
@@ -12,6 +13,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn import clone
 from sklearn.feature_selection import mutual_info_regression
+from sklearn.preprocessing import normalize
 
 from dreye.core.signal import Signals
 from dreye.utilities import (
@@ -27,11 +29,159 @@ from dreye.utilities.metrics import (
     compute_jensen_shannon_similarity,
     compute_mean_width
 )
+from dreye.estimators.base import _SpectraStaticMethodsMixin
 # TODO metrics that depend on estimators
 # from dreye.estimators.excitation_models import IndependentExcitationFit
 # from dreye.estimators.silent_substitution import BestSubstitutionFit
 # from dreye.estimators.led_substitution import LedSubstitutionFit
 # TODO simplify
+
+# @property
+# def sensitivity_ratios(self):
+#     """
+#     Compute ratios of the sensitivities
+#     """
+#     s = self.data + self.capture_noise_level
+#     if np.any(s < 0):
+#         warnings.warn(
+#             "Zeros or smaller in sensitivities array!", RuntimeWarning
+#         )
+#         s[s < 0] = 0
+#     return normalize(s, norm='l1')
+
+# def best_isolation(self, method='argmax', background=None):
+#     """
+#     Find wavelength that best isolates each opsin.
+#     """
+#     ratios = self.sensitivity_ratios
+
+#     if method == 'argmax':
+#         return self.wls[np.argmax(ratios, axis=0)]
+#     elif method == 'substitution':
+#         from dreye import create_measured_spectra_container, BestSubstitutionFit
+        
+#         perfect_system = create_measured_spectra_container(
+#             np.eye(self.wls.size)[:, 1:-1], wavelengths=self.wls
+#         )
+#         model = BestSubstitutionFit(
+#             photoreceptor_model=self, 
+#             measured_spectra=perfect_system, 
+#             ignore_bounds=True, 
+#             substitution_type=1, 
+#             background=background
+#         )
+#         model.fit(np.eye(self.n_opsins).astype(bool))
+#         return np.sum(model.fitted_intensities_ * self.wls, axis=1) / np.sum(model.fitted_intensities_, axis=1)
+#     else:
+#         raise NameError(
+#             "Only available methods are `argmax` "
+#             f"and `substitution` and not {method}"
+#         )
+
+# def wavelength_range(self, rtol=None, peak2peak=False):
+#     """
+#     Range of wavelengths that the photoreceptors are sensitive to.
+#     Returns a tuple of the min and max wavelength value.
+#     """
+#     if peak2peak:
+#         dmax = self.sensitivity.dmax
+#         return np.min(dmax), np.max(dmax)
+#     rtol = (RELATIVE_SENSITIVITY_SIGNIFICANT if rtol is None else rtol)
+#     tol = (
+#         (self.sensitivity.max() - self.sensitivity.min())
+#         * rtol
+#     )
+#     return self.sensitivity.nonzero_range(tol).boundaries
+
+
+
+@inherit_docstrings
+class Metrics(_InitDict, _SpectraStaticMethodsMixin):
+    """
+    Metrics to compute the "goodness-of-fit" for various light source
+    combinations.
+    """
+
+    def __init__(
+        self, 
+        combos,
+        photoreceptor_model,
+        measured_spectra,
+        *,
+        intensity_bounds=None,
+        wavelengths=None, 
+        capture_noise_level=1e-4
+    ):
+        # set init
+        self.combos = combos
+        self.photoreceptor_model = photoreceptor_model
+        self.measured_spectra = measured_spectra
+        self.intensity_bound = intensity_bounds
+        self.wavelengths = wavelengths
+
+        # compute rest
+        self.photoreceptor_model_ = check_photoreceptor_model(
+            photoreceptor_model, wavelengths=wavelengths, 
+            capture_noise_level=capture_noise_level
+        )
+        self.measured_spectra_ = check_measured_spectra(
+            measured_spectra, photoreceptor_model=self.photoreceptor_model_, 
+            wavelengths=wavelengths, intensity_bounds=intensity_bounds
+        )
+        self.source_idcs_ = self._get_source_idcs()
+
+    def _get_source_idcs(self):
+        n = len(self.measured_spectra_)
+        if is_numeric(self.combos):
+            combos = int(self.combos)
+            source_idcs = self._get_source_idcs_from_k(
+                n, combos
+            )
+        elif is_listlike(self.combos):
+            combos = asarray(self.combos).astype(int)
+            if combos.ndim == 1:
+                source_idcs = []
+                for k in combos:
+                    source_idx = self._get_source_idcs_from_k(n, k)
+                    source_idcs.append(source_idx)
+                source_idcs = np.vstack(source_idcs)
+            elif combos.ndim == 2:
+                source_idcs = self.combos.astype(bool)
+            else:
+                raise ValueError(
+                    f"`combos` dimensionality is `{self.combos.ndim}`, "
+                    "but needs to be 1 or 2."
+                )
+        else:
+            raise TypeError(
+                f"`combos` is of type `{type(self.combos)}`, "
+                "but must be numeric or array-like."
+            )
+
+        return source_idcs
+
+    @staticmethod
+    def _get_source_idcs_from_k(n, k):
+        idcs = np.array(list(combinations(np.arange(n), k)))
+        source_idcs = np.zeros((len(idcs), n)).astype(bool)
+        source_idcs[
+            np.repeat(np.arange(len(idcs)), k),
+            idcs.ravel()
+        ] = True
+        return source_idcs
+
+    def set_background(self, background, wavelengths=None):
+        self.background_ = check_background(
+            background, self.measured_spectra_, 
+            wavelengths=(self.wavelengths if wavelengths is None else wavelengths)
+        )
+        return self
+
+    def set_samples(self):
+        pass
+
+    def set_perfect_system(self):
+        pass
 
 
 @inherit_docstrings

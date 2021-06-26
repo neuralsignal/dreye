@@ -406,13 +406,6 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
         """
         labels = values
         values = optional_to(values, self.intensity.units)
-        # TODO decide
-        # DomainSignal(
-        #     self.magnitude, 
-        #     domain=self.domain, 
-        #     labels=self.intensity.values,
-        #     units=self.units, 
-        # ).labels_interp(values, **kwargs)
         values = self.interpolator(
             self.intensity.magnitude,  # x
             self.magnitude,  # y
@@ -433,6 +426,7 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
                     domain=self.domain,
                     labels=labels,
                 )
+            return values
         elif return_units:
             return values * self.units
         else:
@@ -620,6 +614,9 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
         self._mapper = self._get_mapper(new_y, x)
 
     def _get_inverse_mapper(self, x, y):
+        """
+        get mapping from outputs to intensity
+        """
         # perform isotonic regression
         if self.inverse_map_method == 'isotonic':
             isoreg = IsotonicRegression(
@@ -670,6 +667,9 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
         return interp
 
     def _get_mapper(self, new_y, x):
+        """
+        get mapping from intensity to outputs
+        """
         if self.zero_is_lower:
             interp = interp1d(
                 new_y, x,
@@ -754,8 +754,8 @@ class MeasuredSpectraContainer(DomainSignalContainer):
         for idx, measured_spectrum in enumerate(self):
             spectrum = measured_spectrum.ints_to_spectra(
                 values[..., idx],
-                return_signal=True,
-                return_units=True,
+                return_signal=return_signal,
+                return_units=return_units,
                 **kwargs
             )
             if spectra is None:
@@ -763,12 +763,7 @@ class MeasuredSpectraContainer(DomainSignalContainer):
             else:
                 spectra += spectrum
 
-        if return_signal and return_units:
-            return spectra
-        elif return_units:
-            return spectra.values
-        else:
-            return spectra.magnitude
+        return spectra
 
     def map(self, values, return_units=True, check_bounds=True):
         """

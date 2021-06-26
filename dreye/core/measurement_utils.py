@@ -225,7 +225,7 @@ def create_measured_spectra_container(
     intensity_units=None,  # units
     output_units=None,
     transform_func=None,  # callable
-    steps=10,
+    steps=4,
     names=None,
 ):
     """

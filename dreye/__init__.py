@@ -10,7 +10,7 @@ observers.
 
 __author__ = """gucky92"""
 __email__ = 'gucky@gucky.eu'
-__version__ = '0.2.0dev2'
+__version__ = '0.2.0dev3'
 
 # import all core elements and constants
 from dreye.constants.units import ureg
@@ -51,9 +51,6 @@ from dreye.estimators.intensity_models import (
 from dreye.io.serialization import (
     read_json, write_json, read_pickle, write_pickle
 )
-from dreye.estimators.metrics import (
-    MeasuredSpectraMetrics
-)
 from dreye.utilities import (
     irr2flux, flux2irr
 )
@@ -92,7 +89,6 @@ __all__ = [
     'domain_concat',
     'LedSubstitutionFit',
     'BestSubstitutionFit',
-    'MeasuredSpectraMetrics',
     # spectrum
     'CalibrationSpectrum',
     'MeasuredSpectrum',

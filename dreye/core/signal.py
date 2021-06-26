@@ -1174,8 +1174,7 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         return iter(np.moveaxis(self.magnitude, self.domain_axis, 0) * self.units)
 
-    @property
-    def nanless(self):
+    def fillna(self, fill_value=0):
         """
         Returns signal-type with NaNs removed.
 
@@ -1194,7 +1193,7 @@ class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
             # interpolate nans
             ivalues = self.interpolator(
                 arange[finites], iarr[finites],
-                **interpolator_kwargs
+                **{**interpolator_kwargs, 'fill_value': fill_value}
             )(arange)
             ivalues[finites] = iarr[finites]
             values[slice] = ivalues

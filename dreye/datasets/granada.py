@@ -54,7 +54,8 @@ def load_dataset(as_spectra=False):
         irr,
         columns=pd.Index(wls, name='wavelengths'),
         index=pd.Index(np.arange(irr.shape[0]), name='data_id')
-    ).stack()
+    ).stack().fillna(0)
+    series[series < 0] = 0
     series.name = 'spectralirradiance'
     df = series.reset_index()
     df['microspectralphotonflux'] = irr2flux(
@@ -67,7 +68,7 @@ def load_dataset(as_spectra=False):
                 'wavelengths',
                 'data_id',
                 'microspectralphotonflux'
-            ),
+            ).fillna(0),
             units='uE', 
             domain_units='nm'
         )
