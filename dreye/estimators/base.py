@@ -414,6 +414,7 @@ class _PrModelMixin:
     background = None
     bg_ints = None
     background_external = None
+    capture_noise_level = None
     """
     The following attributes will be set (using `_set_pr_model_related_objects` method):
     * photoreceptor_model_
@@ -434,7 +435,8 @@ class _PrModelMixin:
         # create photoreceptor model
         self.photoreceptor_model_ = check_photoreceptor_model(
             self.photoreceptor_model, size=size, 
-            wavelengths=self.wavelengths
+            wavelengths=self.wavelengths, 
+            capture_noise_level=self.capture_noise_level
         )
 
         # create measured_spectra_

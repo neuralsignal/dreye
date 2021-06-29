@@ -2,6 +2,7 @@
 Utility functions
 """
 
+from itertools import combinations, product
 import numpy as np
 
 from dreye.constants import ureg
@@ -11,8 +12,10 @@ from dreye.utilities.common import (
     is_dictlike, is_listlike, is_signallike, is_string, optional_to, 
     is_numeric
 )
+from dreye.core.signal import Signal
 from dreye.core.measurement_utils import create_measured_spectra_container
 from dreye.core.spectrum_utils import create_spectrum
+from dreye.utilities.array import asarray
 
 
 
@@ -94,7 +97,9 @@ def check_photoreceptor_model(
     """
     if isinstance(photoreceptor_model, Photoreceptor):
         photoreceptor_model = type(photoreceptor_model)(
-            photoreceptor_model, wavelengths=wavelengths, capture_noise_level=capture_noise_level
+            photoreceptor_model, 
+            wavelengths=wavelengths, 
+            capture_noise_level=capture_noise_level
         )
     elif is_dictlike(photoreceptor_model):
         photoreceptor_model['sensitivity'] = photoreceptor_model.get(
@@ -264,3 +269,199 @@ def estimate_bg_ints_from_background(
     est.fit(np.atleast_2d(Xbg))
     # assign new bg_ints_
     return est.fitted_intensities_[0]
+
+
+# functions related to light sources and indexing measured_spectra
+
+
+def get_source_idcs_from_k(n, k):
+    idcs = np.array(list(combinations(np.arange(n), k)))
+    source_idcs = np.zeros((len(idcs), n)).astype(bool)
+    source_idcs[
+        np.repeat(np.arange(len(idcs)), k),
+        idcs.ravel()
+    ] = True
+    return source_idcs
+
+
+def get_source_idcs(names, combos):
+    n = len(names)
+    if is_numeric(combos):
+        combos = int(combos)
+        source_idcs = get_source_idcs_from_k(
+            n, combos
+        )
+    elif is_listlike(combos):
+        combos = asarray(combos).astype(int)
+        if combos.ndim == 1:
+            if is_string(combos[0]):  # if first element is string all should be
+                source_idcs = np.array([
+                    get_source_idx(names, source_idx, asbool=True)
+                    for source_idx in combos
+                ])
+            else:  # else assume it is a list of ks
+                source_idcs = []
+                for k in combos:
+                    source_idx = get_source_idcs_from_k(n, k)
+                    source_idcs.append(source_idx)
+                source_idcs = np.vstack(source_idcs)
+        elif combos.ndim == 2:
+            source_idcs = combos.astype(bool)
+        else:
+            raise ValueError(
+                f"`combos` dimensionality is `{combos.ndim}`, "
+                "but needs to be 1 or 2."
+            )
+    else:
+        raise TypeError(
+            f"`combos` is of type `{type(combos)}`, "
+            "but must be numeric or array-like."
+        )
+
+    return source_idcs
+
+
+def get_source_idx(names, source_idx, asbool=False):
+    if is_string(source_idx):
+        source_idx = [
+            names.index(name)
+            for name in source_idx.split('+')
+        ]
+    source_idx = asarray(source_idx)
+    if source_idx.dtype == np.bool and not asbool:
+        source_idx = np.flatnonzero(source_idx)
+    elif asbool and source_idx.dtype != np.bool:
+        _source_idx = np.zeros(len(names)).astype(bool)
+        _source_idx[source_idx] = True
+        source_idx = source_idx
+    return source_idx
+
+
+def get_source_idx_string(names, source_idx):
+    if is_string(source_idx):
+        return source_idx
+    source_idx = asarray(source_idx)
+    return '+'.join(asarray(names)[source_idx])
+
+
+def get_spanning_intensities(
+    intensity_bounds,
+    ratios=np.linspace(0., 1., 11), 
+    compute_ratios=False
+):
+    """
+    Get intensities given intensity bounds that span 
+    capture space appropriately.
+    """
+    n = len(intensity_bounds[0])
+    samples = np.array(list(product(*([[0, 1]] * n)))).astype(float)
+    samples *= (intensity_bounds[1] - intensity_bounds[0]) + intensity_bounds[0]
+    if compute_ratios:
+        samples_ = []
+        for (idx, isample), (jdx, jsample) in zip(enumerate(samples), enumerate(samples)):
+            if idx >= jdx:
+                continue
+            s_ = (ratios[:, None] * isample) + ((1-ratios[:, None]) * jsample)
+            samples_.append(s_)
+        samples_ = np.vstack(samples_)
+        samples = np.vstack([samples, samples_])
+    samples = np.unique(samples, axis=0)
+    return samples
+
+
+def get_optimal_capture_samples(
+    photoreceptor_model : Photoreceptor, 
+    background : Signal, 
+    ratios : np.ndarray = np.linspace(0., 1., 11), 
+    compute_isolation : bool = False,
+    compute_ratios : bool = False
+) -> np.ndarray:
+    from dreye import BestSubstitutionFit
+    dirac_delta_spectra = np.eye(photoreceptor_model.wls.size)
+    captures = photoreceptor_model.capture(
+        dirac_delta_spectra,
+        background=background,
+        return_units=False
+    )
+    if compute_isolation:
+        model = BestSubstitutionFit(
+            photoreceptor_model=photoreceptor_model, 
+            measured_spectra=dirac_delta_spectra, 
+            ignore_bounds=True, 
+            substitution_type=1, 
+            background=background
+        )
+        model.fit(np.eye(photoreceptor_model.n_opsins).astype(bool))
+        isolating_captures = model.fitted_capture_X_
+        captures = np.vstack([captures, isolating_captures])
+        if compute_ratios:
+            qs = []
+            for idx, jdx in zip(range(photoreceptor_model.n_opsins), range(photoreceptor_model.n_opsins)):
+                if idx >= jdx:
+                    continue
+                qs_ = (
+                    isolating_captures[idx] * ratios[:, None] 
+                    + isolating_captures[jdx] * (1-ratios[:, None])
+                )
+                qs.append(qs_)
+            qs = np.vstack(qs)
+            captures = np.vstack([captures, qs])
+        captures = np.unique(captures, axis=0)
+    return captures
+
+# @property
+# def sensitivity_ratios(self):
+#     """
+#     Compute ratios of the sensitivities
+#     """
+#     s = self.data + self.capture_noise_level
+#     if np.any(s < 0):
+#         warnings.warn(
+#             "Zeros or smaller in sensitivities array!", RuntimeWarning
+#         )
+#         s[s < 0] = 0
+#     return normalize(s, norm='l1')
+
+# def best_isolation(self, method='argmax', background=None):
+#     """
+#     Find wavelength that best isolates each opsin.
+#     """
+#     ratios = self.sensitivity_ratios
+
+#     if method == 'argmax':
+#         return self.wls[np.argmax(ratios, axis=0)]
+#     elif method == 'substitution':
+#         from dreye import create_measured_spectra_container, BestSubstitutionFit
+        
+#         perfect_system = create_measured_spectra_container(
+#             np.eye(self.wls.size)[:, 1:-1], wavelengths=self.wls
+#         )
+#         model = BestSubstitutionFit(
+#             photoreceptor_model=self, 
+#             measured_spectra=perfect_system, 
+#             ignore_bounds=True, 
+#             substitution_type=1, 
+#             background=background
+#         )
+#         model.fit(np.eye(self.n_opsins).astype(bool))
+#         return np.sum(model.fitted_intensities_ * self.wls, axis=1) / np.sum(model.fitted_intensities_, axis=1)
+#     else:
+#         raise NameError(
+#             "Only available methods are `argmax` "
+#             f"and `substitution` and not {method}"
+#         )
+
+# def wavelength_range(self, rtol=None, peak2peak=False):
+#     """
+#     Range of wavelengths that the photoreceptors are sensitive to.
+#     Returns a tuple of the min and max wavelength value.
+#     """
+#     if peak2peak:
+#         dmax = self.sensitivity.dmax
+#         return np.min(dmax), np.max(dmax)
+#     rtol = (RELATIVE_SENSITIVITY_SIGNIFICANT if rtol is None else rtol)
+#     tol = (
+#         (self.sensitivity.max() - self.sensitivity.min())
+#         * rtol
+#     )
+#     return self.sensitivity.nonzero_range(tol).boundaries

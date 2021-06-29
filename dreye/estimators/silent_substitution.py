@@ -40,7 +40,8 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         linear_transform=None,
         nonlin=None, 
         intensity_bounds=None, 
-        wavelengths=None
+        wavelengths=None, 
+        capture_noise_level=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -51,7 +52,8 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             bg_ints=bg_ints,
             background_external=background_external, 
             intensity_bounds=intensity_bounds, 
-            wavelengths=wavelengths
+            wavelengths=wavelengths, 
+            capture_noise_level=capture_noise_level
         )
         self.substitution_type = substitution_type
         self.eps = eps
@@ -81,7 +83,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             )
 
         if is_numeric(self.substitution_type):
-            pass
+            assert self.substitution_type > 0, "`substitution_type` must be a positive float."
         else:
             if self.substitution_type not in {'diff', 'max', 'min'}:
                 raise NameError(
@@ -202,7 +204,7 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         constraints = []
         constraints.extend(self._get_i_constraints(i))
 
-        if is_numeric(self.substitution_type):  # must be a positive numeric type
+        if is_numeric(self.substitution_type):  # TODO must be a positive numeric type?
             constraints.extend([
                 cp.sum(q - self.capture_border_) == self.substitution_type
             ])

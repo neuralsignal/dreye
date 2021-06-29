@@ -9,10 +9,9 @@ from sklearn.preprocessing import normalize
 
 def barycentric_dim_reduction(X):
     """
-    Reduce dimensionality of `X` to N-1 using barycentric to cartesian
-    cooredinate transformation
+    Reduce dimensionality of `X` to N-1 by l1-normalizing each sample 
+    and using a barycentric to cartesian cooredinate transformation
     """
-    X = np.abs(X)
     X = normalize(X, norm='l1', axis=1)
     return barycentric_to_cartesian(X)
 

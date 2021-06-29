@@ -42,7 +42,8 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         keep_proportions=False,
         keep_intensity=True, 
         intensity_bounds=None,
-        wavelengths=None
+        wavelengths=None, 
+        capture_noise_level=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -56,7 +57,8 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             bg_ints=bg_ints,
             background_external=background_external, 
             wavelengths=wavelengths, 
-            intensity_bounds=intensity_bounds
+            intensity_bounds=intensity_bounds, 
+            capture_noise_level=capture_noise_level
         )
         self.rtype = rtype
         self.keep_proportions = keep_proportions

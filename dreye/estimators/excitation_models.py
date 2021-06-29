@@ -123,7 +123,8 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         lsq_kwargs=None,
         background_external=None, 
         intensity_bounds=None, 
-        wavelengths=None
+        wavelengths=None, 
+        capture_noise_level=None
     ):
         self.photoreceptor_model = photoreceptor_model
         self.measured_spectra = measured_spectra
@@ -138,6 +139,7 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         self.background_external = background_external
         self.intensity_bounds = intensity_bounds
         self.wavelengths = wavelengths
+        self.capture_noise_level = capture_noise_level
 
     def _set_required_objects(self, size=None):
         # if requirements set do not reset them (speed improvement)
@@ -463,7 +465,8 @@ class TransformExcitationFit(IndependentExcitationFit):
         lsq_kwargs=None,
         background_external=None, 
         intensity_bounds=None, 
-        wavelengths=None
+        wavelengths=None, 
+        capture_noise_level=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -478,7 +481,8 @@ class TransformExcitationFit(IndependentExcitationFit):
             bg_ints=bg_ints,
             background_external=background_external, 
             intensity_bounds=intensity_bounds, 
-            wavelengths=wavelengths
+            wavelengths=wavelengths, 
+            capture_noise_level=capture_noise_level
         )
         self.linear_transform = linear_transform
         self.inv_transform = inv_transform
@@ -569,7 +573,8 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         lsq_kwargs=None,
         background_external=None, 
         intensity_bounds=None,
-        wavelengths=None
+        wavelengths=None, 
+        capture_noise_level=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -584,7 +589,8 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
             bg_ints=bg_ints,
             background_external=background_external, 
             intensity_bounds=intensity_bounds, 
-            wavelengths=wavelengths
+            wavelengths=wavelengths, 
+            capture_noise_level=capture_noise_level
         )
         self.transform_func = transform_func
         self.inv_func = inv_func

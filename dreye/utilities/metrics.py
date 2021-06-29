@@ -3,6 +3,7 @@ Various general metrics
 """
 
 import numpy as np
+from numpy.random import default_rng
 from scipy import stats
 
 
@@ -30,7 +31,7 @@ def compute_jensen_shannon_similarity(P, Q):
     return 1 - compute_jensen_shannon_divergence(P, Q)
 
 
-def compute_mean_width(X, n=1000, vectorized=False):
+def compute_mean_width(X, n=1000, vectorized=False, centered=False, seed=None):
     """
     Compute mean width by projecting `X` onto random vectors
 
@@ -46,8 +47,9 @@ def compute_mean_width(X, n=1000, vectorized=False):
     mean_width : float
         Mean width of `X`.
     """
-    X = X - X.mean(0)  # centering data
-    rprojs = np.random.normal(size=(X.shape[-1], n))
+    if not centered:
+        X = X - X.mean(0)  # centering data
+    rprojs = default_rng(seed).standard_normal(size=(X.shape[-1], n))
     rprojs /= np.linalg.norm(rprojs, axis=0)  # normalize vectors by l2-norm
     if vectorized:
         proj = X @ rprojs  # project samples onto random vectors
