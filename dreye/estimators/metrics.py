@@ -3,25 +3,14 @@ Class to calculate various metrics given
 a photoreceptor model and measured spectra
 """
 
-from dreye.estimators.excitation_models import IndependentExcitationFit
 import numpy as np
-import pandas as pd
-from itertools import product
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn import clone
 
-from dreye.core.signal import Signals
-from dreye.utilities import (
-    is_numeric, asarray, is_listlike, is_dictlike, is_string
-)
-from dreye.core.photoreceptor import Photoreceptor
-from dreye.core.spectral_measurement import MeasuredSpectraContainer
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
 from dreye.estimators.base import _PrModelMixin
 from dreye.estimators.utils import get_optimal_capture_samples, get_source_idcs, get_source_idx, get_spanning_intensities
 from dreye.estimators.metric_functions import compute_est_score, compute_metric_for_samples, compute_peak_set, get_metrics
 from dreye.estimators.silent_substitution import BestSubstitutionFit
+from dreye.estimators.excitation_models import IndependentExcitationFit
 
 
 # TODO metrics that depend on estimators
