@@ -179,7 +179,6 @@ class Metrics(_InitDict, _PrModelMixin):
             **kwargs
         )
 
-
     def compute_excitation_scores_for_spectra(
         self, 
         spectra, 
