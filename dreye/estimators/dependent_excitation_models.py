@@ -65,7 +65,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         elif self.layer_assignments is None:
             self._independent_layers_ = self.independent_layers
             self._layer_assignments_ = [
-                tuple(range(len(self.measured_spectra_))) 
+                list(range(len(self.measured_spectra_))) 
                 for _ in range(self._independent_layers_)
             ]
         else:
@@ -107,8 +107,9 @@ class DependentExcitationFit(IndependentExcitationFit):
     def _reformat_intensities(self, w, **kwargs):
         # len(measured_spectra) x indenpendent_layers, len(X) x independent_layers
         ws, pixel_strength = self._format_intensities(w, **kwargs)
-        # len(X) x len(measured_spectra) x independent_layers
-        return (ws[None, ...] * pixel_strength[:, None, ...]).sum(axis=-1)
+        # len(X) x len(measured_spectra)
+        return pixel_strength @ ws.T
+        # return (ws[None, ...] * pixel_strength[:, None, ...]).sum(axis=-1)
 
     def _format_intensities(self, w, ws=None, pixel_strength=None):
         offset = 0
@@ -179,6 +180,6 @@ class DependentExcitationFit(IndependentExcitationFit):
         
         return fitted_intensities, layer_intensities, pixel_strength
 
-    def _objective(self, w, excite_x):
-        w = self._reformat_intensities(w).T  # len(measured_spectra) x len(X)
+    def _objective(self, w, excite_x, **kwargs):
+        w = self._reformat_intensities(w, **kwargs).T  # len(measured_spectra) x len(X)
         return super()._objective(w, excite_x).ravel()
