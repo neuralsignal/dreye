@@ -121,6 +121,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         
         if pixel_strength is None:
             pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
+            # TODO Find better method to handle this
             pixel_strength = np.round(pixel_strength * self.bit_depth, 0) / self.bit_depth
         return ws, pixel_strength
 
