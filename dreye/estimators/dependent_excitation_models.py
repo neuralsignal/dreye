@@ -93,7 +93,7 @@ class DependentExcitationFit(IndependentExcitationFit):
                 self.capture_X_, self.excite_X_
             )
 
-        # len(measured_spectra) x indenpendent_layers, len(X) x independent_layers
+        # len(measured_spectra) x independent_layers, len(X) x independent_layers
         self.layer_intensities_, self.pixel_strength_, self.fitted_intensities_ = (
             layer_intensities, pixel_strength, fitted_intensities
         )
@@ -105,7 +105,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         return self
 
     def _reformat_intensities(self, w, **kwargs):
-        # len(measured_spectra) x indenpendent_layers, len(X) x independent_layers
+        # len(measured_spectra) x independent_layers, len(X) x independent_layers
         ws, pixel_strength = self._format_intensities(w, **kwargs)
         # len(X) x len(measured_spectra)
         return pixel_strength @ ws.T
@@ -121,6 +121,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         
         if pixel_strength is None:
             pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
+            # TODO Find better method to handle this
             pixel_strength = np.round(pixel_strength * self.bit_depth, 0) / self.bit_depth
         return ws, pixel_strength
 
