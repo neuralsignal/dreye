@@ -10,7 +10,7 @@ from dreye.utilities import is_numeric, is_listlike
 from dreye.core.signal import (
     Signals, DomainSignal, Signal
 )
-from dreye.core.plotting_mixin import _PlottingMixin
+from dreye.plotting.plotting_mixin import _PlottingMixin
 
 
 @inherit_docstrings
@@ -58,6 +58,9 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
         return super().plot(**kwargs)
 
     def __getitem__(self, key):
+        if isinstance(key, np.ndarray):
+            key = key.tolist()
+
         if is_numeric(key):
             pass
         elif key in self.names:
@@ -65,6 +68,8 @@ class _SignalContainer(_AbstractContainer, _PlottingMixin,):
         elif key in self.container:
             key = self.container.index(key)
         elif is_listlike(key):
+            if np.asarray(key).dtype == np.bool:
+                key = np.arange(len(self))[np.asarray(key)].tolist()
             return type(self)([self.__getitem__(ikey) for ikey in key])
         return super().__getitem__(key)
 
@@ -345,7 +350,7 @@ class DomainSignalContainer(_SignalContainer):
         if self._equalized_labels is None:
             labels = self[0].labels
             for signal in self[1:]:
-                labels = labels.equalize_labels(signal.labels)
+                labels = labels.equalize_domains(signal.labels)
             self._equalized_labels = labels.copy()
         return self._equalized_labels
 
@@ -368,5 +373,5 @@ class DomainSignalContainer(_SignalContainer):
                     self.equalized_labels
                 ).magnitude
 
-            self._stack_values = values * self.units
+            self._stacked_values = values * self.units
         return self._stacked_values

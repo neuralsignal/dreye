@@ -2,8 +2,6 @@
 Model for silent substitution
 """
 
-import warnings
-
 import numpy as np
 import cvxpy as cp
 import pandas as pd
@@ -12,6 +10,7 @@ from dreye.estimators.base import _RelativeMixin
 from dreye.estimators.excitation_models import IndependentExcitationFit
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.utilities import asarray
+from dreye.utilities import is_numeric, is_string, is_callable
 
 EPS = 1e-4
 N = 1000
@@ -32,14 +31,17 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         bg_ints=None,
-        ignore_bounds=False,
-        ignore_capture_units=True,
-        background_only_external=False,
+        ignore_bounds=None,
+        background_external=None,
         substitution_type='diff',
         eps=EPS,
-        q_aggregator=cp.min,
+        q_aggregator='min',
         cp_kwargs=None,
         linear_transform=None,
+        nonlin=None, 
+        intensity_bounds=None, 
+        wavelengths=None, 
+        capture_noise_level=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -48,21 +50,24 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             fit_weights=fit_weights,
             ignore_bounds=ignore_bounds,
             bg_ints=bg_ints,
-            ignore_capture_units=ignore_capture_units,
-            background_only_external=background_only_external
+            background_external=background_external, 
+            intensity_bounds=intensity_bounds, 
+            wavelengths=wavelengths, 
+            capture_noise_level=capture_noise_level
         )
         self.substitution_type = substitution_type
         self.eps = eps
         self.q_aggregator = q_aggregator
         self.cp_kwargs = cp_kwargs
         self.linear_transform = linear_transform
+        self.nonlin = nonlin
 
     def fit(self, X):
         # format X
         X = asarray(X)
         if X.ndim == 1:
             self._set_required_objects()
-            X_ = np.zeros((len(X), self.n_features_)).astype(bool)
+            X_ = np.zeros((len(X), self.photoreceptor_model_.n_opsins)).astype(bool)
             for idx, ix in enumerate(X):
                 X_[idx, ix] = True
             X = X_
@@ -77,34 +82,41 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
                 "Substitution with `filterfunc` in photoreceptor model."
             )
 
-        if self.substitution_type not in {'diff', 'max', 'min'}:
-            raise NameError(
-                f"substitution_type `{self.substitution_type}`"
-                " not `diff`, `max`, or `min`."
-            )
+        if is_numeric(self.substitution_type):
+            assert self.substitution_type > 0, "`substitution_type` must be a positive float."
+        else:
+            if self.substitution_type not in {'diff', 'max', 'min'}:
+                raise NameError(
+                    f"substitution_type `{self.substitution_type}`"
+                    " not `diff`, `max`, or `min`."
+                )
 
-        if self.substitution_type != 'diff' and self.background_ is None:
-            raise ValueError(
-                f"For substitution_type `{self.substitution_type}`, "
-                "a background needs to be supplied via `bg_ints` "
-                "or `background`."
-            )
+            if self.substitution_type != 'diff' and self.background_ is None:
+                raise ValueError(
+                    f"For substitution_type `{self.substitution_type}`, "
+                    "a background needs to be supplied via `bg_ints` "
+                    "or `background`."
+                )
 
         if self.linear_transform is None:
-            self.channels_ = self.channel_names_
+            self.channels_ = self.photoreceptor_model_.labels
         else:
-            self.channels_ = [f"comp{i}" for i in range(self.n_features_)]
+            self.channels_ = [f"comp{i}" for i in range(self.photoreceptor_model_.n_opsins)]
 
-        intensities = np.zeros((len(X), self.n_leds_))
+        intensities = np.zeros((len(X), len(self.measured_spectra_)))
         intensities2 = np.zeros(intensities.shape)
-        captures = np.zeros((len(X), self.n_features_))
+        captures = np.zeros((len(X), self.photoreceptor_model_.n_opsins))
         captures2 = np.zeros(captures.shape)
+        r = np.zeros(captures.shape)
+        r2 = np.zeros(captures2.shape)
         active = []
 
         for idx, ix in enumerate(X):
             q, i, q2, i2 = self._fit_sample(ix)
-            captures[idx] = q
-            captures2[idx] = q2
+            captures[idx] = self.get_capture(i)
+            captures2[idx] = self.get_capture(i2)
+            r[idx] = q
+            r2[idx] = q2
             intensities[idx] = i
             intensities2[idx] = i2
             active.append(np.array(self.channels_)[ix])
@@ -118,6 +130,8 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         self.fitted_other_excite_X_ = excitations2
         self.fitted_other_capture_X_ = captures2
         self.fitted_capture_X_ = captures
+        self.fitted_r_ = r
+        self.fitted_other_r_ = r2
         self.active_ = pd.Series(active).apply(tuple)
 
         if self.substitution_type == 'diff':
@@ -166,37 +180,39 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
 
     def _get_i_constraints(self, i):
         constraints = [
-            i >= self.bounds_[0],
+            i >= self.intensity_bounds_[0],
         ]
-        if np.isfinite(self.bounds_[1]).all():
+        if np.isfinite(self.intensity_bounds_[1]).all():
             constraints.append(
-                i <= self.bounds_[1]
+                i <= self.intensity_bounds_[1]
             )
         return constraints
 
-    def _get_q_constraints(self, i, q):
-        pred_q = self._get_x_capture(i)
+    def _get_q(self, i):
+        q = self.get_capture(i)
+        if self.nonlin is not None:
+            q = self.nonlin(q)
         if self.linear_transform is not None:
-            pred_q = pred_q @ self.linear_transform
-        return [pred_q == q]
+            q = q @ self.linear_transform
+        return q
 
     def _fit_sample(self, x):
-        # q is usually the capture, but could also be excitations
-        q = cp.Variable(self.n_features_, name='q')
-        i = cp.Variable(self.n_leds_, nonneg=True, name='i')
+        # q is usually the capture, but could also be excitations (not tested)
+        i = cp.Variable(len(self.measured_spectra_), nonneg=True, name='i')
+        q = self._get_q(i)
 
         constraints = []
-
         constraints.extend(self._get_i_constraints(i))
-        constraints.extend(self._get_q_constraints(i, q))
 
-        if self.substitution_type == 'diff':
-            q2 = cp.Variable(self.n_features_, name='q2')
-            i2 = cp.Variable(self.n_leds_, nonneg=True, name='i2')
+        if is_numeric(self.substitution_type):  # TODO must be a positive numeric type?
+            constraints.extend([
+                cp.sum(q - self.capture_border_) == self.substitution_type
+            ])
+        elif self.substitution_type == 'diff':
+            i2 = cp.Variable(len(self.measured_spectra_), nonneg=True, name='i2')
+            q2 = self._get_q(i2)
 
             constraints.extend(self._get_i_constraints(i2))
-            constraints.extend(self._get_q_constraints(i2, q2))
-
             constraints.extend([
                 q[~x] <= (q2[~x] + self.eps),
                 q[~x] >= (q2[~x] - self.eps)
@@ -208,14 +224,24 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
                 q[~x] <= (self.capture_border_ + self.eps),
             ])
 
-        if self.substitution_type == 'max':
-            obj = cp.Maximize(self.q_aggregator(q[x]))
+        if is_string(self.q_aggregator):
+            q_aggregator = getattr(cp, self.q_aggregator)
+        elif is_callable(self.q_aggregator):
+            q_aggregator = self.q_aggregator
+
+        if is_numeric(self.substitution_type):
+            obj = (
+                cp.Maximize(q_aggregator(q[x]))
+                + cp.Maximize(q_aggregator(-q[~x]))
+            )
+        elif self.substitution_type == 'max':
+            obj = cp.Maximize(q_aggregator(q[x]))
         elif self.substitution_type == 'min':
-            obj = cp.Minimize(self.q_aggregator(q[x]))
+            obj = cp.Minimize(q_aggregator(q[x]))
         else:
             obj = (
-                cp.Maximize(self.q_aggregator(q[x]))
-                + cp.Maximize(self.q_aggregator(-q2[x]))
+                cp.Maximize(q_aggregator(q[x]))
+                + cp.Maximize(q_aggregator(-q2[x]))
             )
 
         prob = cp.Problem(obj, constraints)
@@ -230,9 +256,9 @@ class BestSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             q2_value = q2.value
             i2_value = i2.value
         else:
-            q2_value = np.ones(self.n_features_) * self.capture_border_
+            q2_value = np.ones(self.photoreceptor_model_.n_opsins) * self.capture_border_
             i2_value = (
-                np.zeros(self.n_leds_) if self.bg_ints_ is None
+                np.zeros(len(self.measured_spectra_)) if self.bg_ints_ is None
                 else self.bg_ints_
             )
 

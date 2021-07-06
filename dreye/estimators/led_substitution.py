@@ -25,8 +25,6 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
     Led Substitution estimator.
     """
 
-    _skip_bg_ints = False
-
     def __init__(
         self,
         *,
@@ -35,36 +33,34 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         background=None,  # dict or Spectrum instance or array-like
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         max_iter=None,
-        # hard_separation=False,  # bool or list-like (same length as number of LEDs)
-        # hard_sep_value=None,  # float in capture units (1 relative capture)
         bg_ints=None,
-        # fit_only_uniques=False,
-        ignore_bounds=False,
+        ignore_bounds=None,
         lsq_kwargs=None,
-        ignore_capture_units=True,
-        background_only_external=False,
+        background_external=None,
         rtype='weber',  # {'fechner/log', 'weber', None}
         unidirectional=False,  # allow only increase or decreases of LEDs in simulation
         keep_proportions=False,
-        keep_intensity=True
+        keep_intensity=True, 
+        intensity_bounds=None,
+        wavelengths=None, 
+        capture_noise_level=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
             measured_spectra=measured_spectra,
             background=background,
             max_iter=max_iter,
-            # hard_separation=hard_separation,
-            # hard_sep_value=hard_sep_value,
             fit_weights=fit_weights,
-            # fit_only_uniques=fit_only_uniques,
+            unidirectional=unidirectional,
             lsq_kwargs=lsq_kwargs,
             ignore_bounds=ignore_bounds,
             bg_ints=bg_ints,
-            ignore_capture_units=ignore_capture_units,
-            background_only_external=background_only_external
+            background_external=background_external, 
+            wavelengths=wavelengths, 
+            intensity_bounds=intensity_bounds, 
+            capture_noise_level=capture_noise_level
         )
         self.rtype = rtype
-        self.unidirectional = unidirectional
         self.keep_proportions = keep_proportions
         self.keep_intensity = keep_intensity
 
@@ -94,8 +90,8 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         else:
             # TODO simulate combinations of LEDs
             raise NotImplementedError("Combinations of LED steps")
-            led_idcs = X[:, 0::2].astype(int)  # every second one
-            led_bounds = X[:, 1::2]  # every second one starting at 1
+            # led_idcs = X[:, 0::2].astype(int)  # every second one
+            # led_bounds = X[:, 1::2]  # every second one starting at 1
 
         led_bgs = self.bg_ints_[led_idcs]
         if self.rtype in {'fechner', 'weber', 'log', 'total_weber', 'diff'}:
@@ -120,7 +116,7 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             led_idcs, led_abs_bounds, led_simulate_maxs
         ):
             w_solo = self._get_w_solo(led_idx, led_bound)
-            if np.any(w_solo > self.bounds_[1]):
+            if np.any(w_solo > self.intensity_bounds_[1]):
                 warnings.warn(
                     "Absolute intensity goes beyond measurment bounds! - "
                     "Change target intensity values."
@@ -153,7 +149,7 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
                     self.bg_ints_,
                 )
 
-                if np.any(w > self.bounds_[1]):
+                if np.any(w > self.intensity_bounds_[1]):
                     warnings.warn(
                         "Proportions go beyond measurement bounds! - "
                         "Turn off `keep_proportions` to avoid this error or "
@@ -193,7 +189,7 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
 
         fitted_intensities = np.array(fitted_intensities)
         fitted_excitations = np.array([
-            self._get_x_pred(w)
+            self.get_excitation(w)
             for w in fitted_intensities
         ])
 
@@ -220,7 +216,7 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         fitted_excitations = pd.DataFrame(
             fitted_excitations,
             index=index,
-            columns=[f"fitted_{rh}" for rh in self.channel_names_]
+            columns=[f"fitted_{rh}" for rh in self.photoreceptor_model_.labels]
         ).reset_index()
         self.fitted_excitations_df_ = fitted_excitations
 
@@ -240,7 +236,7 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         led_simulate_max,
     ):
         # adjust A matrix
-        target_capture_x = self._get_x_capture(w_solo)
+        target_capture_x = self.get_capture(w_solo)
 
         # check if simulating max and adjust bounds
         if led_simulate_max:
@@ -249,12 +245,12 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
                 str(target_capture_x)
             )
             # adjust lower bound to be the led intensity of interest
-            if self.unidirectional:
+            if self._unidirectional_:
                 min_bound = self.bg_ints_.copy()
             else:
-                min_bound = self.bounds_[0].copy()
+                min_bound = self.intensity_bounds_[0].copy()
             min_bound[led_idx] = led_bound
-            max_bound = self.bounds_[1].copy()
+            max_bound = self.intensity_bounds_[1].copy()
             if self.keep_intensity:
                 max_bound[led_idx] = led_bound + EPS2
             bounds_ = (
@@ -265,12 +261,12 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
                 str(target_capture_x)
             )
             # adjust upper bound to be the led intensity of interest
-            if self.unidirectional:
+            if self._unidirectional_:
                 max_bound = self.bg_ints_.copy()
             else:
-                max_bound = self.bounds_[1].copy()
+                max_bound = self.intensity_bounds_[1].copy()
             max_bound[led_idx] = led_bound
-            min_bound = self.bounds_[0].copy()
+            min_bound = self.intensity_bounds_[0].copy()
             if self.keep_intensity:
                 min_bound[led_idx] = led_bound - EPS2
             bounds_ = (
@@ -278,15 +274,15 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
             )
 
         # bounds for the LED not simulated and the other LEDs during simulation
-        if self.unidirectional and led_simulate_max:
+        if self._unidirectional_ and led_simulate_max:
             min_bound = self.bg_ints_.copy()
-            max_bound = self.bounds_[1].copy()
-        elif self.unidirectional:
-            min_bound = self.bounds_[0].copy()
+            max_bound = self.intensity_bounds_[1].copy()
+        elif self._unidirectional_:
+            min_bound = self.intensity_bounds_[0].copy()
             max_bound = self.bg_ints_.copy()
         else:
-            min_bound = self.bounds_[0].copy()
-            max_bound = self.bounds_[1].copy()
+            min_bound = self.intensity_bounds_[0].copy()
+            max_bound = self.intensity_bounds_[1].copy()
         min_bound[led_idx] = self.bg_ints_[led_idx]
         max_bound[led_idx] = self.bg_ints_[led_idx] + EPS
         bounds_without = (
@@ -332,8 +328,8 @@ class LedSubstitutionFit(IndependentExcitationFit, _RelativeMixin):
         w_solo[led_idx] = w[led_idx]
         w = w.copy()
         w[led_idx] = self.bg_ints_[led_idx]
-        x_pred = self._get_x_pred(w)
-        excite_x = self._get_x_pred(w_solo)
+        x_pred = self.get_excitation(w)
+        excite_x = self.get_excitation(w_solo)
         return self.fit_weights_ * (excite_x - x_pred)
 
     @property

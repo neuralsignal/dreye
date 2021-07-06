@@ -12,9 +12,6 @@ from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.base_system import AbstractSystem
 
 
-# TODO find the actual zero intensity bound
-
-
 def _remove_spectrum_noise(
     wls, mean_counts, std_counts, mean_bg_counts, std_bg_counts, n_avg,
     wls1=None, sigma=10, std_steps=3, axis=0

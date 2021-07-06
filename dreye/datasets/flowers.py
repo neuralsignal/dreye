@@ -6,7 +6,7 @@ http://www.reflectance.co.uk
 import os
 import pandas as pd
 
-from dreye import DREYE_DIR, Spectra
+from dreye import DREYE_DIR, Signals
 
 
 FLOWER_PATH = os.path.join(
@@ -72,10 +72,13 @@ def load_dataset(as_spectra=False, label_cols='data_id'):
     df = pd.read_feather(FLOWER_PATH)
     # BUG in dataset with duplicate values
     df = df.drop_duplicates()
+    df.loc[:, 'reflectance'] = df['reflectance'].fillna(0)
+    df.loc[df['reflectance'] < 0, 'reflectance'] = 0
 
     if as_spectra:
-        return Spectra(
-            pd.pivot_table(df, 'reflectance', 'wavelengths', label_cols)
+        return Signals(
+            pd.pivot_table(df, 'reflectance', 'wavelengths', label_cols).fillna(0), 
+            domain_units='nm'
         )
 
     return df

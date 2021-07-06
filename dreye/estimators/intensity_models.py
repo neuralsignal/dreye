@@ -10,88 +10,7 @@ from dreye.utilities import (
 from dreye.constants import ureg
 from dreye.estimators.base import _SpectraModel, _RelativeMixin
 from dreye.utilities.abstract import inherit_docstrings
-
-
-@inherit_docstrings
-class IntensityFit(_SpectraModel):
-    """
-    Fit intensity values to a given LED system.
-
-    Parameters
-    ----------
-    measured_spectra : dreye.MeasuredSpectraContainer
-        Container with all available LEDs and their measured spectra. If
-        None, a fake LED measurement will be created with intensities
-        ranging from 0 to 100 microphotonflux.
-
-    Attributes
-    ----------
-    measured_spectra_ : dreye.MeasuredSpectraContainer
-        Measured spectrum container used for fitting. This will be the same
-        if as `measured_spectra` if a `dreye.MeasuredSpectraContainer` instance
-        was passed.
-    fitted_intensities_ : :obj:`~numpy.ndarray`
-        Intensities fit in units of `measured_spectra_.intensities.units`.
-    """
-
-    # other attributes that are the length of X but not X
-    _X_length = []
-
-    def __init__(
-        self,
-        *,
-        measured_spectra=None,  # dict, or MeasuredSpectraContainer
-    ):
-        self.measured_spectra = measured_spectra
-
-    def fit(self, X, y=None):
-        #
-        self.measured_spectra_ = self._check_measured_spectra(
-            self.measured_spectra, asarray(X).shape[1],
-            change_dimensionality=False
-        )
-        # check X
-        X = self._check_X(X)
-        self.intensities_ = X
-        # call in order to fit isotonic regression
-        self.measured_spectra_._assign_mapper()
-
-        self.n_features_ = len(self.measured_spectra_)
-
-        # check that input shape is correct
-        if X.shape[1] != self.n_features_:
-            raise ValueError("Shape of input is different from number"
-                             "of measured spectra in container.")
-
-        self.fitted_intensities_ = np.clip(
-            X,
-            *self.measured_spectra_.intensity_bounds
-        )
-
-        return self
-
-    def inverse_transform(self, X):
-        # check is fitted
-        check_is_fitted(self, ['n_features_', 'measured_spectra_'])
-
-        # check X
-        X = optional_to(X, self.output_units)
-        X = check_array(X)
-
-        # map output values to intensities
-        return self.measured_spectra_.inverse_map(X, return_units=False)
-
-    @property
-    def input_units(self):
-        return self.measured_spectra_.intensities.units
-
-    @property
-    def fitted_X_(self):
-        return self.fitted_intensities_
-
-    @property
-    def X_(self):
-        return self.intensities_
+from dreye.estimators.utils import check_measured_spectra, get_bg_ints, get_ignore_bounds
 
 
 @inherit_docstrings
@@ -114,17 +33,6 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
     max_iter : int, optional
         The number of maximum iterations. This is passed directly to
         `scipy.optimize.lsq_linear` and `scipy.optimize.least_squares`.
-    hard_separation : bool or list-like, optional
-        An array of LED intensities.
-        If given and all capture values are below or above `hard_sep_value`,
-        then do not allow the LED intensities to go above or below
-        these intensities. If True, first estimate the optimal LED
-        intensities that correspond to the relative capture
-        of `hard_sep_value`.
-    hard_sep_value : numeric or array-like, optional
-        The capture value for `hard_separation`. Defaults to 1, which
-        corresponds to the relative capture when the illuminant equals
-        the background.
     bg_ints : array-like, optional
         The intensity values for each LED, when the relative capture of each
         photoreceptor equals one (i.e. background intensity).
@@ -147,68 +55,73 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
         * `total_weber` - :math:`(I-I_{bg})/Sum(I_{bg})`
         * `diff` - :math:`(I-I_{bg})`
         * `absolute` - :math:`I`
-        * None - :math: `I/I_{bg}`
-        * `ratio` or `linear` - :math: `I/I_{bg}`
+        * `ratio` or `linear` - :math:`I/I_{bg}`
 
 
     Attributes
     ----------
-    measured_spectra_ : dreye.MeasuredSpectraContainer
-        Measured spectrum container used for fitting. This will be the same
-        if as `measured_spectra` if a `dreye.MeasuredSpectraContainer` instance
-        was passed.
     fitted_intensities_ : numpy.ndarray
-        Intensities fit in units of `measured_spectra_.intensities`.
+        Intensities fit in units of `measured_spectra.intensities`.
     fitted_relative_intensities_ : numpy.ndarray
         Relative intensity values that were fit.
     """
 
     # other attributes that are the length of X but not X
-    _X_length = [
-        'fitted_intensities_'
-    ]
+    @property
+    def _X_length(self):
+        if self.rtype == 'absolute':
+            return []
+        return ['fitted_intensities_']
 
     def __init__(
         self,
         *,
         measured_spectra=None,  # dict, or MeasuredSpectraContainer
         bg_ints=None,  # array-like
-        rtype=None,  # {'fechner/log', 'weber', None}
+        rtype='weber',  # {'fechner/log', 'weber', None}
+        intensity_bounds=None, 
+        wavelengths=None, 
+        ignore_bounds=None
     ):
         self.measured_spectra = measured_spectra
         self.rtype = rtype
         self.bg_ints = bg_ints
+        self.intensity_bounds = intensity_bounds
+        self.wavelengths = wavelengths
+        self.ignore_bounds = ignore_bounds
 
     def fit(self, X, y=None):
         #
-        self.measured_spectra_ = self._check_measured_spectra(
+        self.measured_spectra_ = check_measured_spectra(
             self.measured_spectra,
             asarray(X).shape[1],
-            change_dimensionality=False
+            change_dimensionality=False, 
+            wavelengths=self.wavelengths, 
+            intensity_bounds=self.intensity_bounds
         )
-        self.bg_ints_ = self._get_bg_ints(
-            self.bg_ints, self.measured_spectra_, skip=False,
+        self.bg_ints_ = get_bg_ints(
+            self.bg_ints, self.measured_spectra_,
             rtype=self.rtype
         )
         # check X
         X = self._check_X(X)
         self.relative_intensities_ = X
 
-        # call in order to fit isotonic regression
-        self.measured_spectra_._assign_mapper()
-
-        self.n_features_ = len(self.measured_spectra_)
-
         # check that input shape is correct
-        if X.shape[1] != self.n_features_:
+        if X.shape[1] != len(self.measured_spectra_):
             raise ValueError("Shape of input is different from number"
                              "of measured spectra in container.")
 
-        # TODO ignore bounds option
-        self.fitted_intensities_ = np.clip(
-            self._to_absolute_intensity(X),
-            *self.measured_spectra_.intensity_bounds
+        ignore_bounds = get_ignore_bounds(
+            self.ignore_bounds, self.measured_spectra, self.intensity_bounds
         )
+        if ignore_bounds:
+            self.fitted_intensities_ = self._to_absolute_intensity(X)
+        else:
+            self.fitted_intensities_ = np.clip(
+                self._to_absolute_intensity(X),
+                *self.measured_spectra_.intensity_bounds
+            )
         self.fitted_relative_intensities_ = self._to_relative_intensity(
             self.fitted_intensities_
         )
@@ -241,106 +154,3 @@ class RelativeIntensityFit(_SpectraModel, _RelativeMixin):
     @property
     def X_(self):
         return self.relative_intensities_
-
-#
-# # TODO improve (not final version)
-# class IlluminantFit(_SpectraModel):
-#     """
-#     Fit illuminant spectra
-#     """
-#
-#     def __init__(
-#         self,
-#         *,
-#         measured_spectra=None,  # dict, or MeasuredSpectraContainer
-#         max_iter=None
-#     ):
-#         self.measured_spectra = measured_spectra
-#         self.max_iter = max_iter
-#
-#     def fit(self, X, y=None):
-#         """
-#         Fit method.
-#         """
-#         # create measured_spectra_
-#         self.measured_spectra_ = self._check_measured_spectra(
-#             self.measured_spectra,
-#         )
-#         normalized_spectra = self.measured_spectra_.normalized_spectra.copy()
-#         assert normalized_spectra.domain_axis == 0
-#         # make 2D if necessary
-#         if isinstance(X, Signal):
-#             X = Signals(X)
-#         # move domain axis and equalize if necessary
-#         if isinstance(X, _Signal2DMixin):
-#             X = X.copy()
-#             # ensure domain axis is feature axis
-#             X.domain_axis = 1
-#             normalized_spectra, X = normalized_spectra.equalize_domains(X)
-#         # check X
-#         X = self._check_X(X)
-#         # also store checked X
-#         self.X_ = X
-#         # spectra as array
-#         self.normalized_spectra_ = normalized_spectra
-#         self.wavelengths_ = self.normalized_spectra_.domain.magnitude
-#         self.bounds_ = self.measured_spectra_.intensity_bounds
-#
-#         # creates for mapping values
-#         self.measured_spectra_._assign_mapper()
-#         self.container_ = self._fit_samples(X)
-#
-#         if not np.all(self.container_.success):
-#             warnings.warn("Convergence was not accomplished "
-#                           "for all spectra in X; "
-#                           "increase the number of max iterations.")
-#
-#         self.n_features_ = X.shape[1]
-#         # samples x intensity
-#         self.fitted_intensities_ = np.array(
-#             self.container_.x
-#         ) * self.measured_spectra_.intensities.units
-#         # or self.input_units / self.normalized_spectra_.units
-#
-#         return self
-#
-#     def _fit_samples(self, X):
-#         """
-#         Fit individual samples
-#         """
-#         # TODO accuracy for wavelength range e.g. 10nm (in blocks)
-#         # TODO first integrate window filter?
-#         A = asarray(self.normalized_spectra_)
-#         container = OptimizeResultContainer()
-#         for x in X:
-#             container.append(
-#                 lsq_linear(
-#                     A, x,
-#                     bounds=tuple(self.bounds_),
-#                     max_iter=self.max_iter
-#                 )
-#             )
-#         return container
-#
-#     def inverse_transform(self, X):
-#         """
-#         Transform output values to spectra
-#         """
-#         check_is_fitted(
-#             self, ['measured_spectra_', 'normalized_spectra_']
-#         )
-#         # X is samples x LEDs
-#         X = optional_to(X, self.output_units)
-#         X = check_array(X)
-#
-#         assert X.shape[1] == len(self.measured_spectra_)
-#
-#         # samples x LED
-#         X = self.measured_spectra_.inverse_map(X, return_units=False)
-#         return X @ self.normalized_spectra_.magnitude.T
-#
-#     @property
-#     def input_units(self):
-#         """units of X
-#         """
-#         return self.measured_spectra_.units

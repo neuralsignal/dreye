@@ -301,7 +301,7 @@ header = f"""\
 
    import numpy as np
    import pandas as pd
-   import dreye as pb
+   import dreye
 
    np.random.seed(123456)
    np.set_printoptions(precision=4, suppress=True)

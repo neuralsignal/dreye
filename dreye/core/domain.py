@@ -219,8 +219,11 @@ class Domain(_UnitArray):
             interval = asarray(interval)
             interval_diff = (end - start) - np.sum(interval)
             if interval_diff > 0:
-                # TODO: raise warning
-                # raise ValueError('Intervals given smaller than range')
+                # warn that the sum of intervals provided is smaller
+                warnings.warn(
+                    "Sum of intervals provided are smaller than span of domain; adding to intervals.", 
+                    RuntimeWarning
+                )
                 interval = np.append(interval, interval_diff)
             elif interval_diff < 0:
                 raise DreyeError("Sum of intervals are larger "

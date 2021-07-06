@@ -15,13 +15,14 @@ from dreye.utilities import (
     is_callable, is_dictlike, optional_to,
     is_hashable, is_integer
 )
+from dreye.utilities.common import is_signallike, is_signalslike
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.err import DreyeError
 from dreye.constants import DEFAULT_FLOAT_DTYPE, ABSOLUTE_ACCURACY, CONTEXTS
 from dreye.core.abstract import _UnitArray
 from dreye.core.domain import Domain
 from dreye.utilities import Filter1D
-from dreye.core.plotting_mixin import _PlottingMixin
+from dreye.plotting.plotting_mixin import _PlottingMixin
 from dreye.core.numpy_mixin import _NumpyMixin
 
 
@@ -78,10 +79,10 @@ def domain_concat(objs, left=False):
 
 
 @inherit_docstrings
-class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
+class _SignalAbstractClass(_UnitArray, _PlottingMixin, _NumpyMixin):
     # defaults for interpolator and smoothing
     _interpolator = interp1d
-    _interpolator_kwargs = {}
+    _interpolator_kwargs = {'bounds_error': False}
     _smoothing_kwargs = {}
     _smoothing_window = 1.0
     _smoothing_method = 'savgol'
@@ -140,7 +141,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         **kwargs
     ):
 
-        if isinstance(values, _SignalMixin) and domain is not None:
+        if is_signallike(values) and domain is not None:
             if values.domain != domain:
                 values = values(domain)
 
@@ -489,6 +490,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         if value is None:
             self._interpolator = interp1d
+            self._interpolate = None
         elif is_callable(value):
             self._interpolator = value
             self._interpolate = None
@@ -517,21 +519,6 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             self._interpolate = None
         else:
             raise TypeError('interpolator_kwargs must be dict.')
-
-    @property
-    def _interp_function(self):
-        """
-        interpolate callable.
-        """
-        if self._interpolate is None:
-
-            self._interpolate = self.interpolator(
-                self.domain.magnitude,
-                self.magnitude,
-                **self.interpolator_kwargs,
-            )
-
-        return self._interpolate
 
     @property
     def domain_axis(self):
@@ -584,11 +571,12 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         )
 
     def _abstract_call(
-        self, interp_function, self_domain, domain,
+        self, self_domain, domain,
         domain_min, domain_max,
         domain_class, assign_to_name,
         check_bounds=True,
-        asarr=False
+        asarr=False, 
+        kwargs={}
     ):
         """
         Method used for `domain_interp`.
@@ -614,7 +602,11 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
                 domain_max=domain_max.magnitude
             )
 
-        values = interp_function(domain_values)
+        values = self.interpolator(
+            self_domain.magnitude,  # x
+            self.magnitude,  # y
+            **kwargs,
+        )(domain_values)
 
         if asarr:
             return values
@@ -635,7 +627,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             )
             return new
 
-    def __call__(self, domain, check_bounds=True, asarr=False):
+    def __call__(self, domain, check_bounds=True, asarr=False, **kwargs):
         """
         Interpolate to signal to new domain values.
 
@@ -653,9 +645,9 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         domain_interp
         """
 
-        return self.domain_interp(domain, check_bounds=check_bounds, asarr=asarr)
+        return self.domain_interp(domain, check_bounds=check_bounds, asarr=asarr, **kwargs)
 
-    def domain_interp(self, domain, check_bounds=True, asarr=False):
+    def domain_interp(self, domain, check_bounds=True, asarr=False, **kwargs):
         """
         Interpolate to signal to new domain values.
 
@@ -672,10 +664,11 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
 
         return self._abstract_call(
-            self._interp_function, self.domain, domain,
+            self.domain, domain,
             self.domain_min, self.domain_max,
             self._domain_class, '_domain',
-            check_bounds=check_bounds, asarr=asarr
+            check_bounds=check_bounds, asarr=asarr, 
+            kwargs={**self.interpolator_kwargs, **kwargs}
         )
 
     @staticmethod
@@ -729,31 +722,16 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
     @property
     def dmax(self):
         """
-        domain value with maximum sgnal value.
+        domain value with maximum signal value.
         """
         return self.domain.magnitude[np.nanargmax(self.magnitude, axis=self.domain_axis)]
 
     @property
-    def piecewise_integral(self):
+    def dmin(self):
         """
-        Returns the signal multiplied by the gradient of the domain.
-
-        See Also
-        --------
-        dreye.Domain.gradient
+        domain value with maximum signal value.
         """
-        return self * self.domain.gradient
-
-    @property
-    def piecewise_gradient(self):
-        """
-        Returns the signal divided by the gradient of the domain.
-
-        See Also
-        --------
-        dreye.Domain.gradient
-        """
-        return self / self.domain.gradient
+        return self.domain.magnitude[np.nanargmin(self.magnitude, axis=self.domain_axis)]
 
     @property
     def gradient(self):
@@ -975,7 +953,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
         domain = self.domain
 
-        if isinstance(other, _SignalMixin):
+        if is_signallike(other):
             # checks dimensionality, appends domain, converts units
             assert self._other_shape == other._other_shape, \
                 "Shapes are not compatible."
@@ -1049,7 +1027,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         return self.domain_concat(other, *args, **kwargs)
 
-    def equalize_domains(self, other):
+    def equalize_domains(self, other, **kwargs):
         """
         Equalize domains for two signal-type instances.
 
@@ -1066,7 +1044,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         """
         if self.domain != other.domain:
             domain = self.domain.equalize_domains(other.domain)
-            return self(domain), other(domain)
+            return self(domain, **kwargs), other(domain, **kwargs)
         return self, other
 
     def _slices_ndim(self, ndim):
@@ -1122,7 +1100,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
                 return other.magnitude[
                     self._none_slices_except_domain_axis
                 ], self
-            elif isinstance(other, _SignalMixin):
+            elif is_signallike(other):
                 # Do reverse if self ndim is smaller
                 if self.ndim < other.ndim:
                     return NotImplemented, self
@@ -1194,10 +1172,9 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
         ------
         value : `pint.Quantity`
         """
-        iter(np.moveaxis(self.magnitude, self.domain_axis, 0) * self.units)
+        return iter(np.moveaxis(self.magnitude, self.domain_axis, 0) * self.units)
 
-    @property
-    def nanless(self):
+    def fillna(self, fill_value=0):
         """
         Returns signal-type with NaNs removed.
 
@@ -1216,7 +1193,7 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
             # interpolate nans
             ivalues = self.interpolator(
                 arange[finites], iarr[finites],
-                **interpolator_kwargs
+                **{**interpolator_kwargs, 'fill_value': fill_value}
             )(arange)
             ivalues[finites] = iarr[finites]
             values[slice] = ivalues
@@ -1305,8 +1282,8 @@ class _SignalMixin(_UnitArray, _PlottingMixin, _NumpyMixin):
 
 
 @inherit_docstrings
-class _Signal2DMixin(_SignalMixin):
-    _init_args = _SignalMixin._init_args + ('labels',)
+class _SignalsAbstractClass(_SignalAbstractClass):
+    _init_args = _SignalAbstractClass._init_args + ('labels',)
 
     @property
     def _init_aligned_attrs(self):
@@ -1328,7 +1305,7 @@ class _Signal2DMixin(_SignalMixin):
         Added labels to init.
         """
         # change domain axis if necessary
-        if isinstance(values, _Signal2DMixin) and domain_axis is not None:
+        if is_signalslike(values) and domain_axis is not None:
             if domain_axis != values.domain_axis:
                 values = values.copy()
                 values.domain_axis = domain_axis
@@ -1522,17 +1499,130 @@ class _Signal2DMixin(_SignalMixin):
 
 
 @inherit_docstrings
-class _SignalIndexLabels(_Signal2DMixin):
+class Signal(_SignalAbstractClass):
+    """
+    Defines the base class for a continuous
+    one-dimensional signal (unit-aware).
+
+    Parameters
+    ----------
+    values : array-like, str, signal-type
+        One-dimensional array that contains the value of your signal.
+    domain : `dreye.Domain` or array-like, optional
+        The domain of the signal. This needs to be the same length as
+        `values`.
+    units : str or `pint.Unit`, optional
+        Units of the `values` array.
+    domain_units : str or `pint.Unit`, optional
+        Units of the `domain` array.
+    domain_min : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    domain_max : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    attrs : dict, optoinal
+        User-defined dictionary of objects that are associated with the
+        signal, but that are not used for any particular computations.
+    name : str, optional
+        Name of the signal instance.
+
+    See Also
+    --------
+    Signals
+    DomainSignal
+    Spectrum
+    IntensitySpectrum
+    CalibrationSpectrum
+    """
+
+    @property
+    def _class_new_instance(self):
+        return Signal
+
+    def __init__(
+        self,
+        values,
+        domain=None,
+        *,
+        units=None,
+        domain_units=None,
+        domain_kwargs=None,
+        domain_min=None,
+        domain_max=None,
+        attrs=None,
+        name=None,
+        domain_axis=None
+    ):
+        super().__init__(
+            values=values,
+            units=units,
+            domain=domain,
+            domain_units=domain_units,
+            domain_kwargs=domain_kwargs,
+            domain_min=domain_min,
+            domain_max=domain_max,
+            attrs=attrs,
+            name=name,
+            domain_axis=domain_axis
+        )
+
+
+@inherit_docstrings
+class Signals(_SignalsAbstractClass):
+    """
+    Defines the base class for a set of continuous
+    one-dimensional signals (unit-aware).
+
+    Parameters
+    ----------
+    values : array-like, str, signal-type
+        Two-dimensional array that contains the value of your signal.
+    domain : `dreye.Domain` or array-like, optional
+        The domain of the signal. This needs to be the same length of
+        the `values` array along the axis of the domain.
+    labels : array-like, optional
+        A set of hashable objects that describe each individual signal.
+        If None, ascending integer values are used as labels.
+    units : str or `pint.Unit`, optional
+        Units of the `values` array.
+    domain_units : str or `pint.Unit`, optional
+        Units of the `domain` array.
+    domain_axis : int, optional
+        The axis that corresponds to the `domain` argument. Defaults to 0.
+    domain_min : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    domain_max : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    attrs : dict, optoinal
+        User-defined dictionary of objects that are associated with the
+        signal, but that are not used for any particular computations.
+    name : str, optional
+        Name of the signal instance.
+
+    See Also
+    --------
+    Signal
+    DomainSignal
+    Spectra
+    IntensitySpectra
+    """
 
     def __init__(
         self,
         values,
         domain=None,
         labels=None,
-        **kwargs
+        *,
+        units=None,
+        domain_units=None,
+        domain_kwargs=None,
+        domain_min=None,
+        domain_max=None,
+        attrs=None,
+        name=None,
+        domain_axis=None
     ):
         if (
-            isinstance(values, _SignalMixin)
+            is_signallike(values)
             and (values.ndim == 1)
             and labels is None
             and not hasattr(values, 'labels')
@@ -1542,12 +1632,38 @@ class _SignalIndexLabels(_Signal2DMixin):
 
         super().__init__(
             values=values,
+            units=units,
             domain=domain,
+            domain_units=domain_units,
             labels=labels,
-            **kwargs
+            domain_kwargs=domain_kwargs,
+            domain_min=domain_min,
+            domain_max=domain_max,
+            attrs=attrs,
+            name=name,
+            domain_axis=domain_axis
         )
 
-    def loc_labels(self, labels, inplace=False):
+    @property
+    def _class_new_instance(self):
+        return Signals
+
+    @property
+    def _1d_signal_class(self):
+        return Signal
+
+    @property
+    def _allowed_reduced_dims(self):
+        return {
+            (self.labels_axis,): self._get_1d_signal
+        }
+
+    def _get_1d_signal(self, values, **kwargs):
+        kwargs['name'] = kwargs.pop('labels', None)
+        return self._1d_signal_class(values, **kwargs)
+
+    
+    def loc_labels(self, labels):
         """
         Select list of labels and return self.
         """
@@ -1555,14 +1671,22 @@ class _SignalIndexLabels(_Signal2DMixin):
             np.arange(self.shape[self.labels_axis]), index=self.labels
         )
         s = s.loc[labels]
-        idcs = s.to_numpy()
+        if isinstance(s, pd.Series):
+            idcs = s.to_numpy()
+        else:
+            idcs = s
+        key = tuple([slice(None) for _ in range(self.labels_axis)]) + (idcs,)
+        return self[key]
 
-        if not inplace:
-            self = self.copy()
-
-        self._values = np.take(self._values, idcs, axis=self.labels_axis)
-        self._labels = s.index
-        return self
+    @property
+    def loc(self):
+        class Loc:
+            def __init__(self, s_instance):
+                self.s_instance = s_instance            
+            def __getitem__(self, key):
+                return self.s_instance.loc_labels(key)
+        # Loc labels class instance
+        return Loc(self)
 
     def _preprocess_check_values(self, values):
         # must return values processed
@@ -1613,15 +1737,11 @@ class _SignalIndexLabels(_Signal2DMixin):
 
         # docstring is copied over
         # domain_axis must be aligned
-        if (
-            isinstance(other, _SignalMixin)
-            and not isinstance(other, _SignalIndexLabels)
-            and other.ndim <= 2
-        ):
+        if isinstance(other, Signal):
             other = self._class_new_instance(other)
             other.domain_axis = self.domain_axis
 
-        if isinstance(other, _SignalIndexLabels):
+        if isinstance(other, Signals):
             # equalizing domains
             self, other = self.equalize_domains(other)
             self_values = self.magnitude
@@ -1679,36 +1799,124 @@ class _SignalIndexLabels(_Signal2DMixin):
 
 
 @inherit_docstrings
-class _SignalDomainLabels(_Signal2DMixin):
-    _init_args = _Signal2DMixin._init_args + ('labels_min', 'labels_max')
+class DomainSignal(_SignalsAbstractClass):
+    """
+    Defines the base class for a two-dimensional signal (unit-aware).
+
+    Parameters
+    ----------
+    values : array-like, str, signal-type
+        Two-dimensional array that contains the value of your signal.
+    domain : `dreye.Domain` or array-like, optional
+        The domain of the signal. This needs to be the same length of
+        the `values` array along the axis of the domain.
+    labels : `dreye.Domain` or array-like, optional
+        The domain of the signal along the other axis.
+        This needs to be the same length of
+        the `values` array along the axis of the labels.
+    units : str or `pint.Unit`, optional
+        Units of the `values` array.
+    domain_units : str or `pint.Unit`, optional
+        Units of the `domain` array.
+    labels_units : str or `pint.Unit`, optional
+        Units of the `labels` array.
+    domain_axis : int, optional
+        The axis that corresponds to the `domain` argument. Defaults to 0.
+    domain_min : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    domain_max : numeric, optional
+        Defines the minimum value in your domain for the intpolation range.
+    attrs : dict, optoinal
+        User-defined dictionary of objects that are associated with the
+        signal, but that are not used for any particular computations.
+    name : str, optional
+        Name of the signal instance.
+
+    See Also
+    --------
+    Signal
+    Signals
+    DomainSpectrum
+    IntensityDomainSpectrum
+    MeasuredSpectrum
+    """
+    _init_args = _SignalsAbstractClass._init_args + ('labels_min', 'labels_max')
     _domain_labels_class = Domain
 
-    @property
-    def _switch_new_instance(self):
-        return self._class_new_instance
+    # TODO proper concatenation with interpolation of other axis
 
     def __init__(
         self,
         values,
         domain=None,
         labels=None,
-        **kwargs
+        *,
+        units=None,
+        domain_units=None,
+        labels_units=None,
+        domain_kwargs=None,
+        labels_kwargs=None,
+        domain_min=None,
+        domain_max=None,
+        labels_min=None,
+        labels_max=None,
+        attrs=None,
+        name=None,
+        domain_axis=None,
     ):
-
-        if isinstance(values, _SignalDomainLabels) and labels is not None:
+        if isinstance(values, DomainSignal) and labels is not None:
             if values.labels != labels:
                 values = values.labels_interp(labels)
 
         super().__init__(
             values=values,
+            units=units,
             domain=domain,
+            domain_units=domain_units,
             labels=labels,
-            **kwargs
+            labels_units=labels_units,
+            domain_kwargs=domain_kwargs,
+            labels_kwargs=labels_kwargs,
+            domain_min=domain_min,
+            labels_min=labels_min,
+            domain_max=domain_max,
+            labels_max=labels_max,
+            attrs=attrs,
+            name=name,
+            domain_axis=domain_axis,
         )
+
+    @property
+    def _class_new_instance(self):
+        return DomainSignal
+
+    @property
+    def _1d_signal_class(self):
+        return Signal
+
+    @property
+    def _allowed_reduced_dims(self):
+        return {
+            (self.labels_axis,): self._get_1d_signal_domain, 
+            (self.domain_axis,): self._get_1d_signal_labels
+        }
+
+    def _get_1d_signal_domain(self, values, **kwargs):
+        kwargs['name'] = kwargs.pop('labels', None)
+        kwargs.pop('labels_min', None)
+        kwargs.pop('labels_max', None)
+        return self._1d_signal_class(values, **kwargs)
+
+    def _get_1d_signal_labels(self, values, **kwargs):
+        kwargs['name'] = kwargs.pop('domain', None)
+        kwargs['domain'] = kwargs.pop('labels', None)
+        kwargs['domain_min'] = kwargs.pop('labels_min', None)
+        kwargs['domain_max'] = kwargs.pop('labels_max', None)
+        return self._1d_signal_class(values, **kwargs)
 
     def equalize_domains(self, other):
         self, other = super().equalize_domains(other)
-        if isinstance(other, _SignalDomainLabels):
+        if isinstance(other, DomainSignal):
             if self.labels != other.labels:
                 labels = self.labels.equalize_domains(other.labels)
                 return self.labels_interp(labels), other.labels_interp(labels)
@@ -1734,7 +1942,7 @@ class _SignalDomainLabels(_Signal2DMixin):
         matrix but does not switch what is referred to as the `domain` and
         `labels`. This affects mathematical operations and interpolation.
         """
-        return self._switch_new_instance(
+        return self._class_new_instance(
             values=self.magnitude,
             units=self.units,
             **{
@@ -1752,21 +1960,6 @@ class _SignalDomainLabels(_Signal2DMixin):
         )
 
     @property
-    def _labels_interp_function(self):
-        """
-        interpolate callable
-        """
-        if self._labels_interpolate is None:
-
-            self._labels_interpolate = self.interpolator(
-                self.labels.magnitude,
-                self.magnitude,
-                **self.labels_interpolator_kwargs,
-            )
-
-        return self._labels_interpolate
-
-    @property
     def labels_interpolator_kwargs(self):
         """
         Interpolator arguments for labels axis. Same as `interpolator_kwargs`
@@ -1776,7 +1969,7 @@ class _SignalDomainLabels(_Signal2DMixin):
         interpolator_kwargs['axis'] = self.labels_axis
         return interpolator_kwargs
 
-    def labels_interp(self, domain, check_bounds=True, asarr=False):
+    def labels_interp(self, domain, check_bounds=True, asarr=False, **kwargs):
         """
         Interpolate to new labels.
 
@@ -1794,12 +1987,13 @@ class _SignalDomainLabels(_Signal2DMixin):
         """
 
         values = self._abstract_call(
-            self._labels_interp_function, self.labels, domain,
+            self.labels, domain,
             self.labels_min, self.labels_max,
             self._domain_labels_class, '_labels',
-            check_bounds=check_bounds, asarr=False
+            check_bounds=check_bounds, asarr=asarr, 
+            kwargs={**self.labels_interpolator_kwargs, **kwargs}
         )
-        if values.ndim == 1:
+        if (values.ndim == 1) and not asarr:
             values = self._1d_signal_class(
                 values,
                 domain=self.domain,
@@ -1878,235 +2072,3 @@ class _SignalDomainLabels(_Signal2DMixin):
             domain_min=self.labels_min.magnitude
         )
         self._labels_max = labels_max
-
-
-@inherit_docstrings
-class Signal(_SignalMixin):
-    """
-    Defines the base class for a continuous
-    one-dimensional signal (unit-aware).
-
-    Parameters
-    ----------
-    values : array-like, str, signal-type
-        One-dimensional array that contains the value of your signal.
-    domain : `dreye.Domain` or array-like, optional
-        The domain of the signal. This needs to be the same length as
-        `values`.
-    units : str or `pint.Unit`, optional
-        Units of the `values` array.
-    domain_units : str or `pint.Unit`, optional
-        Units of the `domain` array.
-    domain_min : numeric, optional
-        Defines the minimum value in your domain for the intpolation range.
-    domain_max : numeric, optional
-        Defines the minimum value in your domain for the intpolation range.
-    attrs : dict, optoinal
-        User-defined dictionary of objects that are associated with the
-        signal, but that are not used for any particular computations.
-    name : str, optional
-        Name of the signal instance.
-
-    See Also
-    --------
-    Signals
-    DomainSignal
-    Spectrum
-    IntensitySpectrum
-    CalibrationSpectrum
-    """
-
-    @property
-    def _class_new_instance(self):
-        return Signal
-
-    def __init__(
-        self,
-        values,
-        domain=None,
-        *,
-        units=None,
-        domain_units=None,
-        domain_kwargs=None,
-        domain_min=None,
-        domain_max=None,
-        attrs=None,
-        name=None,
-        domain_axis=None
-    ):
-        super().__init__(
-            values=values,
-            units=units,
-            domain=domain,
-            domain_units=domain_units,
-            domain_kwargs=domain_kwargs,
-            domain_min=domain_min,
-            domain_max=domain_max,
-            attrs=attrs,
-            name=name,
-            domain_axis=domain_axis
-        )
-
-
-@inherit_docstrings
-class Signals(_SignalIndexLabels):
-    """
-    Defines the base class for a set of continuous
-    one-dimensional signals (unit-aware).
-
-    Parameters
-    ----------
-    values : array-like, str, signal-type
-        Two-dimensional array that contains the value of your signal.
-    domain : `dreye.Domain` or array-like, optional
-        The domain of the signal. This needs to be the same length of
-        the `values` array along the axis of the domain.
-    labels : array-like, optional
-        A set of hashable objects that describe each individual signal.
-        If None, ascending integer values are used as labels.
-    units : str or `pint.Unit`, optional
-        Units of the `values` array.
-    domain_units : str or `pint.Unit`, optional
-        Units of the `domain` array.
-    domain_axis : int, optional
-        The axis that corresponds to the `domain` argument. Defaults to 0.
-    domain_min : numeric, optional
-        Defines the minimum value in your domain for the intpolation range.
-    domain_max : numeric, optional
-        Defines the minimum value in your domain for the intpolation range.
-    attrs : dict, optoinal
-        User-defined dictionary of objects that are associated with the
-        signal, but that are not used for any particular computations.
-    name : str, optional
-        Name of the signal instance.
-
-    See Also
-    --------
-    Signal
-    DomainSignal
-    Spectra
-    IntensitySpectra
-    """
-
-    @property
-    def _class_new_instance(self):
-        return Signals
-
-    def __init__(
-        self,
-        values,
-        domain=None,
-        labels=None,
-        *,
-        units=None,
-        domain_units=None,
-        domain_kwargs=None,
-        domain_min=None,
-        domain_max=None,
-        attrs=None,
-        name=None,
-        domain_axis=None
-    ):
-        super().__init__(
-            values=values,
-            units=units,
-            domain=domain,
-            domain_units=domain_units,
-            labels=labels,
-            domain_kwargs=domain_kwargs,
-            domain_min=domain_min,
-            domain_max=domain_max,
-            attrs=attrs,
-            name=name,
-            domain_axis=domain_axis
-        )
-
-
-@inherit_docstrings
-class DomainSignal(_SignalDomainLabels):
-    """
-    Defines the base class for a two-dimensional signal (unit-aware).
-
-    Parameters
-    ----------
-    values : array-like, str, signal-type
-        Two-dimensional array that contains the value of your signal.
-    domain : `dreye.Domain` or array-like, optional
-        The domain of the signal. This needs to be the same length of
-        the `values` array along the axis of the domain.
-    labels : `dreye.Domain` or array-like, optional
-        The domain of the signal along the other axis.
-        This needs to be the same length of
-        the `values` array along the axis of the labels.
-    units : str or `pint.Unit`, optional
-        Units of the `values` array.
-    domain_units : str or `pint.Unit`, optional
-        Units of the `domain` array.
-    labels_units : str or `pint.Unit`, optional
-        Units of the `labels` array.
-    domain_axis : int, optional
-        The axis that corresponds to the `domain` argument. Defaults to 0.
-    domain_min : numeric, optional
-        Defines the minimum value in your domain for the intpolation range.
-    domain_max : numeric, optional
-        Defines the minimum value in your domain for the intpolation range.
-    attrs : dict, optoinal
-        User-defined dictionary of objects that are associated with the
-        signal, but that are not used for any particular computations.
-    name : str, optional
-        Name of the signal instance.
-
-    See Also
-    --------
-    Signal
-    Signals
-    DomainSpectrum
-    IntensityDomainSpectrum
-    MeasuredSpectrum
-    """
-
-    @property
-    def _class_new_instance(self):
-        return DomainSignal
-
-    @property
-    def _1d_signal_class(self):
-        return Signal
-
-    def __init__(
-        self,
-        values,
-        domain=None,
-        labels=None,
-        *,
-        units=None,
-        domain_units=None,
-        labels_units=None,
-        domain_kwargs=None,
-        labels_kwargs=None,
-        domain_min=None,
-        domain_max=None,
-        labels_min=None,
-        labels_max=None,
-        attrs=None,
-        name=None,
-        domain_axis=None,
-    ):
-
-        super().__init__(
-            values=values,
-            units=units,
-            domain=domain,
-            domain_units=domain_units,
-            labels=labels,
-            labels_units=labels_units,
-            domain_kwargs=domain_kwargs,
-            labels_kwargs=labels_kwargs,
-            domain_min=domain_min,
-            labels_min=labels_min,
-            domain_max=domain_max,
-            labels_max=labels_max,
-            attrs=attrs,
-            name=name,
-            domain_axis=domain_axis,
-        )

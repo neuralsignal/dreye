@@ -6,12 +6,13 @@ import numpy as np
 from scipy.stats import norm
 
 from dreye.utilities import optional_to, is_integer, asarray
-from dreye.core.spectrum import Spectra, Spectrum
-from dreye.core.signal import _SignalMixin
+from dreye.utilities.common import is_signallike
+from dreye.core.signal import Signal, Signals
 from dreye.constants import ureg
+from dreye.constants.common import DEFAULT_WL_RANGE
 
 
-def get_spectrum(
+def create_spectrum(
     intensities=None,
     wavelengths=None,
     **kwargs
@@ -22,20 +23,23 @@ def get_spectrum(
 
     if intensities is None:
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         intensities = np.ones(len(wavelengths))
         intensities /= np.trapz(intensities, wavelengths)
     elif wavelengths is None:
         wavelengths = np.linspace(300, 700, len(intensities))
 
-    return Spectrum(
+    domain_units = kwargs.pop('domain_units', 'nm')
+
+    return Signal(
         values=intensities,
         domain=wavelengths,
+        domain_units=domain_units,
         **kwargs
     )
 
 
-def get_max_normalized_gaussian_spectra(
+def create_max_normalized_gaussian_spectra(
     intensities=None,
     wavelengths=None,
     **kwargs
@@ -47,7 +51,7 @@ def get_max_normalized_gaussian_spectra(
     kwargs['units'] = kwargs.get('units', None)
     if intensities is None or is_integer(intensities):
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         if intensities is None:
             intensities = 10
         spectra = create_gaussian_spectrum(
@@ -57,7 +61,7 @@ def get_max_normalized_gaussian_spectra(
         return spectra.max_normalized
     elif asarray(intensities).ndim == 1:
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         spectra = create_gaussian_spectrum(
             wavelengths, intensities,
             **kwargs
@@ -66,9 +70,12 @@ def get_max_normalized_gaussian_spectra(
     elif wavelengths is None:
         wavelengths = np.linspace(300, 700, len(intensities))
 
-    return Spectra(
+    domain_units = kwargs.pop('domain_units', 'nm')
+
+    return Signals(
         values=intensities,
         domain=wavelengths,
+        domain_units=domain_units,
         **kwargs
     ).max_normalized
 
@@ -119,10 +126,9 @@ def create_gaussian_spectrum(
     kwargs : dict, optional
         Keyword arguments passed to the `Spectra` class.
     """
-    if isinstance(background, _SignalMixin):
+    if is_signallike(background):
         background = background(wavelengths).to(units)
 
-    units = Spectra._unit_mappings.get(units, units)
     if isinstance(units, str) or units is None:
         units = ureg(units).units
 
@@ -174,9 +180,12 @@ def create_gaussian_spectrum(
     if zero_cutoff:
         spectrum_array = np.clip(spectrum_array, 0, None)
 
-    return Spectra(
+    domain_units = kwargs.pop('domain_units', 'nm')
+
+    return Signals(
         spectrum_array,
         domain=np.squeeze(wavelengths),
         units=units,
+        domain_units=domain_units,
         **kwargs
     )

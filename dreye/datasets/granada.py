@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 from scipy.io import loadmat
 from dreye.utilities import irr2flux
-from dreye import DREYE_DIR, IntensitySpectra
+from dreye import DREYE_DIR, Signals
 
 GRANADA_DATAFILE = os.path.join(DREYE_DIR, 'datasets', 'granada_daylight.mat')
 
@@ -45,7 +45,6 @@ def load_dataset(as_spectra=False):
         Color and spectral analysis of daylight in southern Europe.
         J. Opt. Soc. Am. A 18, 1325-1335.
     """
-    # TODO docstring
     irr = loadmat(GRANADA_DATAFILE)['final'].T
     wls = np.linspace(300, 1100, 161)
 
@@ -55,7 +54,8 @@ def load_dataset(as_spectra=False):
         irr,
         columns=pd.Index(wls, name='wavelengths'),
         index=pd.Index(np.arange(irr.shape[0]), name='data_id')
-    ).stack()
+    ).stack().fillna(0)
+    series[series < 0] = 0
     series.name = 'spectralirradiance'
     df = series.reset_index()
     df['microspectralphotonflux'] = irr2flux(
@@ -63,12 +63,13 @@ def load_dataset(as_spectra=False):
     ) * 10 ** 6
 
     if as_spectra:
-        return IntensitySpectra(
+        return Signals(
             df.pivot(
                 'wavelengths',
                 'data_id',
                 'microspectralphotonflux'
-            ),
-            units='uE'
+            ).fillna(0),
+            units='uE', 
+            domain_units='nm'
         )
     return df

@@ -12,7 +12,7 @@ from dreye.err import DreyeError
 from dreye.utilities import (
     has_units, is_listlike, is_string,
     is_dictlike, is_hashable, array_equal,
-    is_numeric, get_units, get_value
+    is_numeric, get_units, get_value, optional_to
 )
 from dreye.utilities.abstract import _AbstractArray
 from dreye.constants import ureg, CONTEXTS
@@ -40,6 +40,7 @@ class _UnitArray(_AbstractArray):
     _deprecated_kws = {
         "contexts": None,
     }
+    _allowed_reduced_dims = {}  # tuples of allowed reduced dims combinations
 
     @property
     def _init_aligned_attrs(self):
@@ -392,7 +393,7 @@ class _UnitArray(_AbstractArray):
             self.values, units, *args, unitless=False, **kwargs
         )
 
-    def _instance_handler(self, other, op, reverse=False):
+    def _instance_handler(self, other, op, reverse=False, equal_but_skip=False):
         """
         Standard instance handler for various mathematical operations.
 
@@ -412,14 +413,19 @@ class _UnitArray(_AbstractArray):
         if other_magnitude is NotImplemented:
             return other_magnitude
 
-        # unit handling # make common function?
+        # unit handling
         if has_units(other):
             other_units = other.units
         else:
             # assume dimensionless
             other_units = ureg(None).units
+
         # apply operation with units
         other_values = other_magnitude * other_units
+        if equal_but_skip:
+            other_values = other_values.to(self.units)
+            return getattr(operator, op)(self.values.magnitude, other_values.magnitude)
+
         if reverse:
             new = getattr(operator, op)(other_values, self.values)
         else:
@@ -542,7 +548,7 @@ class _UnitArray(_AbstractArray):
         This method keeps track of units and attempts to return
         an instance of the `self` class.
         """
-        return self._instance_handler(other, 'contains')
+        return self._instance_handler(other, 'contains', equal_but_skip=True)
 
     def __pos__(self):
         """
@@ -610,8 +616,9 @@ class _UnitArray(_AbstractArray):
         if hasattr(values, 'ndim'):
             if values.size == 0:
                 return values
+
             # keep self
-            if values.ndim == self.ndim:
+            if (values.ndim <= self.ndim) and (values.ndim > 0):
                 # if not is tuple make tuple
                 if not isinstance(key, tuple):
                     key = (key,)
@@ -632,8 +639,14 @@ class _UnitArray(_AbstractArray):
                     elif isinstance(ikey, slice):
                         continue
                     else:
-                        # only allow slices and ellipsis
-                        return values
+                        continue
+                _reduced_dims = []
+                for idx, ikey in enumerate(key):
+                    if is_numeric(ikey) or is_string(ikey):
+                        _reduced_dims.append(idx)
+                _reduced_dims = tuple(_reduced_dims)
+                if _reduced_dims and (_reduced_dims not in self._allowed_reduced_dims):
+                    return values
                 # get new inits
                 _init_kwargs = self._init_kwargs
                 # indices are assumed to be positive
@@ -668,10 +681,20 @@ class _UnitArray(_AbstractArray):
                                 _init_kwargs[attr] = attr_value[ikey]
                             else:
                                 _init_kwargs[attr] = attr_value
-                return self._class_new_instance(
-                    values=values, **_init_kwargs
-                )
+                
+                if values.ndim == self.ndim:
+                    return self._class_new_instance(
+                        values=values, **_init_kwargs
+                    )
+                else:
+                    _reduced_dims_handler = self._allowed_reduced_dims[_reduced_dims]
+                    return _reduced_dims_handler(values, **_init_kwargs)
+                    
         return values
+
+    def __setitem__(self, key, value):
+        value = optional_to(value, self.units)
+        return self._values.__setitem__(key, value)
 
     def __eq__(self, other):
         """

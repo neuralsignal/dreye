@@ -12,7 +12,7 @@ import os
 import pandas as pd
 import numpy as np
 from dreye.utilities import irr2flux
-from dreye import DREYE_DIR, IntensitySpectra
+from dreye import DREYE_DIR, Signals
 
 
 _WL_FILE = 'srep26756-s1.csv'
@@ -83,15 +83,21 @@ def load_dataset(as_spectra=False, label_cols='data_id'):
                 df_['data_id'] += (df['data_id'].max() + 1)
             df = df.append(df_, ignore_index=True)
 
+    df.loc[:, 'microspectralphotonflux'] = df['microspectralphotonflux'].fillna(0)
+    df.loc[df['microspectralphotonflux'] < 0, 'microspectralphotonflux'] = 0
+    df.loc[:, 'spectralirradiance'] = df['spectralirradiance'].fillna(0)
+    df.loc[df['spectralirradiance'] < 0, 'spectralirradiance'] = 0
+
     if as_spectra:
-        return IntensitySpectra(
+        return Signals(
             pd.pivot_table(
                 df,
                 'microspectralphotonflux',
                 'wavelengths',
                 label_cols
-            ),
-            units='uE'
+            ).fillna(0),
+            units='uE', 
+            domain_units='nm'
         )
 
     return df

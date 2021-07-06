@@ -268,8 +268,7 @@ class _AbstractContainer(ABC):
         if isinstance(container, Collection):
             container = list(container)
         else:
-            raise DreyeError(
-                'container must be a list-like.')
+            raise DreyeError('container must be list-like.')
         if not self._are_instances(container):
             raise DreyeError(
                 'not all elements of container are '

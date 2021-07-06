@@ -3,7 +3,7 @@
 
 import numpy as np
 
-from dreye.core.spectrum import Spectra
+from dreye.core.signal import Signals
 from dreye.core.spectral_measurement import CalibrationSpectrum
 from dreye.hardware.base_spectrometer import AbstractSpectrometer
 from dreye.hardware.dummy_system import DummySystem
@@ -24,7 +24,7 @@ class DummySpectrometer(AbstractSpectrometer):
         noise_scale=0.01
     ):
 
-        assert isinstance(dummy_leds, Spectra)
+        assert isinstance(dummy_leds, Signals)
         assert isinstance(dummy_system, DummySystem)
         assert dummy_leds.ndim == 2
         assert dummy_leds.shape[dummy_leds.domain_axis-1] == len(dummy_system)

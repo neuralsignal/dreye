@@ -7,17 +7,18 @@ import pandas as pd
 from scipy.stats import norm
 
 from dreye.utilities import has_units, is_numeric, asarray, optional_to
+from dreye.utilities.common import is_signallike
 from dreye.constants import ureg
 from dreye.err import DreyeError
 from dreye.core.domain import Domain
-from dreye.core.signal import _SignalMixin, _Signal2DMixin
-from dreye.core.spectrum import (
-    IntensitySpectra, IntensitySpectrum, DomainSpectrum
+from dreye.core.signal import (
+    Signal, Signals, DomainSignal
 )
 from dreye.core.spectral_measurement import (
     CalibrationSpectrum, MeasuredSpectrum,
     MeasuredSpectraContainer
 )
+from dreye.constants.common import DEFAULT_WL_RANGE
 
 
 def convert_measurement(
@@ -62,14 +63,13 @@ def convert_measurement(
     object : `spectrum_cls`
         Returns `spectrum_cls` object given `signal`.
     """
-
-    assert isinstance(signal, _SignalMixin)
+    assert is_signallike(signal)
 
     if spectrum_cls is None:
         if signal.ndim == 1:
-            spectrum_cls = IntensitySpectrum
+            spectrum_cls = Signal
         elif signal.ndim == 2:
-            spectrum_cls = IntensitySpectra
+            spectrum_cls = Signals
         else:
             raise DreyeError("Signal instance of unknown dimensionality.")
 
@@ -105,7 +105,7 @@ def convert_measurement(
     # units are tracked
     spectrum = (signal * calibration)
     spectrum = spectrum / (integration_time * area)
-    spectrum = spectrum.piecewise_gradient
+    spectrum = spectrum / spectrum.domain.gradient
     # subtract background
     if background is not None:
         spectrum = spectrum - background.to(spectrum.units)
@@ -179,9 +179,10 @@ def create_measured_spectrum(
         `MeasuredSpectrum` instance containing `spectrum_array`.
     """
     # create labels
-    spectrum = DomainSpectrum(
+    spectrum = DomainSignal(
         spectrum_array,
         domain=wavelengths,
+        domain_units='nm',
         labels=Domain(output, units=output_units)
     )
     if assume_contains_output_bounds:
@@ -215,7 +216,7 @@ def create_measured_spectrum(
     )
 
 
-def create_led_spectra_container(
+def create_measured_spectra_container(
     led_spectra=None,  # wavelengths x LED (ignores units)
     intensity_bounds=(0, 100),  # two-tuple of min and max intensity
     wavelengths=None,  # wavelengths (two-tuple or array-like)
@@ -224,7 +225,7 @@ def create_led_spectra_container(
     intensity_units=None,  # units
     output_units=None,
     transform_func=None,  # callable
-    steps=10,
+    steps=4,
     names=None,
 ):
     """
@@ -288,7 +289,7 @@ def create_led_spectra_container(
     # create fake LEDs
     if led_spectra is None or is_numeric(led_spectra):
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         if led_spectra is None:
             centers = np.arange(350, 700, 50)[None, :]  # 7 LEDs
         else:
@@ -297,10 +298,10 @@ def create_led_spectra_container(
     elif asarray(led_spectra).ndim == 1:
         centers = optional_to(led_spectra, 'nm')
         if wavelengths is None:
-            wavelengths = np.arange(300, 700.1, 0.5)
+            wavelengths = DEFAULT_WL_RANGE
         led_spectra = norm.pdf(wavelengths[:, None], centers, hard_std)
     # wavelengths
-    if isinstance(led_spectra, _Signal2DMixin) and wavelengths is not None:
+    if is_signallike(led_spectra) and (wavelengths is not None):
         led_spectra = led_spectra(wavelengths)
         led_spectra.domain_axis = 0
     # check if we can obtain wavelengths (replace wavelengths)
@@ -315,6 +316,10 @@ def create_led_spectra_container(
 
     led_spectra = asarray(led_spectra)
     led_spectra /= np.trapz(led_spectra, asarray(wavelengths), axis=0)
+
+    if intensity_bounds is None:
+        # some very high max intensity
+        intensity_bounds = (0, 10000)
 
     intensities = np.broadcast_to(
         np.linspace(*intensity_bounds, steps).T,
@@ -365,7 +370,3 @@ def create_led_spectra_container(
         measured_spectra.append(measured_spectrum)
 
     return MeasuredSpectraContainer(measured_spectra)
-
-
-# deprecated!
-get_led_spectra_container = create_led_spectra_container
