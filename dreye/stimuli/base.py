@@ -160,8 +160,9 @@ class BaseStimulus(ABC, StimPlottingMixin):
         if self.estimator is None:
             self._stimulus = self.signal
         else:
-            # TODO addition of reshape estimator if necessary
-            if self.signal.ndim != 2:
+            if hasattr(self.estimator, 'map'):
+                self._stimulus = self.estimator.map(self.signal)
+            elif self.signal.ndim != 2:
                 raise ValueError(
                     'Signal must be two-dimensional, '
                     'but is {self.signal.ndim}.'
