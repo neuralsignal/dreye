@@ -120,6 +120,7 @@ class BaseStimulus(ABC, StimPlottingMixin):
         self._fitted_signal = None
         self._metadata = None
         self._events = None
+        self._rng = np.random.default_rng(self.seed)
 
         # if settings already exists simply update dictionary
         settings = {
@@ -135,6 +136,10 @@ class BaseStimulus(ABC, StimPlottingMixin):
             )
         else:
             self._settings = settings
+
+    @property
+    def rng(self):
+        return self._rng
 
     @property
     def _plot_attrs(self):
@@ -753,6 +758,7 @@ class DynamicStimulus(BaseStimulus):
             estimator=estimator,
             rate=rate,
             seed=seed,
+            subsample=subsample,
             **kwargs
         )
 

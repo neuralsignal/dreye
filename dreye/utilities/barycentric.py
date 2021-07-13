@@ -29,7 +29,8 @@ def barycentric_to_cartesian_transformer(n):
     for i in range(2, n):
         A[i, :i-1] = np.mean(A[:i, :i-1], axis=0)
         dis = np.sum((A[:i, :i-1] - A[i, :i-1])**2, axis=1)
-        assert np.unique(dis).size == 1
+        assert np.isclose(dis, dis[0]).all(), "non-unique rows"
+        # assert np.unique(dis).size == 1
         x = np.sqrt(1 - dis.mean())
         A[i, i-1] = x
     return A

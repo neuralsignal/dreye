@@ -365,6 +365,7 @@ def compute_est_score(
         name = score_method
 
     def metric_func(source_idx, B=None, **kwargs):
+        assert B is None, "Why is B not None?"
         _source_idx = get_source_idx(measured_spectra.names, source_idx)
         intensity_bounds = kwargs.get('intensity_bounds', None)
         if intensity_bounds is not None:
