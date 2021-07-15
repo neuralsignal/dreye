@@ -13,29 +13,28 @@ from dreye.estimators.excitation_models import IndependentExcitationFit
 
 @inherit_docstrings
 class DependentExcitationFit(IndependentExcitationFit):
-
     n_epochs = 10
 
     def __init__(
-        self,
-        *,
-        independent_layers=None,  # int
-        layer_assignments=None,  # list of lists or array-like
-        bit_depth=1,
-        photoreceptor_model=None,  # dict or Photoreceptor class
-        fit_weights=None,
-        background=None,  # dict or Spectrum instance or array-like
-        measured_spectra=None,  # MeasuredSpectraContainer, numpy.ndarray
-        max_iter=None,
-        unidirectional=False,
-        bg_ints=None,
-        fit_only_uniques=False,
-        ignore_bounds=None,
-        lsq_kwargs=None,
-        background_external=None, 
-        intensity_bounds=None, 
-        wavelengths=None, 
-        seed=None
+            self,
+            *,
+            independent_layers=None,  # int
+            layer_assignments=None,  # list of lists or array-like
+            bit_depth=1,
+            photoreceptor_model=None,  # dict or Photoreceptor class
+            fit_weights=None,
+            background=None,  # dict or Spectrum instance or array-like
+            measured_spectra=None,  # MeasuredSpectraContainer, numpy.ndarray
+            max_iter=None,
+            unidirectional=False,
+            bg_ints=None,
+            fit_only_uniques=False,
+            ignore_bounds=None,
+            lsq_kwargs=None,
+            background_external=None,
+            intensity_bounds=None,
+            wavelengths=None,
+            seed=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -48,8 +47,8 @@ class DependentExcitationFit(IndependentExcitationFit):
             lsq_kwargs=lsq_kwargs,
             ignore_bounds=ignore_bounds,
             bg_ints=bg_ints,
-            background_external=background_external, 
-            intensity_bounds=intensity_bounds, 
+            background_external=background_external,
+            intensity_bounds=intensity_bounds,
             wavelengths=wavelengths
         )
         self.independent_layers = independent_layers
@@ -68,7 +67,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         elif self.layer_assignments is None:
             self._independent_layers_ = self.independent_layers
             self._layer_assignments_ = [
-                list(range(len(self.measured_spectra_))) 
+                list(range(len(self.measured_spectra_)))
                 for _ in range(self._independent_layers_)
             ]
         else:
@@ -119,14 +118,14 @@ class DependentExcitationFit(IndependentExcitationFit):
         if ws is None:
             ws = np.zeros((len(self.measured_spectra_), self._independent_layers_))
             for idx, source_idcs in enumerate(self._layer_assignments_):
-                ws[source_idcs, idx] = w[offset:offset+len(source_idcs)]
+                ws[source_idcs, idx] = w[offset:offset + len(source_idcs)]
                 offset += len(source_idcs)
-        
+
         if pixel_strength is None:
             pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
             # TODO Find better method to handle this
             # assumes pixel strength is between 0-1 
-            pixel_strength = np.floor(pixel_strength * 2**self.bit_depth) / 2**self.bit_depth
+            pixel_strength = np.floor(pixel_strength * 2 ** self.bit_depth) / 2 ** self.bit_depth
         return ws, pixel_strength
 
     def _fit_sample(self, capture_x, excite_x):
@@ -165,14 +164,14 @@ class DependentExcitationFit(IndependentExcitationFit):
         # reformatted w0 and bounds
         w0 = np.concatenate(w0s)
         bounds = (
-            np.concatenate(bounds0), 
+            np.concatenate(bounds0),
             np.concatenate(bounds1)
         )
 
         # pixel strength values
         n_pixels = len(capture_x)
         p0 = np.random.random(
-            n_pixels*self._independent_layers_
+            n_pixels * self._independent_layers_
         ).reshape(-1, self._independent_layers_)
         # proper rounding or integer mapping for p0
         pbounds = (0, 1)
@@ -208,6 +207,7 @@ class DependentExcitationFit(IndependentExcitationFit):
             warnings.warn("Convergence was not accomplished "
                           "for X; "
                           "increase the number of epochs.", RuntimeWarning)
+
         # for _ in range(n_epochs):
         #   1. fit best leds while fixing pixels - nonlinear least squares with floats
         #   2. fit best pixels while fixing leds - MIP
@@ -224,7 +224,7 @@ class DependentExcitationFit(IndependentExcitationFit):
 
         layer_intensities, pixel_strength = w0, p0
         fitted_intensities = self._reformat_intensities(ws=w0, pixel_strength=p0)
-        
+
         return fitted_intensities, layer_intensities, pixel_strength
 
     def _objective(self, w, excite_x, **kwargs):
@@ -234,7 +234,6 @@ class DependentExcitationFit(IndependentExcitationFit):
         x_pred = self.get_excitation(w)
         return (self.fit_weights_ * (excite_x - x_pred)).ravel()  # residuals
 
-    
     def get_capture(self, w):
         """
         Get capture given `w`.
@@ -263,4 +262,3 @@ class DependentExcitationFit(IndependentExcitationFit):
             Can also be multidimensional.
         """
         return self.photoreceptor_model_.excitefunc(self.get_capture(w))
-
