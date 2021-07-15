@@ -1,1 +1,1 @@
-recursive-include dreye/datasets
+recursive-include dreye/datasets *
