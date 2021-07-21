@@ -6,7 +6,7 @@ or vice versa
 import numpy as np
 
 
-def led_ints_from_prop_samples(
+def ints_from_prop_samples(
     combo, # 2d-array of which leds to combine
     samples, 
     bg_ints, 
@@ -71,10 +71,10 @@ def absolutes_from_michelson_contrast(
 
 
 def michelson_contrast_from_absolutes(
-    abs_ints,
+    ints,
     led_idx1, 
     led_idx2
 ):
-    num = abs_ints[:, led_idx1].sum(1) - abs_ints[:, led_idx2].sum(1)
-    denom = abs_ints[:, led_idx1].sum(1) + abs_ints[:, led_idx2].sum(1)
+    num = ints[:, led_idx1].sum(1) - ints[:, led_idx2].sum(1)
+    denom = ints[:, led_idx1].sum(1) + ints[:, led_idx2].sum(1)
     return num / denom
