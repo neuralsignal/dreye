@@ -297,20 +297,23 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
                     message='Set result to background intensities.',
                     success=True
                 )
-        # find initial w0 using linear least squares
-        result = self._init_sample(capture_x, bounds, return_result=True)
         # non-perfect solution
         if (
+            # no underdetermined option
             (self.underdetermined_opt is None) 
-            # non-perfect solution not found
-            or (result.status != 3) 
             # not underdetermined
-            or (self.A_.shape[0] >= self.A_.shape[1])
+            or not self._is_underdetermined_
+            # filterfunc exists
+            or (self.photoreceptor_model_.filterfunc is not None)
+            # at last check if not in system (no perfect solution) - if necessary
+            or not self._capture_in_range_(capture_x, bounds=bounds)
         ):
+            # find initial w0 using linear least squares
+            w0 = self._init_sample(capture_x, bounds)
             # fit result via nonlinear least squares
             return least_squares(
                 self._objective,
-                x0=result.x,
+                x0=w0,
                 args=(excite_x,),
                 bounds=tuple(bounds),
                 max_nfev=self.max_iter,
@@ -368,24 +371,22 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
                 success=True
             )
 
-    def _init_sample(self, capture_x, bounds, return_result=False):
+    def _init_sample(self, capture_x, bounds):
         # weighted fit is better for substitution types of fits
         if self.weighted_init_fit_:
             result = lsq_linear(
                 self.fit_weights_[:, None] * self.A_,
-                self.fit_weights_ * (capture_x - self.q_bg_),
+                self.fit_weights_ * (capture_x - self._q_offset_),
                 bounds=tuple(bounds),
                 max_iter=self.max_iter
             )
         else:
             result = lsq_linear(
-                self.A_, (capture_x - self.q_bg_),
+                self.A_, (capture_x - self._q_offset_),
                 bounds=tuple(bounds),
                 max_iter=self.max_iter
             )
         # return fitted intensity (w)
-        if return_result:
-            return result
         return result.x
 
     def _objective(self, w, excite_x):
@@ -676,8 +677,7 @@ class NonlinearTransformExcitationFit(IndependentExcitationFit):
         if self.inv_func is None and self.transform_func is None:
             self.inv_func_ = transform_func
         elif self.inv_func is None:
-            raise DreyeError("Supply `inv_func`, finding "
-                             "inverse function not yet implemented.")
+            raise DreyeError("Supply `inv_func`.")
         else:
             assert is_callable(self.inv_func), (
                 "`inv_func` must be callable."

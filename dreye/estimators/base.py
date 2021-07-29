@@ -16,9 +16,11 @@ from dreye.estimators.utils import (
     check_background, check_measured_spectra, 
     check_photoreceptor_model, 
     estimate_bg_ints_from_background, get_background_from_bg_ints, 
-    get_bg_ints, get_ignore_bounds
+    get_bg_ints, get_ignore_bounds, get_spanning_intensities, range_of_solutions
 )
 from dreye.utilities.common import is_string
+from dreye.utilities.convex import convex_combination
+from dreye.core.photoreceptor import CAPTURE_STRINGS
 
 
 class OptimizeResultContainer(_AbstractContainer):
@@ -147,6 +149,14 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         return 1 - res.sum(axis) / tot.sum(axis)
 
     @staticmethod
+    def _in_hull(X, X_pred, axis=0, **kwargs):
+        # are all fits in hull
+        return np.isclose(
+            np.linalg.norm(X - X_pred, axis=axis), 0,
+            **kwargs
+        )
+
+    @staticmethod
     def _agg_scores(scores, axis, aggfunc=None, default='mean'):
         if aggfunc is None:
             aggfunc = default
@@ -194,6 +204,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         # residual across photoreceptors
         if method == 'r2':
             return self._r2_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'inhull':
+            return self._in_hull(
                 X, X_pred, axis=axis, **kwargs)
         elif method == 'rel':
             return self._rel_changes_scores(
@@ -267,6 +280,26 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         feature_scores
         """
         return self.feature_scores(X, method=method, **kwargs).mean()
+
+    def sample_score(self, X=None, y=None, method='inhull', **kwargs):
+        """
+        Sample score method.
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_features)
+            X values passed to the `fit` method.
+
+        Returns
+        -------
+        score : float
+            Mean of score across all samples
+
+        See Also
+        --------
+        sample_scores
+        """
+        return self.sample_scores(X, method=method, **kwargs).mean()
 
     def transform(self, X=None):
         """
@@ -415,6 +448,7 @@ class _PrModelMixin:
     bg_ints = None
     background_external = None
     capture_noise_level = None
+    _sample_points = None
     """
     The following attributes will be set (using `_set_pr_model_related_objects` method):
     * photoreceptor_model_
@@ -538,7 +572,7 @@ class _PrModelMixin:
                 self.background_ = self._bg_ints_background_
                 # otherwise keep background_ None
 
-        elif is_string(self.background_) and (self.background_ in {'mean', 'norm'}):
+        elif is_string(self.background_) and (self.background_ in CAPTURE_STRINGS):
             self._background_external_ = False
             self._bg_ints_background_ = 0
             assert np.allclose(self.bg_ints_, 0), "If background is `{self.background_}`, bg_ints must be all zeros."
@@ -637,8 +671,6 @@ class _PrModelMixin:
         if self.photoreceptor_model_.filterfunc is None:
             # threshold by noise if necessary and apply nonlinearity
             x_pred = (self.A_ @ w).T
-            if np.any(self.photoreceptor_model_.capture_noise_level):
-                x_pred += self.noise_term_
         else:
             warnings.warn("Fitting with filterfunc not tested!", RuntimeWarning)
             illuminant = self.measured_spectra_.ints_to_spectra(w)
@@ -646,9 +678,99 @@ class _PrModelMixin:
                 illuminant,
                 background=self.background_,
                 return_units=False
-            )
-        x_pred += self.q_bg_
+            ) - self.noise_term_
+        x_pred += self._q_offset_
         return x_pred
+
+    @property
+    def _q_offset_(self):
+        """
+        offset in capture produced by constant light source and noise in photoreceptor
+        """
+        return self.noise_term_ + self.q_bg_
+
+    def _capture_in_range_(self, q, bounds=None, points=None):
+        """
+        Check if capture is in measured spectra convex hull.
+
+        Parameters
+        ----------
+        q : numpy.array (n_opsins)
+            One set of captures.
+        bounds : tuple of array-like
+            Tuple of lower and upper bound of intensities.
+        """
+        return self._convex_solution_(q, bounds=bounds, points=points)[-1]
+
+    def _convex_solution_(self, q, bounds=None, points=None):
+        """
+        Convex solution
+
+        Returns
+        -------
+        w : np.ndarray
+        norm : float
+        inhull : bool
+        """
+        if bounds is None:
+            bounds = self.intensity_bounds_
+            points = (self._sample_points if points is None else points)
+
+        isinf = np.all(np.isinf(bounds[1]))
+        if np.any(np.isinf(bounds[1])) and not isinf:
+            # only check if linear combination works using nnls
+            raise ValueError(
+                "All max bounds must be inf or not. Cannot combine "
+                "real-numbered bounds and inf bounds to determine if capture "
+                "has a perfect solution."
+            )
+
+        elif isinf:
+            bounds = (bounds[0], np.ones(bounds[1].size))
+
+        if points is None:
+            samples = get_spanning_intensities(bounds)
+            points = self.get_capture(samples.T)
+
+        if isinf:
+            offset = np.min(points, axis=0)
+            # for handling conical hull (inf-case)
+            points = points - offset
+            q = q - offset
+
+        return convex_combination(points, q, bounded=not isinf)
+
+    def _range_of_solutions_(self, q, bounds=None, points=None):
+        if bounds is None:
+            bounds = self.intensity_bounds_
+
+        w, norm, inhull = self._convex_solution_(q, bounds=bounds, points=points)
+
+        if not inhull:
+            warnings.warn(
+                f"No perfect solution exists for capture of value `{tuple(q)}`, "
+                f"returning best solution with norm `{norm}`", 
+                RuntimeWarning
+            )
+            return w, w
+        if not self._is_underdetermined_:
+            warnings.warn(
+                "System of light source equations is not underdetermined, "
+                "only a single solution exists.", 
+                RuntimeWarning
+            )
+            return w, w
+        q = q - self._q_offset_  # remove offset
+        return range_of_solutions(self.A_, q, bounds=bounds, check=False)
+
+    @property
+    def _is_underdetermined_(self):
+        """
+        Return True, if the system of linear equations of 
+        light sources to captures is underdetermined.
+        """
+        # fewer opsins than light sources
+        return self.A_.shape[0] < self.A_.shape[1]
 
     def get_excitation(self, w):
         """

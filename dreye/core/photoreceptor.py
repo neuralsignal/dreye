@@ -1,10 +1,10 @@
 """Class to define photoreceptor/capture model
 """
 
-
 import warnings
 import copy
 from abc import ABC
+from inspect import isclass
 
 import numpy as np
 
@@ -18,16 +18,25 @@ from dreye.utilities import (
     is_signallike, is_integer
 )
 from dreye.constants.common import DEFAULT_WL_RANGE
-from dreye.core.opsin_template import govardovskii2000_template
+from dreye.core.opsin_template import govardovskii2000_template, stavenga1993_template, gaussian_template
 
 
-RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-1
 WL_PEAK_SPACE = 150
+# allowed strings for the background argument
+CAPTURE_STRINGS = {'mean', 'norm'}
+# templates for creating spectral sensitivities
+TEMPLATES = {
+    'govardovskii2000': govardovskii2000_template, 
+    'stavenga1993': stavenga1993_template, 
+    'gaussian': gaussian_template
+}
 
 
 def create_photoreceptor_model(
     sensitivity=None, wavelengths=None, filterfunc=None, labels=None,
-    photoreceptor_type='linear', **kwargs
+    photoreceptor_type='linear', 
+    template='govardovskii2000', template_kws={}, 
+    **kwargs
 ):
     """
     Create an arbitrary photoreceptor model.
@@ -80,9 +89,18 @@ def create_photoreceptor_model(
     wavelength of the illuminant (for example, the photoreceptor model
     by Stavenga et al, 2003).
     """
-    if photoreceptor_type not in {'linear', 'log', 'hyperbolic', 'contrast'}:
-        raise DreyeError("Photoreceptor type must be 'linear', 'log', 'hyperbolixc', or 'contrast'.")
-    if photoreceptor_type == 'linear':
+    if is_string(template):
+        template = TEMPLATES.get(template, template)
+    if is_string(template):
+        raise NameError(
+            f"Template method `{template}`, unknown. "
+            f"Acceptable template methods are in `{set(TEMPLATES)}`."
+        )
+    assert is_callable(template), f"Opsin template must be a Python callable, but is of type `{type(template)}`."
+
+    if isclass (photoreceptor_type) and issubclass(photoreceptor_type, Photoreceptor):
+        pr_class = photoreceptor_type
+    elif photoreceptor_type == 'linear':
         pr_class = LinearPhotoreceptor
     elif photoreceptor_type == 'log':
         pr_class = LogPhotoreceptor
@@ -90,6 +108,8 @@ def create_photoreceptor_model(
         pr_class = HyperbolicPhotoreceptor
     elif photoreceptor_type == 'contrast':
         pr_class = LinearContrastPhotoreceptor
+    else:
+        raise DreyeError("Photoreceptor type must be 'linear', 'log', 'hyperbolic', or 'contrast'.")
 
     if is_signallike(sensitivity):
         # ensures zeroness
@@ -108,12 +128,12 @@ def create_photoreceptor_model(
                 np.max(centers)+WL_PEAK_SPACE, 
                 1
             )
-        sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
+        sensitivity = template(wavelengths[:, None], centers[None, :], **template_kws)
     elif sensitivity is None:
         if wavelengths is None:
             wavelengths = DEFAULT_WL_RANGE
         centers = np.linspace(350, 550, 3)
-        sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
+        sensitivity = template(wavelengths[:, None], centers[None, :], **template_kws)
     
     return pr_class(
         sensitivity,
@@ -445,7 +465,10 @@ class Photoreceptor(ABC):
         illuminant = self._process_spectra(illuminant, wavelengths)
 
         # units of calculated absolute capture
-        new_units = illuminant.units * self.sensitivity.units * self.wavelengths.units
+        if return_units:
+            new_units = illuminant.units * self.sensitivity.units * self.wavelengths.units
+        else:
+            new_units = 1
 
         # Ensure proper broadcasting (samples x opsins x wavelengths)
         wls = self.wls
@@ -469,8 +492,7 @@ class Photoreceptor(ABC):
                              "and sensitivities do not contain negative "
                              "values.")
 
-        if return_units:
-            q = q * new_units
+        q = q * new_units
 
         if background is None:
             return q
@@ -479,11 +501,11 @@ class Photoreceptor(ABC):
             if background == 'mean':
                 q_bg = np.mean(q, axis=0)
                 if add_noise:
-                    q_bg += self.capture_noise_level
+                    q_bg += self.capture_noise_level * new_units
             elif background == 'norm':
                 q_bg = np.trapz(sensitivity, wls, axis=-1)
                 if add_noise:
-                    q_bg += self.capture_noise_level
+                    q_bg += self.capture_noise_level * new_units
             else:
                 raise TypeError(
                     "`background` must be array-like or string "

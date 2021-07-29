@@ -8,28 +8,13 @@ from numpy.random import default_rng
 
 from dreye.utilities.common import is_integer
 from dreye.utilities import barycentric_to_cartesian_transformer
+from dreye.utilities.convex import in_hull
 
 
 def phi(d, x=2.0, n_iter=10):
     for _ in range(n_iter):
         x = (1+x) ** (1/(d+1))
     return x
-
-
-def in_hull(p, hull):
-    """
-    Test if points in `p` are in `hull`
-
-    `p` should be a `NxK` coordinates of `N` points in `K` dimensions
-    `hull` is either a scipy.spatial.Delaunay object or the `MxK` array of the 
-    coordinates of `M` points in `K`dimensions for which Delaunay triangulation
-    will be computed
-    """
-    from scipy.spatial import Delaunay
-    if not isinstance(hull,Delaunay):
-        hull = Delaunay(hull)
-
-    return hull.find_simplex(p) >= 0
 
 
 def create_spaced_samples(n, d=3, simplex=True, append_pure=False, seed=0):

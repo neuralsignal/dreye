@@ -272,7 +272,7 @@ def metric_constructor_helper(
             *args, **kwargs
         )
         if (cols is None) or is_numeric(metric):
-            metrics.loc[idx, 'metric'] = metric
+            metrics.loc[idx, 'metric'] = np.mean(metric)
         else:
             metrics.loc[idx, cols] = metric
             metrics.loc[idx, 'metric'] = metric.mean()
@@ -385,8 +385,11 @@ def compute_est_score(
             background=background,
             **kwargs
         )
-        est.fit(X)
-        return getattr(est, score_method)(**score_kws)
+        if hasattr(est, 'fit'):
+            est.fit(X)
+            return getattr(est, score_method)(**score_kws)
+        else:
+            return getattr(est, score_method)(X, **score_kws)
 
     return get_metrics(
         source_idcs, measured_spectra.names, cols,

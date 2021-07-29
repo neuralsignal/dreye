@@ -44,6 +44,7 @@ from dreye.estimators.excitation_models import (
 )
 from dreye.estimators.led_substitution import LedSubstitutionFit
 from dreye.estimators.silent_substitution import BestSubstitutionFit
+from dreye.estimators.metrics import Metrics
 
 from dreye.estimators.intensity_models import (
     RelativeIntensityFit
@@ -111,5 +112,6 @@ __all__ = [
     'IndependentExcitationFit',
     'TransformExcitationFit',
     'RelativeIntensityFit',
-    'NonlinearTransformExcitationFit'
+    'NonlinearTransformExcitationFit', 
+    'Metrics'
 ]

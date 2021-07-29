@@ -8,7 +8,7 @@ from sklearn.preprocessing import normalize
 
 from dreye.constants import ureg
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
-from dreye.core.photoreceptor import Photoreceptor, create_photoreceptor_model
+from dreye.core.photoreceptor import CAPTURE_STRINGS, Photoreceptor, create_photoreceptor_model
 from dreye.utilities.common import (
     is_dictlike, is_listlike, is_signallike, is_string, optional_to, 
     is_numeric
@@ -17,7 +17,7 @@ from dreye.core.signal import Signal, Signals
 from dreye.core.measurement_utils import create_measured_spectra_container
 from dreye.core.spectrum_utils import create_spectrum
 from dreye.utilities.array import asarray
-
+from dreye.utilities.convex import in_hull
 
 
 def check_measured_spectra(
@@ -151,7 +151,7 @@ def check_background(background, measured_spectra, wavelengths=None):
         return
     elif is_string(background) and (background == 'null'):
         return
-    elif is_string(background) and (background in {'mean', 'norm'}):
+    elif is_string(background) and (background in CAPTURE_STRINGS):
         return background
     elif is_signallike(background):
         background = background.to(measured_spectra.units)
@@ -409,3 +409,82 @@ def get_optimal_capture_samples(
         captures = np.unique(captures, axis=0)
     return captures
 
+
+def range_of_solutions(
+    A, x, bounds, check=True
+):
+    """
+    Range of solutions for underdetermined matrix
+
+    A - opsins x leds - normalized capture matrix
+    x - opsin captures
+    bounds - (min, max)
+    """
+
+    if check:
+        assert A.shape[0] < A.shape[1], "System is not underdetermined."
+        samples = get_spanning_intensities(bounds)
+        points = samples @ A.T  # n_samples x n_opsins
+        assert in_hull(points, x), "No perfect solutions exist for system."
+
+    maxs = bounds[0].copy()
+    mins = bounds[1].copy()
+
+    # difference between number of opsins and leds
+    n_diff = A.shape[1] - A.shape[0]
+    
+    # combinations x n_diff
+    omat = np.array(list(product(*[[0, 1]]*n_diff)))
+
+    idcs = np.arange(A.shape[1])    
+    for ridcs in product(*[idcs]*n_diff):
+        # always use ascending order idcs
+        if not np.all(np.diff(np.argsort(ridcs)) < 0):
+            # ascending always
+            continue
+        
+        ridcs = list(ridcs)
+        Arest = A[:, ridcs]
+        # combinations x n_diff
+        offsets = omat * (
+            bounds[1][ridcs] - bounds[0][ridcs]
+        ) + bounds[0][ridcs]
+        # filter non-real values
+        offsets[np.isnan(offsets)] = 0.0
+        offsets = offsets[np.isfinite(offsets).all(axis=1)]
+        # combinations x opsins
+        offset = (offsets @ Arest.T)
+        
+        Astar = np.delete(A, ridcs, axis=1)
+        
+        sols = np.linalg.solve(
+            Astar, 
+            (x - offset).T
+        ).T
+        # combinations x used leds
+
+        # allowed bounds for included 
+        b0 = np.delete(bounds[0], ridcs)
+        b1 = np.delete(bounds[1], ridcs)
+        
+        # all within bounds
+        psols = np.all((sols >= b0) & (sols <= b1), axis=1)
+        
+        if not np.any(psols):
+            # continue if no solutions exist
+            continue
+
+        # add minimum and maximum to global minimum and maximum
+        rbool = np.isin(idcs, ridcs)
+        _mins = np.zeros(A.shape[1])
+        _maxs = np.zeros(A.shape[1])
+
+        _mins[rbool] = offsets[psols].min(axis=0)
+        _maxs[rbool] = offsets[psols].max(axis=0)
+        _mins[~rbool] = sols[psols].min(axis=0)
+        _maxs[~rbool] = sols[psols].max(axis=0)
+
+        mins = np.minimum(mins, _mins)
+        maxs = np.maximum(maxs, _maxs)
+        
+    return mins, maxs

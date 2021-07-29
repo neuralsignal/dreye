@@ -4,16 +4,107 @@ a photoreceptor model and measured spectra
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+from itertools import product
+import copy
 
+from dreye.utilities.array import asarray
+from dreye.utilities.common import is_string
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
 from dreye.estimators.base import _PrModelMixin
 from dreye.estimators.utils import get_optimal_capture_samples, get_source_idcs, get_source_idx, get_spanning_intensities
 from dreye.estimators.metric_functions import compute_est_score, compute_metric_for_samples, compute_peak_set, get_metrics
 from dreye.estimators.silent_substitution import BestSubstitutionFit
 from dreye.estimators.excitation_models import IndependentExcitationFit
+from dreye.plotting import plot_simplex
+from dreye.utilities import barycentric_dim_reduction, is_numeric
 
 
 # TODO add old metrics back in new format
+
+@inherit_docstrings
+class CaptureTests(_InitDict, _PrModelMixin):
+    """
+    Metrics to compute the "goodness-of-fit" for various light source
+    combinations.
+    """
+
+    def __init__(
+        self, 
+        photoreceptor_model,
+        measured_spectra,
+        *,
+        intensity_bounds=None,
+        background=None,
+        wavelengths=None, 
+        capture_noise_level=None, 
+        ignore_bounds=None
+    ):
+        # set init
+        self.photoreceptor_model = photoreceptor_model
+        self.measured_spectra = measured_spectra
+        self.intensity_bound = intensity_bounds
+        self.wavelengths = wavelengths
+        self.background = background
+        self.capture_noise_level = capture_noise_level
+        self.ignore_bounds = ignore_bounds
+
+        self._set_pr_model_related_objects()
+
+        # used by _PrModelMixin class methods
+        samples = get_spanning_intensities(self.intensity_bounds_)
+        self._sample_points = self.get_capture(samples.T)
+
+    @property
+    def is_underdetermined(self):
+        return self._is_underdetermined_
+
+    def _q_iterator(self, q, func, **kwargs):
+        # TODO parallelize
+        q = asarray(q)
+        if q.ndim == 1:
+            return func(q, **kwargs)
+        else:
+            qs = []
+            for iq in q:
+                qs.append(func(iq, **kwargs))
+            qs = np.array(qs)
+            return qs
+
+    def range_of_solutions(self, q):
+        """
+        Find the range of solutions that fit the capture `q`
+        """
+        return self._q_iterator(q, self._range_of_solutions_)
+
+    def convex_solution(self, q):
+        """
+        Optimal solution to fit capture `q`
+
+        Returns
+        -------
+        w : np.ndarray
+        norm : float
+        inhull : bool
+        """
+        return self._q_iterator(q, self._convex_solution_)
+
+    def capture_in_range(self, q):
+        """
+        Check if capture is in measured spectra convex hull.
+
+        Parameters
+        ----------
+        q : numpy.array (n_opsins)
+            One set of captures.
+
+        Returns
+        -------
+        inhull : bool
+        """
+        return self._q_iterator(q, self._capture_in_range_)
 
 
 @inherit_docstrings
@@ -174,6 +265,29 @@ class Metrics(_InitDict, _PrModelMixin):
             **kwargs
         )
 
+    def compute_capture_in_range(self, X, ignore_bounds=None):
+        """
+        Compute percent of excitations in hull.
+
+        See Also
+        --------
+        CaptureTests
+        """
+        return compute_est_score(
+            self.source_idcs_, 
+            X, 
+            self.measured_spectra_, 
+            self.photoreceptor_model_, 
+            self.background_,
+            CaptureTests, 
+            cols=None, 
+            score_method='capture_in_range', 
+            name='capture_in_range', 
+            normalize=False, 
+            intensity_bounds=self.intensity_bounds_,
+            ignore_bounds=ignore_bounds
+        )
+
     def compute_excitation_scores_for_spectra(
         self, 
         spectra, 
@@ -195,6 +309,20 @@ class Metrics(_InitDict, _PrModelMixin):
         )
         return self.compute_excitation_scores(X, method=method, **kwargs)
 
+    def compute_capture_in_range_for_spectra(self, spectra, ignore_bounds=None):
+        """
+        Compute percent of excitations in hull.
+
+        See Also
+        --------
+        CaptureTests
+        """
+        X = self.photoreceptor_model_.capture(
+            spectra, 
+            background=self.background_, 
+            return_units=False
+        )
+        return self.compute_capture_in_range(X, ignore_bounds=ignore_bounds)
 
     def compute_best_peak_difference(
         self, 
@@ -211,5 +339,163 @@ class Metrics(_InitDict, _PrModelMixin):
             as_string=as_string, as_idx=as_idx
         )
 
-    # compute peaks - given available combos - or not?
-    # compute for estimators - separate
+    def simplex_plot(
+        self, 
+        combo=None, 
+        wls=None, 
+        ax=None, cmap='rainbow', nonspectral_lines=False, 
+        add_center=True
+    ):
+        """
+        Plot a simplex plot for a specific light source combination.
+        """
+        n = self.photoreceptor_model_.n_opsins
+        assert n in {3, 4}, "Simplex plots only works for tri- or tetrachromatic animals."
+        
+        wls_ = self.photoreceptor_model_.wls
+        if wls is None:
+            wls = 10
+        # if numeric it indicates spacing
+        if is_numeric(wls):
+            wmin = np.min(wls_)
+            wmax = np.max(wls_)
+            # earliest round number
+            wmin = np.ceil(wmin / wls) * wls
+            wls = np.arange(wmin, wmax, wls)
+        
+        qpoints = self.optimal_q_samples_[
+            np.argmin(
+                np.abs(
+                    wls_[:, None]-wls
+                ), axis=0
+            )
+        ]
+        
+        colors = sns.color_palette(
+            cmap, len(qpoints)
+        )
+
+        if add_center:
+            qpoints = np.vstack([qpoints, np.ones((1, qpoints.shape[1]))])
+            colors = np.array(list(colors) + ['black'], dtype=object)
+        
+        ax = plot_simplex(
+            n, 
+            ax=ax,
+            points=qpoints, 
+            point_colors=colors,
+        )
+        
+        if nonspectral_lines:
+        
+            qmaxs = barycentric_dim_reduction(
+                qpoints[np.argmax(qpoints, 0)]
+            )
+            for idx, jdx in product(range(n), range(n)):
+                if idx >= jdx:
+                    continue
+                # sensitivities next to each other
+                if abs(idx - jdx) == 1:
+                    continue
+                _qs = qmaxs[[idx, jdx]].T
+                ax.plot(
+                    *_qs,
+                    color='black', 
+                    linestyle='--', 
+                    alpha=0.8
+                )
+                
+        if combo is not None:
+            hullp = self.capture_for_selected_combo(
+                combo
+            )
+            ax = plot_simplex(
+                n, 
+                hull=hullp[
+                    hullp.sum(axis=1) > 0
+                ], 
+                hull_kws={
+                    'color':'lightgray', 
+                    'edgecolor': 'gray', 
+                    'linestyle':'--',
+                }, 
+                ax=ax
+            )
+        
+        return ax
+
+    def plot_peak_differences(
+        self, 
+        highlight=True, 
+        ax=None, 
+        cmap='coolwarm', 
+        over=None, under=None,
+        **kwargs
+    ):
+        """
+        Plot heatmap of peak differences between opsins and light sources.
+        """
+        se = self.photoreceptor_model_.sensitivity
+        ns = self.measured_spectra_.normalized_spectra
+        
+        peakidcs = compute_peak_set(
+            se, ns,
+            as_idx=True
+        )
+        sdmax = se.dmax
+        ndmax = ns.dmax
+        
+        diffs = pd.DataFrame(
+            sdmax[:, None] - ndmax, 
+            index=self.photoreceptor_model_.labels, 
+            columns=self.measured_spectra_.names
+        )
+        maxdiff = np.max(np.abs(diffs.to_numpy()))
+        
+        if ax is None:
+            ax = plt.gca()
+
+        kws = kwargs.copy()
+        vmin = kws.pop('vmin', -maxdiff)
+        vmax = kws.pop('vmax', maxdiff)
+        square = kws.pop('square', True)
+        linewidths = kws.pop('linewidths', 0.5)
+        cbar_kws = kws.pop('cbar_kws', {})
+
+        if is_string(cmap):
+            cmap = copy.copy(sns.color_palette(cmap, as_cmap=True))
+
+        if over is not None and under is not None:
+            cmap.set_over(over)
+            cmap.set_under(under)
+            cbar_kws['extend'] = 'both'
+        elif over is not None:
+            cmap.set_over(over)
+            cbar_kws['extend'] = 'max'
+        elif under is not None:
+            cmap.set_under(under)
+            cbar_kws['extend'] = 'min'
+        
+        sns.heatmap(
+            diffs, 
+            vmin=vmin, 
+            vmax=vmax, 
+            cmap=cmap, 
+            square=square, 
+            linewidths=linewidths, 
+            cbar_kws=cbar_kws,
+            **kws
+        )
+        
+        # highlight best match
+        if highlight:
+            xs = np.array([0, 1, 1, 0, 0])
+            ys = np.array([0, 0, 1, 1, 0])
+
+            for xidx, yidx in zip(peakidcs, np.arange(peakidcs.size)):
+                ax.plot(
+                    xs+xidx, ys+yidx,
+                    linewidth=linewidths*4, color='black'
+                )
+        return ax
+        

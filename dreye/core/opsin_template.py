@@ -3,9 +3,9 @@ Various sensitivity template functions
 """
 
 import numpy as np
+from scipy.stats import norm
 
 from dreye.utilities import optional_to
-from dreye.utilities.common import is_listlike
 
 # TODO docstring
 
@@ -21,6 +21,10 @@ def stavenga1993_band_calculation(
             1 + b * x + 3 / 8 * (b * x) ** 2
         )
     )
+
+
+def gaussian_template(wavelengths, mean, std=30):
+    return norm.pdf(wavelengths, mean, std)
 
 
 def stavenga1993_template(
