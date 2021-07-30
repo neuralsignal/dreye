@@ -14,7 +14,7 @@ from dreye.utilities.array import asarray
 from dreye.utilities.common import is_string
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
 from dreye.estimators.base import _PrModelMixin
-from dreye.estimators.utils import get_optimal_capture_samples, get_source_idcs, get_source_idx, get_spanning_intensities
+from dreye.estimators.utils import get_optimal_capture_samples, get_source_idcs, get_source_idx, get_spanning_intensities, spaced_solutions
 from dreye.estimators.metric_functions import compute_est_score, compute_metric_for_samples, compute_peak_set, get_metrics
 from dreye.estimators.silent_substitution import BestSubstitutionFit
 from dreye.estimators.excitation_models import IndependentExcitationFit
@@ -73,23 +73,30 @@ class CaptureTests(_InitDict, _PrModelMixin):
             qs = np.array(qs)
             return qs
 
+    @property
+    def sample_points(self):
+        return self._sample_points
+
     def range_of_solutions(self, q):
         """
         Find the range of solutions that fit the capture `q`
         """
         return self._q_iterator(q, self._range_of_solutions_)
 
-    def convex_solution(self, q):
+    def linspace_of_solutions(self, q, n=20):
         """
-        Optimal solution to fit capture `q`
+        A set of points that fit `q` in an underdetermined system.
+        """
+        assert self.is_underdetermined, "System must be underdetermined."
 
-        Returns
-        -------
-        w : np.ndarray
-        norm : float
-        inhull : bool
-        """
-        return self._q_iterator(q, self._convex_solution_)
+        def helper(q):
+            wmin, wmax = self.range_of_solutions(q)
+
+            return spaced_solutions(
+                wmin, wmax, self.A_, q, n=n
+            )
+
+        return self._q_iterator(q, helper)
 
     def capture_in_range(self, q):
         """
@@ -376,7 +383,7 @@ class Metrics(_InitDict, _PrModelMixin):
         )
 
         if add_center:
-            qpoints = np.vstack([qpoints, np.ones((1, qpoints.shape[1]))])
+            qpoints = np.vstack([qpoints, np.ones((1, qpoints.shape[1]))/qpoints.shape[1]])
             colors = np.array(list(colors) + ['black'], dtype=object)
         
         ax = plot_simplex(

@@ -7,6 +7,7 @@ import warnings
 
 from scipy.optimize import OptimizeResult
 import numpy as np
+from scipy.optimize import lsq_linear
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
 
@@ -19,7 +20,7 @@ from dreye.estimators.utils import (
     get_bg_ints, get_ignore_bounds, get_spanning_intensities, range_of_solutions
 )
 from dreye.utilities.common import is_string
-from dreye.utilities.convex import convex_combination
+from dreye.utilities.convex import convex_combination, in_hull
 from dreye.core.photoreceptor import CAPTURE_STRINGS
 
 
@@ -560,7 +561,8 @@ class _PrModelMixin:
             if self.background_external:
                 warnings.warn(
                     "Ignoring `background_external` argument, "
-                    "automatically set to False as `background` is None."
+                    "automatically set to False as `background` is None.", 
+                    RuntimeWarning
                 )
 
             if (
@@ -630,7 +632,8 @@ class _PrModelMixin:
             warnings.warn(
                 "Assuming the `background` illuminant will be simulated "
                 f"using the LEDs. Fitted background intensities lazily: "
-                f"{self.bg_ints_.tolist()}."
+                f"{self.bg_ints_.tolist()}.", 
+                RuntimeWarning
             )
 
         # sanity
@@ -641,7 +644,8 @@ class _PrModelMixin:
         ):
             warnings.warn(
                 "background array is all zero and no capture noise, "
-                "setting `background` illuminant to None."
+                "setting `background` illuminant to None.", 
+                RuntimeWarning
             )
             self.background_ = None
 
@@ -689,6 +693,8 @@ class _PrModelMixin:
         """
         return self.noise_term_ + self.q_bg_
 
+    # TODO vectorize q
+
     def _capture_in_range_(self, q, bounds=None, points=None):
         """
         Check if capture is in measured spectra convex hull.
@@ -700,18 +706,7 @@ class _PrModelMixin:
         bounds : tuple of array-like
             Tuple of lower and upper bound of intensities.
         """
-        return self._convex_solution_(q, bounds=bounds, points=points)[-1]
 
-    def _convex_solution_(self, q, bounds=None, points=None):
-        """
-        Convex solution
-
-        Returns
-        -------
-        w : np.ndarray
-        norm : float
-        inhull : bool
-        """
         if bounds is None:
             bounds = self.intensity_bounds_
             points = (self._sample_points if points is None else points)
@@ -738,29 +733,38 @@ class _PrModelMixin:
             points = points - offset
             q = q - offset
 
-        return convex_combination(points, q, bounded=not isinf)
+        return in_hull(points, q, bounded=not isinf)
 
     def _range_of_solutions_(self, q, bounds=None, points=None):
         if bounds is None:
             bounds = self.intensity_bounds_
 
-        w, norm, inhull = self._convex_solution_(q, bounds=bounds, points=points)
+        inhull = self._capture_in_range_(q, bounds=bounds)
+        # remove necessary offset
+        q = q - self._q_offset_  # remove offset
 
         if not inhull:
+            result = lsq_linear(self.A_, q, bounds=bounds)
+            
             warnings.warn(
                 f"No perfect solution exists for capture of value `{tuple(q)}`, "
-                f"returning best solution with norm `{norm}`", 
+                f"returning best solution with norm `{result.cost}`", 
                 RuntimeWarning
             )
-            return w, w
+            
+            return result.x, result.x
+        
         if not self._is_underdetermined_:
+            result = lsq_linear(self.A_, q, bounds=bounds)
+            
             warnings.warn(
                 "System of light source equations is not underdetermined, "
                 "only a single solution exists.", 
                 RuntimeWarning
             )
-            return w, w
-        q = q - self._q_offset_  # remove offset
+            
+            return result.x, result.x
+        
         return range_of_solutions(self.A_, q, bounds=bounds, check=False)
 
     @property

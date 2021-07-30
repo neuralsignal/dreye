@@ -327,32 +327,41 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
                 w >= bounds[0], w <= bounds[1]
             ]
 
-            if is_numeric(self.underdetermined_opt):
+            # allow tuples of (string, idcs)
+            if isinstance(self.underdetermined_opt, tuple) and (len(self.underdetermined_opt) == 2):
+                underdetermined_opt, idcs = self.underdetermined_opt
+            else:
+                underdetermined_opt = self.underdetermined_opt
+                idcs = np.arange(self.A_.shape[1])
+
+            if is_numeric(underdetermined_opt):
                 # aim for some overall intensity
                 obj = cp.Minimize(
-                    cp.sum_squares(cp.sum(w) - self.underdetermined_opt)
+                    cp.sum_squares(cp.sum(w[idcs]) - underdetermined_opt)
                 )
-            elif is_listlike(self.underdetermined_opt):
-                wtarget = asarray(self.underdetermined_opt)
+            elif is_listlike(underdetermined_opt):
+                # minimize difference between target intensities
+                wtarget = asarray(underdetermined_opt)
                 obj = cp.Minimize(
-                    cp.sum_squares(wtarget - w)
+                    cp.sum_squares(wtarget - w[idcs])
                 )
-            elif not is_string(self.underdetermined_opt):
+            elif not is_string(underdetermined_opt):
                 raise NameError(
                     f"`{self.underdetermined_opt}` is not a underdetermined_opt option."
                 )
 
-            elif self.underdetermined_opt == 'max':
-                obj = cp.Maximize(cp.sum(w))
-            elif self.underdetermined_opt == 'min':
-                obj = cp.Minimize(cp.sum(w))
-            elif self.underdetermined_opt == 'var':
-                obj = cp.Minimize(w - cp.sum(w)/w.size)
+            elif underdetermined_opt == 'max':
+                obj = cp.Maximize(cp.sum(w[idcs]))
+            elif underdetermined_opt == 'min':
+                obj = cp.Minimize(cp.sum(w[idcs]))
+            elif underdetermined_opt == 'var':
+                obj = cp.Minimize(w[idcs] - cp.sum(w[idcs])/w[idcs].size)
 
             else:
                 raise NameError(
                     f"`{self.underdetermined_opt}` is not a underdetermined_opt option."
                 )
+
             prob = cp.Problem(obj, constraints)
             cost = prob.solve()
             assert prob.status == cp.OPTIMAL, 'BUG: optimality not achieved.'

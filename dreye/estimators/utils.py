@@ -13,11 +13,12 @@ from dreye.utilities.common import (
     is_dictlike, is_listlike, is_signallike, is_string, optional_to, 
     is_numeric
 )
-from dreye.core.signal import Signal, Signals
+from dreye.core.signal import Signal
 from dreye.core.measurement_utils import create_measured_spectra_container
 from dreye.core.spectrum_utils import create_spectrum
 from dreye.utilities.array import asarray
 from dreye.utilities.convex import in_hull
+from dreye.err import DreyeError
 
 
 def check_measured_spectra(
@@ -488,3 +489,80 @@ def range_of_solutions(
         maxs = np.maximum(maxs, _maxs)
         
     return mins, maxs
+
+
+def spaced_solutions(
+    wmin, wmax,
+    A, x, n=20, 
+    eps=1e-7
+):
+    """
+    Spaced intensity solutions from `wmin` to `wmax`.
+    If the difference between the number
+    of light sources and the number of opsins exceeds 1 
+    than the number of samples cannot be predetermined 
+    but will be greate than `n` ** `n_diff`.
+    """
+    n_diff = A.shape[1] - A.shape[0]
+
+    if n_diff > 1:
+        # go through first led -> remove -> find new range of solution
+        # restrict by wmin and wmax
+        # repeat until only one extra LED
+        # then get equally spaced solutions
+        ws = []
+
+        # for numerical stability
+        eps_ = (wmax - wmin) * eps
+        idcs = np.arange(A.shape[1])
+
+        for idx in idcs:
+            # for indexing
+            not_idx = ~(idcs == idx)
+            argsort = np.concatenate([[idx], idcs[not_idx]])
+            
+            for iw in np.linspace(wmin[idx]+eps_[idx], wmax[idx]-eps_[idx], n):
+                Astar = A[:, not_idx]
+                offset = A[:, idx] * iw
+                xstar = x - offset
+                boundsstar = (
+                    wmin[not_idx], 
+                    wmax[not_idx]
+                )
+                wminstar, wmaxstar = range_of_solutions(
+                    Astar, xstar, boundsstar, check=False
+                )
+                if (wminstar > wmaxstar).any():
+                    continue
+
+                wsstar = spaced_solutions(
+                    wminstar, wmaxstar, Astar, xstar, n=n, 
+                    eps=eps
+                )
+                w_ = np.hstack([
+                    np.ones((wsstar.shape[0], 1)) * iw, 
+                    wsstar
+                ])[:, argsort]
+                ws.append(w_)
+
+        return np.vstack(ws)
+
+    else:
+        # create equally space solutions
+        ws = np.zeros((n, A.shape[1]))
+        
+        # for numerical stability
+        eps_ = (wmax[0] - wmin[0]) * eps
+        
+        idx = 0
+        for iw in np.linspace(wmin[0]+eps_, wmax[0]-eps_, n):
+            Astar = A[:, 1:]
+            offset = A[:, 0] * iw
+            sols = np.linalg.solve(
+                Astar, 
+                (x - offset)
+            )
+            ws[idx] = np.concatenate([[iw], sols])
+            idx += 1
+            
+        return ws
