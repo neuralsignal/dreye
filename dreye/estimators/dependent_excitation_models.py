@@ -3,12 +3,9 @@ Dependent Excitation Models
 """
 
 import warnings
-import numpy as np
-from scipy.optimize import least_squares
 from mip import *
-
-from dreye.utilities.abstract import inherit_docstrings
-from dreye.estimators.excitation_models import IndependentExcitationFit
+from dreye.dreye.utilities.abstract import inherit_docstrings
+from dreye.dreye.estimators.excitation_models import IndependentExcitationFit
 
 
 @inherit_docstrings
@@ -121,11 +118,11 @@ class DependentExcitationFit(IndependentExcitationFit):
                 ws[source_idcs, idx] = w[offset:offset + len(source_idcs)]
                 offset += len(source_idcs)
 
-        if pixel_strength is None:
-            pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
-            # TODO Find better method to handle this
-            # assumes pixel strength is between 0-1 
-            pixel_strength = np.floor(pixel_strength * 2 ** self.bit_depth) / 2 ** self.bit_depth
+        # if pixel_strength is None:
+        #     pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
+        #     # TODO Find better method to handle this
+        #     # assumes pixel strength is between 0-1
+        #     pixel_strength = np.floor(pixel_strength * 2 ** self.bit_depth) / 2 ** self.bit_depth
         return ws, pixel_strength
 
     def _fit_sample(self, capture_x, excite_x):
@@ -174,53 +171,27 @@ class DependentExcitationFit(IndependentExcitationFit):
             n_pixels * self._independent_layers_
         ).reshape(-1, self._independent_layers_)
         # proper rounding or integer mapping for p0
-        pbounds = (0, 1)
 
-        # self.A_ -
+        m = Model(sense='MINIMIZE', solver=CBC)
+        m.objective = xsum(self.fit_weights * (excite_x - self.get_excitation(self._reformat_intensities(p0).T)))
+        x = [m.add_var(name='excitation', var_type="I") for i in range(len(p0))]
+        for _ in range(len(x)):
+            x[_].lb = 0
+            x[_].ub = self.bit_depth**2
 
-        for _ in range(self.n_epochs):
-            # step 1
-            result = least_squares(
-                self._objective,
-                x0=w0.ravel(),
-                args=(excite_x,),
-                kwargs={'pixel_strength': p0},
-                bounds=bounds,
-                max_nfev=self.max_iter,
-                **({} if self.lsq_kwargs is None else self.lsq_kwargs)
-            )
-            w0, p0 = self._format_intensities(result.x, pixel_strength=p0)
-            # step 2
-            # self.capture_x
-            result = least_squares(
-                self._objective,
-                x0=p0.ravel(),
-                args=(excite_x,),
-                kwargs={'ws': w0},
-                bounds=pbounds,
-                max_nfev=self.max_iter,
-                **({} if self.lsq_kwargs is None else self.lsq_kwargs)
-            )
+        status = m.optimize(max_seconds=300)
+        if status == OptimizationStatus.OPTIMAL:
+            print('optimal solution cost {} found'.format(m.objective_value))
+        elif status == OptimizationStatus.FEASIBLE:
+            print('sol.cost {} found, best possible: {}'.format(m.objective_value, m.objective_bound))
+        elif status == OptimizationStatus.NO_SOLUTION_FOUND:
+            print('no feasible solution found, lower bound is: {}'.format(m.objective_bound))
+        if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE:
+            print('solution:')
+            for v in m.vars:
+                if abs(v.x) > 1e-6:  # only printing non-zeros
+                    print('{} : {}'.format(v.name, v.x))
             w0, p0 = self._format_intensities(result.x, ws=w0)
-            # step three - check convergence and break 
-        else:
-            warnings.warn("Convergence was not accomplished "
-                          "for X; "
-                          "increase the number of epochs.", RuntimeWarning)
-
-        # for _ in range(n_epochs):
-        #   1. fit best leds while fixing pixels - nonlinear least squares with floats
-        #   2. fit best pixels while fixing leds - MIP
-        #   3. you check convergence -> stop or wait until end of epochs
-        # fitted result
-        # result = least_squares(
-        #     self._objective,
-        #     x0=w0,
-        #     args=(excite_x,),
-        #     bounds=bounds,
-        #     max_nfev=self.max_iter,
-        #     **({} if self.lsq_kwargs is None else self.lsq_kwargs)
-        # )
 
         layer_intensities, pixel_strength = w0, p0
         fitted_intensities = self._reformat_intensities(ws=w0, pixel_strength=p0)
