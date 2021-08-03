@@ -60,7 +60,6 @@ class DependentExcitationFit(IndependentExcitationFit):
         elif self.independent_layers is None:
             self._independent_layers_ = len(self.layer_assignments)
             self._layer_assignments_ = self.layer_assignments
-            # TODO assert right type and indices exist in measured_spectra
         elif self.layer_assignments is None:
             self._independent_layers_ = self.independent_layers
             self._layer_assignments_ = [
@@ -71,7 +70,6 @@ class DependentExcitationFit(IndependentExcitationFit):
             assert len(self.layer_assignments) == self.independent_layers
             self._independent_layers_ = self.independent_layers
             self._layer_assignments_ = self.layer_assignments
-            # TODO assert right type and indices exist in measured_spectra
 
         # overwrite this method when subclassing
         self.capture_X_, self.excite_X_ = self._process_X(X)
@@ -117,12 +115,6 @@ class DependentExcitationFit(IndependentExcitationFit):
             for idx, source_idcs in enumerate(self._layer_assignments_):
                 ws[source_idcs, idx] = w[offset:offset + len(source_idcs)]
                 offset += len(source_idcs)
-
-        # if pixel_strength is None:
-        #     pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
-        #     # TODO Find better method to handle this
-        #     # assumes pixel strength is between 0-1
-        #     pixel_strength = np.floor(pixel_strength * 2 ** self.bit_depth) / 2 ** self.bit_depth
         return ws, pixel_strength
 
     def _fit_sample(self, capture_x, excite_x):
@@ -155,16 +147,6 @@ class DependentExcitationFit(IndependentExcitationFit):
             bounds0.append(bounds[0][source_idcs])
             bounds1.append(bounds[1][source_idcs])
 
-        # TODO make more like EM-algorithm
-        # TODO handle pixel bit depth better
-
-        # reformatted w0 and bounds
-        w0 = np.concatenate(w0s)
-        bounds = (
-            np.concatenate(bounds0),
-            np.concatenate(bounds1)
-        )
-
         # pixel strength values
         n_pixels = len(capture_x)
         p0 = np.random.random(
@@ -188,10 +170,10 @@ class DependentExcitationFit(IndependentExcitationFit):
             print('no feasible solution found, lower bound is: {}'.format(m.objective_bound))
         if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE:
             print('solution:')
-            for v in m.vars:
-                if abs(v.x) > 1e-6:  # only printing non-zeros
-                    print('{} : {}'.format(v.name, v.x))
-            w0, p0 = self._format_intensities(result.x, ws=w0)
+            for x in m.vars:
+                if abs(x.x) > 1e-6:  # only printing non-zeros
+                    print('{} : {}'.format(x.name, x.x))
+            w0, p0 = self._format_intensities(x in m.vars, ws=w0)
 
         layer_intensities, pixel_strength = w0, p0
         fitted_intensities = self._reformat_intensities(ws=w0, pixel_strength=p0)
