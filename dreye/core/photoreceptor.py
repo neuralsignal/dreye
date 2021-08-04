@@ -631,6 +631,13 @@ class LinearPhotoreceptor(Photoreceptor):
         """
         return arr
 
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return np.ones(arr.shape, dtype=arr.dtype)
+
 
 @inherit_docstrings
 class LogPhotoreceptor(Photoreceptor):
@@ -691,6 +698,13 @@ class LogPhotoreceptor(Photoreceptor):
         Returns the exp of `arr`.
         """
         return np.exp(arr)
+
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return 1/arr
 
 
 @inherit_docstrings
@@ -753,6 +767,13 @@ class HyperbolicPhotoreceptor(Photoreceptor):
         Returns the `1/(1-arr)`.
         """
         return 1 / (1 - arr)
+
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return 1 / (arr**2)
 
 
 @inherit_docstrings
@@ -817,3 +838,10 @@ class LinearContrastPhotoreceptor(Photoreceptor):
         Returns the `arr`/(1 - `arr`).
         """
         return arr + 1
+
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return np.ones(arr.shape, dtype=arr.dtype)

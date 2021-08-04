@@ -686,6 +686,26 @@ class _PrModelMixin:
         x_pred += self._q_offset_
         return x_pred
 
+    def get_excitation(self, w):
+        """
+        Get excitation given `w`.
+
+        Parameters
+        ----------
+        w : array-like
+            Array-like object with the zeroth axes equal to the number of light sources. 
+            Can also be multidimensional.
+        """
+        return self.photoreceptor_model_.excitefunc(self.get_capture(w))
+
+    def _excite_derivative(self, w):
+        capture_x_pred = self.get_capture(w)
+        # opsin x leds
+        excite_deriv = (
+            self.photoreceptor_model_._derivative(capture_x_pred)[..., None] * self.A_
+        )
+        return excite_deriv
+
     @property
     def _q_offset_(self):
         """
@@ -735,7 +755,7 @@ class _PrModelMixin:
 
         return in_hull(points, q, bounded=not isinf)
 
-    def _range_of_solutions_(self, q, bounds=None, points=None):
+    def _range_of_solutions_(self, q, bounds=None):
         if bounds is None:
             bounds = self.intensity_bounds_
 
@@ -775,19 +795,6 @@ class _PrModelMixin:
         """
         # fewer opsins than light sources
         return self.A_.shape[0] < self.A_.shape[1]
-
-    def get_excitation(self, w):
-        """
-        Get excitation given `w`.
-
-        Parameters
-        ----------
-        w : array-like
-            Array-like object with the zeroth axes equal to the number of light sources. 
-            Can also be multidimensional.
-        """
-        return self.photoreceptor_model_.excitefunc(self.get_capture(w))
-
 
 # -- misc helper functions
 

@@ -24,7 +24,8 @@ def stavenga1993_band_calculation(
 
 
 def gaussian_template(wavelengths, mean, std=30):
-    return norm.pdf(wavelengths, mean, std)
+    y = norm.pdf(wavelengths, mean, std)
+    return y / np.max(y, axis=0, keepdims=True)
 
 
 def stavenga1993_template(
