@@ -206,7 +206,8 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         self._has_var_ = False
 
         if self.A_var is not None:
-            self._has_var = True
+            self._has_var_ = True
+
             assert is_listlike(self.A_var), "`A_var` must be array-like."
             A_var = asarray(self.A_var)
             assert A_var.shape == self.A_.shape, (
@@ -216,8 +217,7 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
             assert (A_var >= 0).all(), "`A_var` must be positive (i.e. variances)."
             self.A_var_ = A_var
 
-        if self.pr_samples is not None:
-            
+        elif self.pr_samples is not None:
             self._has_var_ = True
             
             probs = []
