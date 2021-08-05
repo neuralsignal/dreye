@@ -403,8 +403,22 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
             w0 = self._init_sample(capture_x, bounds)
 
             if self.var_opt:
-                # linear approximation of error
-                # TODO substitute with best nonlinear least-squares optimization
+                # least-square optimization
+                w0 = least_squares(
+                    self._objective,
+                    x0=w0,
+                    args=(excite_x,),
+                    bounds=tuple(bounds),
+                    max_nfev=self.max_iter,
+                    jac=(
+                        self._derivative 
+                        if self._use_derivative 
+                        and hasattr(self.photoreceptor_model_, '_derivative') 
+                        else '2-point'),
+                    **({} if self.lsq_kwargs is None else self.lsq_kwargs)
+                ).x
+                # use least-squares solution as constraint on variance optimization
+                # approximation of error
                 x_pred = self.get_excitation(w0)
                 linear_l2_error = np.sum((self.fit_weights_ * (excite_x - x_pred))**2) 
                 l2_eps = self.l2_eps + linear_l2_error
@@ -530,17 +544,36 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
     def _objective(self, w, excite_x):
         x_pred = self.get_excitation(w)
 
-        if self._has_var_:
+        if self._has_var_ and not self.var_opt:
             var = self._calc_var(w, x_pred)
             # as a regularizer
             return np.sum(
-                (self.fit_weights_**2 * (excite_x - x_pred)) ** 2 
+                (self.fit_weights_ * (excite_x - x_pred)) ** 2 
                 + self.var_alpha * var
             )
         
         else:
             return self.fit_weights_ * (excite_x - x_pred)
 
+    def _derivative(self, w, excite_x):
+        # get excitation and its derivative
+        x_pred = self.get_excitation(w)
+        # opsin x leds
+        x_pred_deriv = self._excite_derivative(w)
+        leastsq_deriv = 2 * (excite_x - x_pred)[..., None] * -x_pred_deriv
+
+        if self._has_var_ and not self.var_opt:  # if var_opt use this for initialization
+            var = self._calc_var(w, x_pred)
+            # opsin x leds
+            var_deriv = self._calc_var_derivative(w, x_pred, x_pred_deriv, var)
+            return np.sum(
+                self.fit_weights_[..., None]**2 * leastsq_deriv
+                + self.var_alpha * var_deriv,
+                axis=-2
+            )
+        else:
+            # least-squares takes the derivative of the squared part
+            return self.fit_weights_[..., None] * -x_pred_deriv
 
     def _var_obj(self, w):
         x_pred = self.get_excitation(w)
@@ -620,27 +653,6 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         # derivative of maximum
         var_deriv = np.where(var[..., None] < self.var_min, 0, var_deriv)
         return var_deriv
-
-    def _derivative(self, w, excite_x):
-        # get excitation and its derivative
-        x_pred = self.get_excitation(w)
-        # opsin x leds
-        x_pred_deriv = self._excite_derivative(w)
-        leastsq_deriv = 2 * (excite_x - x_pred)[..., None] * -x_pred_deriv
-
-        if self._has_var_:
-            var = self._calc_var(w, x_pred)
-            # opsin x leds
-            var_deriv = self._calc_var_derivative(w, x_pred, x_pred_deriv, var)
-            return np.sum(
-                self.fit_weights_[..., None]**2 * leastsq_deriv
-                + self.var_alpha * var_deriv,
-                axis=-2
-            )
-        else:
-            return (
-                self.fit_weights_[..., None]**2 * leastsq_deriv
-            )
 
     def _process_X(self, X):
         """
