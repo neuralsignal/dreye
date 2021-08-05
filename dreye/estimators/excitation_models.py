@@ -6,6 +6,8 @@ import warnings
 
 import numpy as np
 import cvxpy as cp
+from joblib import Parallel, delayed
+from tqdm import tqdm
 from scipy.optimize import OptimizeResult
 from scipy.optimize import lsq_linear, least_squares, minimize
 from sklearn.utils.validation import check_array, check_is_fitted
@@ -130,10 +132,14 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         wavelengths=None, 
         capture_noise_level=None, 
         underdetermined_opt=None, 
-        alternative_prs=None, 
-        var_min=1e-5, 
-        alpha=None, 
-        l2_eps=1e-5
+        pr_samples=None, 
+        A_var=None,
+        var_opt=False,
+        var_min=1e-8, 
+        var_alpha=1, 
+        l2_eps=1e-4, 
+        verbose=False, 
+        n_jobs=None
     ):
         self.photoreceptor_model = photoreceptor_model
         self.measured_spectra = measured_spectra
@@ -150,10 +156,14 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         self.wavelengths = wavelengths
         self.capture_noise_level = capture_noise_level
         self.underdetermined_opt = underdetermined_opt
-        self.alternative_prs = alternative_prs
+        self.pr_samples = pr_samples
         self.var_min = var_min
-        self.alpha = alpha
+        self.var_alpha = var_alpha
         self.l2_eps = l2_eps
+        self.verbose = verbose
+        self.n_jobs = n_jobs
+        self.A_var = A_var
+        self.var_opt = var_opt
 
     def _set_required_objects(self, size=None):
         # if requirements set do not reset them (speed improvement)
@@ -185,22 +195,38 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
 
         # set _unidirectional_
         self._set_unidirectional()
-        self._set_alternative_prs()
+        self._set_pr_samples()
 
         # make sure requirements are only set once
         self._requirements_set = True
 
         return self
 
-    def _set_alternative_prs(self):
-        if self.alternative_prs is not None:
+    def _set_pr_samples(self):
+        self._has_var_ = False
+
+        if self.A_var is not None:
+            self._has_var = True
+            assert is_listlike(self.A_var), "`A_var` must be array-like."
+            A_var = asarray(self.A_var)
+            assert A_var.shape == self.A_.shape, (
+                "`A_var` must be shape of n_opsins x n_leds "
+                f"({self.A_.shape}), but is of shape: {A_var.shape}."
+            )
+            assert (A_var >= 0).all(), "`A_var` must be positive (i.e. variances)."
+            self.A_var_ = A_var
+
+        if self.pr_samples is not None:
+            
+            self._has_var_ = True
+            
             probs = []
             objs = []
-            for pr_model in self.alternative_prs:
+            for pr_model in self.pr_samples:
                 if isinstance(pr_model, tuple):
                     prob, pr_model = pr_model
                 else:
-                    prob = 1 / len(self.alternative_prs)
+                    prob = 1 / len(self.pr_samples)
 
                 if isinstance(pr_model, CaptureTests):
                     objs.append(pr_model)
@@ -221,8 +247,8 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
                 
                 probs.append(prob)
 
-            self._alternative_probs_ = np.array(probs) / np.sum(probs)
-            self._alternative_models_ = objs
+            self._sample_probs_ = np.array(probs) / np.sum(probs)
+            self._sample_models_ = objs
 
     def _set_unidirectional(self):
         if is_listlike(self.unidirectional):
@@ -255,21 +281,43 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
             _, xidcs, xinverse = np.unique(
                 self.capture_X_, axis=0, return_index=True, return_inverse=True
             )
-            self.container_ = OptimizeResultContainer(np.array([
-                self._fit_sample(
-                    capture_x, excite_x
+            if self.n_jobs is None:
+                self.container_ = OptimizeResultContainer(np.array([
+                    self._fit_sample(
+                        capture_x, excite_x
+                    )
+                    for capture_x, excite_x in
+                    (
+                        tqdm(zip(self.capture_X_[xidcs], self.excite_X_[xidcs]), total=len(xidcs))
+                        if self.verbose else
+                        zip(self.capture_X_[xidcs], self.excite_X_[xidcs])
+                    )
+                ])[xinverse])
+            else:
+                container = Parallel(n_jobs=self.n_jobs, verbose=int(self.verbose))(
+                    delayed(self._fit_sample)(capture_x, excite_x)
+                    for capture_x, excite_x in zip(self.capture_X_[xidcs], self.excite_X_[xidcs])
                 )
-                for capture_x, excite_x in
-                zip(self.capture_X_[xidcs], self.excite_X_[xidcs])
-            ])[xinverse])
+                self.container_ = OptimizeResultContainer(np.array(container)[xinverse])
         else:
-            self.container_ = OptimizeResultContainer([
-                self._fit_sample(
-                    capture_x, excite_x
+            if self.n_jobs is None:
+                self.container_ = OptimizeResultContainer([
+                    self._fit_sample(
+                        capture_x, excite_x
+                    )
+                    for capture_x, excite_x in
+                    (
+                        tqdm(zip(self.capture_X_, self.excite_X_), total=len(self.capture_X_))
+                        if self.verbose else
+                        zip(self.capture_X_, self.excite_X_)
+                    )
+                ])
+            else:
+                container = Parallel(n_jobs=self.n_jobs, verbose=int(self.verbose))(
+                    delayed(self._fit_sample)(capture_x, excite_x)
+                    for capture_x, excite_x in zip(self.capture_X_, self.excite_X_)
                 )
-                for capture_x, excite_x in
-                zip(self.capture_X_, self.excite_X_)
-            ])
+                self.container_ = OptimizeResultContainer(np.array(container))
 
         if not np.all(self.container_.success):
             warnings.warn("Convergence was not accomplished "
@@ -353,39 +401,46 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         ):
             # find initial w0 using linear least squares
             w0 = self._init_sample(capture_x, bounds)
-            # fit result via nonlinear least squares
-            return least_squares(
-                self._objective,
-                x0=w0,
-                args=(excite_x,),
-                bounds=tuple(bounds),
-                max_nfev=self.max_iter,
-                jac=(
-                    self._derivative 
-                    if self._use_derivative 
-                    and hasattr(self.photoreceptor_model_, '_derivative') 
-                    else '2-point'),
-                **({} if self.lsq_kwargs is None else self.lsq_kwargs)
-            )
-        elif is_string(self.underdetermined_opt) and (self.underdetermined_opt == 'minvar_excite'):
-            # find initial w0 using linear least squares
-            w0 = self._init_sample(capture_x, bounds)
-            # constrained minimization of variance
-            return minimize(
-                self._var_obj, 
-                x0=w0, 
-                bounds=np.array(bounds).T, 
-                options=dict(maxiter=self.max_iter), 
-                jac=self._var_obj_derivative, 
-                method='trust-constr',
-                constraints=[{
-                    'type': 'ineq', 
-                    'fun': self._diff_constraint, 
-                    # not necessary
-                    'jac': self._diff_constraint_derivative,
-                    'args': (excite_x,)
-                }]
-            )
+
+            if self.var_opt:
+                # linear approximation of error
+                # TODO substitute with best nonlinear least-squares optimization
+                x_pred = self.get_excitation(w0)
+                linear_l2_error = np.sum((self.fit_weights_ * (excite_x - x_pred))**2) 
+                l2_eps = self.l2_eps + linear_l2_error
+
+                # constrained minimization of variance
+                return minimize(
+                    self._var_obj, 
+                    x0=w0, 
+                    bounds=np.array(bounds).T, 
+                    options=dict(maxiter=self.max_iter), 
+                    jac=self._var_obj_derivative, 
+                    method='trust-constr',
+                    constraints=[{
+                        'type': 'ineq', 
+                        'fun': self._diff_constraint, 
+                        'jac': self._diff_constraint_derivative,
+                        'args': (excite_x, l2_eps)
+                    }]
+                )
+
+            else:
+                # fit result via nonlinear least squares
+                return least_squares(
+                    self._objective,
+                    x0=w0,
+                    args=(excite_x,),
+                    bounds=tuple(bounds),
+                    max_nfev=self.max_iter,
+                    jac=(
+                        self._derivative 
+                        if self._use_derivative 
+                        and hasattr(self.photoreceptor_model_, '_derivative') 
+                        else '2-point'),
+                    **({} if self.lsq_kwargs is None else self.lsq_kwargs)
+                )
+
         else:
             # underdetermined and optimal system
             w = cp.Variable(self.A_.shape[1], pos=True)
@@ -400,6 +455,9 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
             else:
                 underdetermined_opt = self.underdetermined_opt
                 idcs = np.arange(self.A_.shape[1])
+
+            if isinstance(underdetermined_opt, bool):
+                underdetermined_opt = 'l2'
 
             if is_numeric(underdetermined_opt):
                 # aim for some overall intensity
@@ -421,9 +479,11 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
                 obj = cp.Maximize(cp.sum(w[idcs]))
             elif underdetermined_opt == 'min':
                 obj = cp.Minimize(cp.sum(w[idcs]))
+            elif underdetermined_opt == 'l2':
+                obj = cp.Minimize(cp.sum(w[idcs]**2))
             elif underdetermined_opt == 'var':
                 obj = cp.Minimize(w[idcs] - cp.sum(w[idcs])/w[idcs].size)
-            elif underdetermined_opt == 'minvar' and self.alternative_prs is not None:
+            elif underdetermined_opt == 'minvar' and self._has_var_:
                 x_pred = self.get_capture(w)
                 var = self._calc_var_cvxpy(w, x_pred)
                 obj = cp.Minimize(cp.sum(var))
@@ -434,7 +494,6 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
 
             prob = cp.Problem(obj, constraints)
             cost = prob.solve()
-            assert prob.status == cp.OPTIMAL, 'BUG: optimality not achieved.'
             return OptimizeResult(
                 x=w.value,
                 cost=cost,
@@ -447,7 +506,7 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
                 njev=None,
                 status=5,
                 message='Optimality achieved and used `underdetermined_opt`',
-                success=True
+                success=(prob.status == cp.OPTIMAL)
             )
 
     def _init_sample(self, capture_x, bounds):
@@ -470,23 +529,18 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
 
     def _objective(self, w, excite_x):
         x_pred = self.get_excitation(w)
-        if self.alternative_prs is None:
-            return self.fit_weights_ * (excite_x - x_pred)
-        else:
-            var = self._calc_var(w, x_pred)
 
-            if self.alpha is None:
-                # log likelihood
-                return np.sum(
-                    0.5 * np.log(2 * np.pi * var)
-                    + 0.5 * 1/var * (excite_x - x_pred) ** 2
-                )
-            else:
-                # as a regularizer
-                return np.sum(
-                    (self.fit_weights_**2 * (excite_x - x_pred)) ** 2 
-                    + self.alpha * var
-                )
+        if self._has_var_:
+            var = self._calc_var(w, x_pred)
+            # as a regularizer
+            return np.sum(
+                (self.fit_weights_**2 * (excite_x - x_pred)) ** 2 
+                + self.var_alpha * var
+            )
+        
+        else:
+            return self.fit_weights_ * (excite_x - x_pred)
+
 
     def _var_obj(self, w):
         x_pred = self.get_excitation(w)
@@ -501,12 +555,12 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         var_deriv = self._calc_var_derivative(w, x_pred, x_pred_deriv, var)
         return np.sum(var_deriv, axis=-2)
 
-    def _diff_constraint(self, w, excite_x):
+    def _diff_constraint(self, w, excite_x, l2_eps):
         # positive where allowed
         x_pred = self.get_excitation(w)
-        return -np.sum((self.fit_weights_ * (excite_x - x_pred))**2) + self.l2_eps
+        return -np.sum((self.fit_weights_ * (excite_x - x_pred))**2) + l2_eps
 
-    def _diff_constraint_derivative(self, w, excite_x):
+    def _diff_constraint_derivative(self, w, excite_x, *args):
         # get excitation and its derivative
         x_pred = self.get_excitation(w)
         # opsin x leds
@@ -517,26 +571,52 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
 
     def _calc_var(self, w, x_pred):
         # TODO vectorize
-        var = np.zeros(self.photoreceptor_model_.n_opsins)
-        for prob, alt in zip(self._alternative_probs_, self._alternative_models_):
-            var += prob * (alt.get_excitation(w) - x_pred) ** 2
+        if self.A_var is None:
+            var = np.zeros(self.photoreceptor_model_.n_opsins)
+            for prob, alt in zip(self._sample_probs_, self._sample_models_):
+                var += prob * (alt.get_excitation(w) - x_pred) ** 2
+        else:
+            # NB: q = self.A_ @ w + self._q_offset_
+            # derivative with respect to As not ws
+            capture_var = self.A_var_ @ (w**2)
+            capture_x = self.get_capture(w)
+            var = self.photoreceptor_model_._derivative(capture_x)**2 * capture_var
         var = np.maximum(var, self.var_min)
-        return var
+        return var  # n_opsins
 
-    def _calc_var_cvxpy(self, w, x_pred, method=lambda x, y: (x - y) ** 2):
+    def _calc_var_cvxpy(self, w, x_pred):
         # TODO vectorize
-        var = np.zeros(self.photoreceptor_model_.n_opsins)
-        for prob, alt in zip(self._alternative_probs_, self._alternative_models_):
-            var = var + prob * method(alt.get_capture(w), x_pred)
+        if self.A_var is None:
+            var = np.zeros(self.photoreceptor_model_.n_opsins)
+            for prob, alt in zip(self._sample_probs_, self._sample_models_):
+                var = var + prob * (alt.get_capture(w) - x_pred) ** 2
+        else:
+            var = self.A_var_ @ (w ** 2)
         return var
 
     def _calc_var_derivative(self, w, x_pred, x_pred_deriv, var):
         # TODO vectorive
         var_deriv = np.zeros(self.A_.shape)
-        for prob, alt in zip(self._alternative_probs_, self._alternative_models_):
-            alt_pred = alt.get_excitation(w)
-            alt_pred_deriv = alt._excite_derivative(w)  # opsins x leds
-            var_deriv += prob * 2 * (alt_pred - x_pred)[..., None] * (alt_pred_deriv - x_pred_deriv)
+        if self.A_var is None:
+            for prob, alt in zip(self._sample_probs_, self._sample_models_):
+                alt_pred = alt.get_excitation(w)
+                alt_pred_deriv = alt._excite_derivative(w)  # opsins x leds
+                var_deriv += prob * 2 * (alt_pred - x_pred)[..., None] * (alt_pred_deriv - x_pred_deriv)
+        else:
+            # Avar@(2w) * f'(Aw+o) + Avar@(w**2) * f''(Aw+o) * A
+            # derivative with respect to ws not As
+            capture_x = self.get_capture(w)
+            var_deriv = (
+                # product rule
+                self.A_var_ @ (2 * w) * self.photoreceptor_model_._derivative(capture_x) ** 2
+                +
+                self.A_var_ @ (w ** 2) * (
+                    # chain rule
+                    2 * self.photoreceptor_model_._derivative(capture_x) * 
+                    self.photoreceptor_model_._second_derivative(capture_x)
+                    * self.A_    
+                )
+            )
         # derivative of maximum
         var_deriv = np.where(var[..., None] < self.var_min, 0, var_deriv)
         return var_deriv
@@ -548,29 +628,19 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         x_pred_deriv = self._excite_derivative(w)
         leastsq_deriv = 2 * (excite_x - x_pred)[..., None] * -x_pred_deriv
 
-        if self.alternative_prs is None:
-            return (
-                self.fit_weights_[..., None]**2 * leastsq_deriv
-            )
-        else:
+        if self._has_var_:
             var = self._calc_var(w, x_pred)
             # opsin x leds
             var_deriv = self._calc_var_derivative(w, x_pred, x_pred_deriv, var)
-
-            if self.alpha is None:
-                return np.sum(
-                    0.5 * 1 / (2 * np.pi * var)[..., None] * var_deriv
-                    + 0.5 * 1/var[..., None] * leastsq_deriv 
-                    + 0.5 * (-var[..., None] ** -2) * var_deriv * (excite_x - x_pred)[..., None] ** 2, 
-                    axis=-2
-                )
-            else:
-                return np.sum(
-                    self.fit_weights_[..., None]**2 * leastsq_deriv
-                    + self.alpha * var_deriv,
-                    axis=-2
-                )
-
+            return np.sum(
+                self.fit_weights_[..., None]**2 * leastsq_deriv
+                + self.var_alpha * var_deriv,
+                axis=-2
+            )
+        else:
+            return (
+                self.fit_weights_[..., None]**2 * leastsq_deriv
+            )
 
     def _process_X(self, X):
         """

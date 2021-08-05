@@ -699,10 +699,17 @@ class _PrModelMixin:
         return self.photoreceptor_model_.excitefunc(self.get_capture(w))
 
     def _excite_derivative(self, w):
-        capture_x_pred = self.get_capture(w)
+        """
+        Calculate derivative of excitation with respect to w 
+        
+        Returns
+        -------
+        derivative : numpy.ndarray (opsin x leds)
+        """
+        capture_x = self.get_capture(w)
         # opsin x leds
         excite_deriv = (
-            self.photoreceptor_model_._derivative(capture_x_pred)[..., None] * self.A_
+            self.photoreceptor_model_._derivative(capture_x)[..., None] * self.A_
         )
         return excite_deriv
 
