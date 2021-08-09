@@ -125,7 +125,7 @@ class DependentExcitationFit(IndependentExcitationFit):
             pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
             # TODO Find better method to handle this
             # assumes pixel strength is between 0-1 
-            pixel_strength = np.floor(pixel_strength * 2**self.bit_depth) / 2**self.bit_depth
+            # pixel_strength = np.floor(pixel_strength * 2**self.bit_depth) / 2**self.bit_depth
         return ws, pixel_strength
 
     def _fit_sample(self, capture_x, excite_x):
@@ -203,11 +203,7 @@ class DependentExcitationFit(IndependentExcitationFit):
             )
             w0, p0 = self._format_intensities(result.x, ws=w0)
             p0 = p0 / np.max(p0)
-            # step three - check convergence and break 
-        else:
-            warnings.warn("Convergence was not accomplished "
-                          "for X; "
-                          "increase the number of epochs.", RuntimeWarning)
+        p0 = np.floor(p0 * 2 ** self.bit_depth) / 2 ** self.bit_depth
 
         layer_intensities, pixel_strength = w0, p0
         fitted_intensities = self._reformat_intensities(ws=w0, pixel_strength=p0)
