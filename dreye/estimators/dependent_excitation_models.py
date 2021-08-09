@@ -207,19 +207,6 @@ class DependentExcitationFit(IndependentExcitationFit):
             warnings.warn("Convergence was not accomplished "
                           "for X; "
                           "increase the number of epochs.", RuntimeWarning)
-        # for _ in range(n_epochs):
-        #   1. fit best leds while fixing pixels - nonlinear least squares with floats
-        #   2. fit best pixels while fixing leds - MIP
-        #   3. you check convergence -> stop or wait until end of epochs
-        # fitted result
-        # result = least_squares(
-        #     self._objective,
-        #     x0=w0,
-        #     args=(excite_x,),
-        #     bounds=bounds,
-        #     max_nfev=self.max_iter,
-        #     **({} if self.lsq_kwargs is None else self.lsq_kwargs)
-        # )
 
         layer_intensities, pixel_strength = w0, p0
         fitted_intensities = self._reformat_intensities(ws=w0, pixel_strength=p0)
