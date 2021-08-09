@@ -202,6 +202,7 @@ class DependentExcitationFit(IndependentExcitationFit):
                 **({} if self.lsq_kwargs is None else self.lsq_kwargs)
             )
             w0, p0 = self._format_intensities(result.x, ws=w0)
+            p0 = p0 / np.max(p0)
             # step three - check convergence and break 
         else:
             warnings.warn("Convergence was not accomplished "
