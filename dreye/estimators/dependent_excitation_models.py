@@ -13,8 +13,6 @@ from dreye.estimators.excitation_models import IndependentExcitationFit
 @inherit_docstrings
 class DependentExcitationFit(IndependentExcitationFit):
 
-    n_epochs = 10
-
     def __init__(
         self,
         *,
@@ -34,7 +32,8 @@ class DependentExcitationFit(IndependentExcitationFit):
         background_external=None, 
         intensity_bounds=None, 
         wavelengths=None, 
-        seed=None
+        seed=None,
+        n_epochs=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -55,6 +54,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         self.layer_assignments = layer_assignments
         self.bit_depth = bit_depth
         self.seed = seed
+        self.n_epochs = n_epochs
 
     def _fit(self, X):
         if self.independent_layers is None and self.layer_assignments is None:
@@ -220,7 +220,6 @@ class DependentExcitationFit(IndependentExcitationFit):
         x_pred = self.get_excitation(w)
         return (self.fit_weights_ * (excite_x - x_pred)).ravel()  # residuals
 
-    
     def get_capture(self, w):
         """
         Get capture given `w`.
