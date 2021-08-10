@@ -132,7 +132,7 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         wavelengths=None, 
         capture_noise_level=None, 
         underdetermined_opt=None, 
-        pr_samples=None, 
+        pr_samples=None,
         A_var=None,
         var_opt=False,
         var_min=1e-8, 
@@ -556,13 +556,13 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
             return self.fit_weights_ * (excite_x - x_pred)
 
     def _derivative(self, w, excite_x):
-        # get excitation and its derivative
-        x_pred = self.get_excitation(w)
-        # opsin x leds
         x_pred_deriv = self._excite_derivative(w)
-        leastsq_deriv = 2 * (excite_x - x_pred)[..., None] * -x_pred_deriv
 
         if self._has_var_ and not self.var_opt:  # if var_opt use this for initialization
+            # get excitation
+            x_pred = self.get_excitation(w)
+            leastsq_deriv = 2 * (excite_x - x_pred)[..., None] * -x_pred_deriv
+            # calculate variance
             var = self._calc_var(w, x_pred)
             # opsin x leds
             var_deriv = self._calc_var_derivative(w, x_pred, x_pred_deriv, var)
