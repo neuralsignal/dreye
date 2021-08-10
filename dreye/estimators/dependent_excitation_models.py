@@ -203,7 +203,18 @@ class DependentExcitationFit(IndependentExcitationFit):
             )
             w0, p0 = self._format_intensities(result.x, ws=w0)
             p0 = p0 / np.max(p0)
-        p0 = np.floor(p0 * 2 ** self.bit_depth) / 2 ** self.bit_depth
+            p0 = (np.ceil(p0 * 2**self.bit_depth) - 1) / (2**self.bit_depth - 1)
+
+        result = least_squares(
+            self._objective,
+            x0=w0.ravel(),
+            args=(excite_x,),
+            kwargs={'pixel_strength': p0},
+            bounds=bounds,
+            max_nfev=self.max_iter,
+            **({} if self.lsq_kwargs is None else self.lsq_kwargs)
+        )
+        w0, p0 = self._format_intensities(result.x, pixel_strength=p0)
 
         layer_intensities, pixel_strength = w0, p0
         fitted_intensities = self._reformat_intensities(ws=w0, pixel_strength=p0)
