@@ -617,6 +617,7 @@ class _PrModelMixin:
             self._bg_ints_background_ = 0
             Xbg = np.ones(self.photoreceptor_model_.n_opsins)
             Xbg = self.photoreceptor_model_.excitefunc(Xbg)
+            # TODO variance optimization and underdetermined optimization
             self.bg_ints_ = estimate_bg_ints_from_background(
                 Xbg,
                 self.photoreceptor_model,
@@ -627,7 +628,16 @@ class _PrModelMixin:
                 ignore_bounds=getattr(self, 'ignore_bounds', None),
                 lsq_kwargs=getattr(self, 'lsq_kwargs', None),
                 intensity_bounds=self.intensity_bounds, 
-                wavelengths=self.wavelengths
+                wavelengths=self.wavelengths, 
+                capture_noise_level=getattr(self, 'capture_noise_level', None), 
+                underdetermined_opt=getattr(self, 'underdetermined_opt', None), 
+                pr_samples=getattr(self, 'pr_samples', None), 
+                A_var=getattr(self, 'A_var', None),
+                var_opt=getattr(self, 'var_opt', False),
+                var_min=getattr(self, 'var_min', 1e-8), 
+                var_alpha=getattr(self, 'var_alpha', 1), 
+                l2_eps=getattr(self, 'l2_eps', 1e-4), 
+                n_jobs=getattr(self, 'n_jobs', None)
             )
             warnings.warn(
                 "Assuming the `background` illuminant will be simulated "

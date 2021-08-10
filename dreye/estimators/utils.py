@@ -244,6 +244,7 @@ def estimate_bg_ints_from_background(
     max_iter=None, 
     ignore_bounds=None, 
     lsq_kwargs=None, 
+    **kwargs
 ):
     """
     Estimate background intensity for light sources given a background spectrum to fit to.
@@ -266,7 +267,8 @@ def estimate_bg_ints_from_background(
         lsq_kwargs=lsq_kwargs,
         background_external=False, 
         intensity_bounds=intensity_bounds, 
-        wavelengths=wavelengths
+        wavelengths=wavelengths, 
+        **kwargs
     )
     est._lazy_background_estimation = True
     est.fit(np.atleast_2d(Xbg))
