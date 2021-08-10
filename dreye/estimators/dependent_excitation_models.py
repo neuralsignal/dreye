@@ -221,7 +221,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         pbounds = (0, 1)
 
         epoch_iter = (10 if self.epoch_iter is None else self.epoch_iter)
-        n_epochs = (10 if self.n_epochs is None else self.n_epochs)
+        n_epochs = (2 if self.n_epochs is None else self.n_epochs)
 
         if self.verbose:
             iterator = tqdm(range(n_epochs), desc='epochs')
