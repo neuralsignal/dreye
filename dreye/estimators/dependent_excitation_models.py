@@ -13,8 +13,6 @@ from dreye.estimators.excitation_models import IndependentExcitationFit
 @inherit_docstrings
 class DependentExcitationFit(IndependentExcitationFit):
 
-    n_epochs = 10
-
     def __init__(
         self,
         *,
@@ -34,7 +32,8 @@ class DependentExcitationFit(IndependentExcitationFit):
         background_external=None, 
         intensity_bounds=None, 
         wavelengths=None, 
-        seed=None
+        seed=None,
+        n_epochs=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -55,6 +54,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         self.layer_assignments = layer_assignments
         self.bit_depth = bit_depth
         self.seed = seed
+        self.n_epochs = n_epochs
 
     def _fit(self, X):
         if self.independent_layers is None and self.layer_assignments is None:
@@ -125,7 +125,7 @@ class DependentExcitationFit(IndependentExcitationFit):
             pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
             # TODO Find better method to handle this
             # assumes pixel strength is between 0-1 
-            pixel_strength = np.floor(pixel_strength * 2**self.bit_depth) / 2**self.bit_depth
+            # pixel_strength = np.floor(pixel_strength * 2**self.bit_depth) / 2**self.bit_depth
         return ws, pixel_strength
 
     def _fit_sample(self, capture_x, excite_x):
@@ -202,24 +202,19 @@ class DependentExcitationFit(IndependentExcitationFit):
                 **({} if self.lsq_kwargs is None else self.lsq_kwargs)
             )
             w0, p0 = self._format_intensities(result.x, ws=w0)
-            # step three - check convergence and break 
-        else:
-            warnings.warn("Convergence was not accomplished "
-                          "for X; "
-                          "increase the number of epochs.", RuntimeWarning)
-        # for _ in range(n_epochs):
-        #   1. fit best leds while fixing pixels - nonlinear least squares with floats
-        #   2. fit best pixels while fixing leds - MIP
-        #   3. you check convergence -> stop or wait until end of epochs
-        # fitted result
-        # result = least_squares(
-        #     self._objective,
-        #     x0=w0,
-        #     args=(excite_x,),
-        #     bounds=bounds,
-        #     max_nfev=self.max_iter,
-        #     **({} if self.lsq_kwargs is None else self.lsq_kwargs)
-        # )
+            p0 = p0 / np.max(p0)
+            p0 = (np.ceil(p0 * 2**self.bit_depth) - 1) / (2**self.bit_depth - 1)
+
+        result = least_squares(
+            self._objective,
+            x0=w0.ravel(),
+            args=(excite_x,),
+            kwargs={'pixel_strength': p0},
+            bounds=bounds,
+            max_nfev=self.max_iter,
+            **({} if self.lsq_kwargs is None else self.lsq_kwargs)
+        )
+        w0, p0 = self._format_intensities(result.x, pixel_strength=p0)
 
         layer_intensities, pixel_strength = w0, p0
         fitted_intensities = self._reformat_intensities(ws=w0, pixel_strength=p0)
@@ -233,7 +228,6 @@ class DependentExcitationFit(IndependentExcitationFit):
         x_pred = self.get_excitation(w)
         return (self.fit_weights_ * (excite_x - x_pred)).ravel()  # residuals
 
-    
     def get_capture(self, w):
         """
         Get capture given `w`.
