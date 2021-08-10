@@ -166,7 +166,9 @@ class DependentExcitationFit(IndependentExcitationFit):
             # initialize with NMF
             nmf = NMF(
                 n_components=self._independent_layers_, 
-                random_state=self.seed, init='random', max_iter=1000
+                random_state=self.seed, 
+                init=('random' if (self._independent_layers_ > capture_x.shape[1]) else 'nndsvda'), 
+                max_iter=1000
             )
             q0 = nmf.fit_transform(capture_x.T).T  # independent_layer x opsins
             p0 = nmf.components_.copy().T  # pixels x independent_layer
