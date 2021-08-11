@@ -46,6 +46,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         exploit=0.5, 
         n_exploit=3, 
         round_during_training=False,
+        normalize_during_training=False,
         sim=False
     ):
         super().__init__(
@@ -75,6 +76,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         self.exploit = exploit
         self.n_exploit = n_exploit
         self.round_during_training = round_during_training
+        self.normalize_during_training = normalize_during_training
         self.sim = sim
 
     def _fit(self, X):
@@ -145,7 +147,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         # len(X) x len(measured_spectra)
         return pixel_strength @ ws.T
 
-    def _format_intensities(self, w=None, ws=None, pixel_strength=None, random=None, round=True):
+    def _format_intensities(self, w=None, ws=None, pixel_strength=None, random=None, round=True, normalize=True):
         offset = 0
         if ws is None:
             ws = np.zeros((len(self.measured_spectra_), self._independent_layers_))
@@ -154,9 +156,10 @@ class DependentExcitationFit(IndependentExcitationFit):
         
         if pixel_strength is None:
             pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
-            pixel_strength = self._normalize_pixels(pixel_strength)
-            if round:
-                pixel_strength = self._round_pixels(pixel_strength, random=random)
+            if normalize:
+                pixel_strength = self._normalize_pixels(pixel_strength)
+                if round:
+                    pixel_strength = self._round_pixels(pixel_strength, random=random)
         return ws, pixel_strength
 
     def _round_pixels(self, p, random=None):
@@ -177,7 +180,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         ceilp = self._possible_ps_[ceilmin]
 
         ceilprob = (p - floorp)/(ceilp - floorp)
-        ceilprob = np.clip(ceilprob, 1e-4, 1-1e-4)
+        ceilprob = np.clip(ceilprob, 1e-5, 1-1e-5)
         if random is None:
             random = self._rng_.random(p.shape)
         ceilbool = random < ceilprob
@@ -190,6 +193,8 @@ class DependentExcitationFit(IndependentExcitationFit):
         # return (p + P0_EPS) / np.max(p + P0_EPS)
 
     def _normalize_derivative(self, p):
+        if not self.normalize_during_training:
+            return np.ones(p.shape)
         argmax = np.argmax(p)
         return (p[argmax] - p) / (p[argmax])**2
 
@@ -322,7 +327,7 @@ class DependentExcitationFit(IndependentExcitationFit):
                     self._objective, 
                     x0=np.concatenate([w0[self._row_idcs_, self._col_idcs_], p0.ravel()]), 
                     args=(excite_x, ), 
-                    kwargs={'random': random, 'round': self.round_during_training},
+                    kwargs={'random': random},
                     jac=self._derivative,
                     bounds=(
                         np.concatenate([bounds[0], [pbounds[0]]*p0.size]),
@@ -347,19 +352,52 @@ class DependentExcitationFit(IndependentExcitationFit):
                     **({} if self.lsq_kwargs is None else self.lsq_kwargs)
                 )
                 w0, p0 = self._format_intensities(result.x, pixel_strength=p0)
-                # step 2
-                result = least_squares(
-                    self._objective,
-                    x0=p0.ravel(),
-                    args=(excite_x,),
-                    kwargs={'ws': w0, 'random': random, 'round': self.round_during_training},
-                    jac=self._p0_derivative,
-                    bounds=pbounds,
-                    max_nfev=epoch_iter,
-                    **p0_lsq_kwargs
-                )
-                w0, p0 = self._format_intensities(result.x, ws=w0, random=random)
-                # p0 = self._round_pixels(p0) - rounding achieved before
+                if self.normalize_during_training:
+                    # step 2
+                    result = least_squares(
+                        self._objective,
+                        x0=p0.ravel(),
+                        args=(excite_x,),
+                        kwargs={'ws': w0, 'random': random},
+                        jac=self._p0_derivative,
+                        bounds=pbounds,
+                        max_nfev=epoch_iter,
+                        **p0_lsq_kwargs
+                    )
+                    w0, p0 = self._format_intensities(result.x, ws=w0, random=random)
+                else:
+                    if self.n_jobs is None:
+                        p0_ = np.zeros(p0.shape)
+
+                        for idx in range(n_pixels):
+                            result = least_squares(
+                                self._ppoint_objective, 
+                                x0=p0[idx], 
+                                jac=self._ppoint_derivative, 
+                                args=(excite_x[idx],),
+                                kwargs={'ws': w0},
+                                bounds=pbounds, 
+                                max_nfev=epoch_iter, 
+                                **p0_lsq_kwargs
+                            )
+                            p0_[idx] = result.x
+                        p0 = p0_.ravel()
+                        w0, p0 = self._format_intensities(p0, ws=w0, random=random)
+                    else:
+                        p0 = Parallel(n_jobs=self.n_jobs)(
+                            delayed(least_squares)(
+                                self._ppoint_objective, 
+                                x0=p0[idx], 
+                                jac=self._ppoint_derivative, 
+                                args=(excite_x[idx],),
+                                kwargs={'ws': w0},
+                                bounds=pbounds, 
+                                max_nfev=epoch_iter, 
+                                **p0_lsq_kwargs
+                            ) for idx in range(n_pixels)
+                        )
+                        p0 = np.array([result.x for result in p0]).ravel()
+                        w0, p0 = self._format_intensities(p0, ws=w0, random=random)
 
         result = least_squares(
             self._objective,
@@ -379,30 +417,45 @@ class DependentExcitationFit(IndependentExcitationFit):
         
         return fitted_intensities, layer_intensities, pixel_strength
 
-    def _objective(self, w, excite_x, **kwargs):
-        w = self._reformat_intensities(w, **kwargs).T  # n_leds x n_pixels
+    def _objective(self, w, excite_x, random=None, **kwargs):
+        w = self._reformat_intensities(
+            w, random=random, 
+            normalize=self.normalize_during_training, 
+            round=self.round_during_training, 
+            **kwargs  # frozen variables
+        ).T  # n_leds x n_pixels
         # get excitation values given intensities
         x_pred = self.get_excitation(w)
         # return np.sum((self.fit_weights_ * (excite_x - x_pred))**2, axis=0)
         return (self.fit_weights_ * (excite_x - x_pred)).ravel()  # residuals
 
     def _ppoint_objective(self, w, excite_x, ws):
+        # must assume no normalizing and rounding
         w = ws @ w
         # get excitation values given intensities
         x_pred = self.get_excitation(w)
         # pixels x opsins
         return (self.fit_weights_ * (excite_x - x_pred)).ravel()  # residuals
 
-    def _derivative(self, w, excite_x, random=None, round=True):
-        ws, pixel_strength = self._format_intensities(w, random=random, round=round)
+    def _derivative(self, w, excite_x, random=None):
+        ws, pixel_strength = self._format_intensities(
+            w, random=random, 
+            normalize=self.normalize_during_training, 
+            round=self.round_during_training)
         w0_der = self._w0_derivative(w[:self._offset_], excite_x, pixel_strength)
-        p0_der = self._p0_derivative(w[self._offset_:], excite_x, ws, random=random, round=round)
+        p0_der = self._p0_derivative(
+            w[self._offset_:], excite_x, ws, 
+            random=random)
         jac = np.concatenate([w0_der, p0_der], axis=-1)
         return jac
 
     def _w0_derivative(self, w, excite_x, pixel_strength):
         nvars = w.size
-        w = self._reformat_intensities(w, pixel_strength=pixel_strength).T  # n_leds x n_pixels
+        w = self._reformat_intensities(
+            w, pixel_strength=pixel_strength, 
+            normalize=self.normalize_during_training, 
+            round=self.round_during_training
+        ).T  # n_leds x n_pixels
         # samples x opsins x leds x independent_layers
         # select indices -> samples x opsins x (variables)
         return (
@@ -419,7 +472,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         # (samples x opsins) x leds
         # return (self.fit_weights_[..., None] * -x_pred_deriv).reshape(-1, nvars)
 
-    def _p0_derivative(self, w, excite_x, ws, random=None, round=True):
+    def _p0_derivative(self, w, excite_x, ws, random=None):
         # propagate max
         nvars = w.size
         # rename
@@ -427,7 +480,10 @@ class DependentExcitationFit(IndependentExcitationFit):
         norm_p = self._normalize_pixels(p)
         
         # reformat
-        w = self._reformat_intensities(w, ws=ws, random=random, round=round).T  # n_leds x n_pixels
+        w = self._reformat_intensities(
+            w, ws=ws, random=random, 
+            round=self.round_during_training, 
+            normalize=self.normalize_during_training).T  # n_leds x n_pixels
         # samples x opsins x (leds->summed) x independent_layers
         fprime = (self._excite_derivative(w)[..., None] * ws[None, None, :, :]).sum(axis=-2)
         # samples x opsins x (samples x independent_layers)
