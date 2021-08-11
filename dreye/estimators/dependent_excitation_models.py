@@ -13,6 +13,7 @@ from sklearn.decomposition import NMF
 from dreye.utilities.abstract import inherit_docstrings
 from dreye.estimators.excitation_models import IndependentExcitationFit
 
+P0_EPS = 1e-8
 
 @inherit_docstrings
 class DependentExcitationFit(IndependentExcitationFit):
@@ -145,7 +146,18 @@ class DependentExcitationFit(IndependentExcitationFit):
         
         if pixel_strength is None:
             pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
+            pixel_strength = self._normalize_pixels(pixel_strength)
+            # pixel_strength = self._round_pixels(pixel_strength)
         return ws, pixel_strength
+
+    def _round_pixels(self, p):
+        return (np.ceil(p * 2**self.bit_depth) - 1) / (2**self.bit_depth - 1)
+
+    def _normalize_pixels(self, p):
+        return (p + P0_EPS) / np.max(p + P0_EPS)
+
+    # def _normalize_derivative(self, p):
+    #     # pass
 
     def _fit_sample(self, capture_x, excite_x):
         # adjust bounds if necessary
@@ -176,9 +188,31 @@ class DependentExcitationFit(IndependentExcitationFit):
             p0_max = p0.max()
             p0 /= p0_max
             q0 *= p0_max
+
+            # assess which layer belongs to which component
+            costs = np.zeros((q0.shape[0], q0.shape[0]))
+            for jdx, q0_i in enumerate(q0):
+                for idx, source_idcs in enumerate(self._layer_assignments_):
+                    result = self._init_sample(
+                        q0_i, (bounds[0][source_idcs], bounds[1][source_idcs]), 
+                        idcs=source_idcs, return_result=True
+                    )
+                    costs[idx, jdx] = result.cost
+
+            # sort order of layers according to cost of linear function
+            # TODO smarter sorting
+            argsort = np.argsort(costs, axis=1)
+            sorting = []
+            for iarg in argsort:
+                for jarg in iarg:
+                    if jarg in sorting:
+                        continue
+                    sorting.append(jarg)
+            q0 = q0[sorting]
+
             w0 = []
             for q0_i, source_idcs in zip(q0, self._layer_assignments_):
-                w0_i = self._init_sample(q0_i, (bounds[0][source_idcs], bounds[1][source_idcs]))
+                w0_i = self._init_sample(q0_i, (bounds[0][source_idcs], bounds[1][source_idcs]), idcs=source_idcs)
                 w0_i_ = np.zeros(len(self.measured_spectra_))
                 w0_i_[source_idcs] = w0_i
                 w0.append(w0_i_)
@@ -195,24 +229,20 @@ class DependentExcitationFit(IndependentExcitationFit):
         # init all parameters
 
         # reformat p0
-        p0_eps = 1e-8
-        p0 = (p0 + p0_eps) / np.max(p0 + p0_eps)  # 1e-8 to make sure p0 has no zeros
-        p0 = (np.ceil(p0 * 2**self.bit_depth) - 1) / (2**self.bit_depth - 1)
+        p0 = self._normalize_pixels(p0)
+        p0 = self._round_pixels(p0)
 
-        # add independent layer dimensions        
-        w0s = []
+        # add bounds for w0       
         bounds0 = []
         bounds1 = []
         # layer_assignments: list of lists 
         # e.g. [[0, 1, 2], [3, 4], [0, 2, 4]]
         for idx, source_idcs in enumerate(self._layer_assignments_):
-            w0s.append(w0[source_idcs, idx])
             # [np.array([2.3, 4.5, .3]), np.array([6, 3]), np.array([2.3, 0.3, 3])]
             bounds0.append(bounds[0][source_idcs])
             bounds1.append(bounds[1][source_idcs])
-
+            
         # reformatted w0 and bounds
-        w0 = np.concatenate(w0s)
         bounds = (
             np.concatenate(bounds0), 
             np.concatenate(bounds1)
@@ -229,13 +259,13 @@ class DependentExcitationFit(IndependentExcitationFit):
             iterator = range(n_epochs)
 
         p0_lsq_kwargs = ({} if self.p0_lsq_kwargs is None else self.p0_lsq_kwargs)
-        p0_lsq_kwargs['xtol'] = p0_lsq_kwargs.get('xtol', np.maximum(1e-8, 2**(-self.bit_depth-5)))
+        # p0_lsq_kwargs['xtol'] = p0_lsq_kwargs.get('xtol', np.maximum(1e-8, 2**(-self.bit_depth-5)))
 
         for _ in iterator:
             # step 1
             result = least_squares(
                 self._objective,
-                x0=w0.ravel(),
+                x0=w0[self._row_idcs_, self._col_idcs_],
                 args=(excite_x,),
                 kwargs={'pixel_strength': p0},
                 jac=self._w0_derivative,
@@ -243,46 +273,56 @@ class DependentExcitationFit(IndependentExcitationFit):
                 max_nfev=epoch_iter,
                 **({} if self.lsq_kwargs is None else self.lsq_kwargs)
             )
-            p0_lsq_kwargs['gtol'] = np.maximum(1e-8, np.linalg.norm(result.grad)*1e-8)
+            # p0_lsq_kwargs['gtol'] = np.maximum(1e-8, np.linalg.norm(result.grad)*1e-8)
             w0, p0 = self._format_intensities(result.x, pixel_strength=p0)
             # step 2
-            if self.n_jobs is None:
-                p0_ = np.zeros(p0.shape)
-                for idx in range(n_pixels):
-                    result = least_squares(
-                        self._ppoint_objective,
-                        x0=p0[idx],
-                        args=(excite_x[idx],),
-                        kwargs={'ws': w0},
-                        jac=self._ppoint_derivative,
-                        bounds=pbounds,
-                        max_nfev=epoch_iter,
-                        **p0_lsq_kwargs
-                    )
-                    p0_[idx] = result.x
-                p0 = p0_
-            else:
-                p0 = Parallel(n_jobs=self.n_jobs)(
-                        delayed(least_squares)(
-                            self._ppoint_objective,
-                            x0=p0[idx],
-                            args=(excite_x[idx],),
-                            kwargs={'ws': w0},
-                            jac=self._ppoint_derivative,
-                            bounds=pbounds,
-                            max_nfev=epoch_iter,
-                            **p0_lsq_kwargs
-                        ) for idx in range(n_pixels)
-                )
-                p0 = np.array([p00.x for p00 in p0])
+            result = least_squares(
+                self._objective,
+                x0=p0.ravel(),
+                args=(excite_x,),
+                kwargs={'ws': w0},
+                jac=self._p0_derivative,
+                bounds=pbounds,
+                max_nfev=epoch_iter,
+                **p0_lsq_kwargs
+            )
+            # old iteration
+            # if self.n_jobs is None:
+            #     p0_ = np.zeros(p0.shape)
+            #     for idx in range(n_pixels):
+            #         result = least_squares(
+            #             self._ppoint_objective,
+            #             x0=p0[idx],
+            #             args=(excite_x[idx],),
+            #             kwargs={'ws': w0},
+            #             jac=self._ppoint_derivative,
+            #             bounds=pbounds,
+            #             max_nfev=epoch_iter,
+            #             **p0_lsq_kwargs
+            #         )
+            #         p0_[idx] = result.x
+            #     p0 = p0_
+            # else:
+            #     p0 = Parallel(n_jobs=self.n_jobs)(
+            #             delayed(least_squares)(
+            #                 self._ppoint_objective,
+            #                 x0=p0[idx],
+            #                 args=(excite_x[idx],),
+            #                 kwargs={'ws': w0},
+            #                 jac=self._ppoint_derivative,
+            #                 bounds=pbounds,
+            #                 max_nfev=epoch_iter,
+            #                 **p0_lsq_kwargs
+            #             ) for idx in range(n_pixels)
+            #     )
+            #     p0 = np.array([p00.x for p00 in p0])
             # p0
-            p0 = (p0 + p0_eps) / np.max(p0 + p0_eps)
-            # p0 = p0 / np.max(p0)
-            p0 = (np.ceil(p0 * 2**self.bit_depth) - 1) / (2**self.bit_depth - 1)
+            w0, p0 = self._format_intensities(p0, ws=w0)
+            p0 = self._round_pixels(p0)
 
         result = least_squares(
             self._objective,
-            x0=w0.ravel(),
+            x0=w0[self._row_idcs_, self._col_idcs_],
             args=(excite_x,),
             kwargs={'pixel_strength': p0},
             jac=self._w0_derivative,
@@ -331,17 +371,25 @@ class DependentExcitationFit(IndependentExcitationFit):
         # (samples x opsins) x leds
         # return (self.fit_weights_[..., None] * -x_pred_deriv).reshape(-1, nvars)
 
-    # def _p0_derivative(self, w, excite_x, ws):
-    #     nvars = w.size
-    #     w = self._reformat_intensities(w, ws=ws).T  # n_leds x n_pixels
-    #     # samples x opsins x (leds->summed) x independent_layers
-    #     fprime = (self._excite_derivative(w)[..., None] * ws[None, None, :, :]).sum(axis=-2)
-    #     # samples x opsins x (samples x independent_layers)
-    #     x_pred_deriv = np.apply_along_axis(
-    #         np.diag, 0, fprime
-    #     ).transpose((0, 2, 1, 3)).reshape(*fprime.shape[:-1], -1)
-    #     # (samples x opsins) x pixels
-    #     return (self.fit_weights_[..., None] * -x_pred_deriv).reshape(-1, nvars)
+    def _p0_derivative(self, w, excite_x, ws):
+        # propagate max
+        nvars = w.size
+        # maximum used during normalization
+        argmax = np.argmax(w)
+        # rename
+        p = w
+        # reformat
+        w = self._reformat_intensities(w, ws=ws).T  # n_leds x n_pixels
+        # samples x opsins x (leds->summed) x independent_layers
+        fprime = (self._excite_derivative(w)[..., None] * ws[None, None, :, :]).sum(axis=-2)
+        # samples x opsins x (samples x independent_layers)
+        x_pred_deriv = np.apply_along_axis(
+            np.diag, 0, fprime
+        ).transpose((0, 2, 1, 3)).reshape(*fprime.shape[:-1], -1)
+        # quotient rule
+        x_pred_deriv = x_pred_deriv * (p[argmax] - p)/(p[argmax] ** 2)
+        # (samples x opsins) x pixels
+        return (self.fit_weights_[..., None] * -x_pred_deriv).reshape(-1, nvars)
 
     def _ppoint_derivative(self, w, excite_x, ws):
         # opsins x (leds->summed) x independent_layers

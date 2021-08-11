@@ -523,21 +523,27 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
                 success=(prob.status == cp.OPTIMAL)
             )
 
-    def _init_sample(self, capture_x, bounds):
+    def _init_sample(self, capture_x, bounds, idcs=None, return_result=False):
+        if idcs is None:
+            A = self.A_
+        else:
+            A = self.A_[:, idcs]
         # weighted fit is better for substitution types of fits
         if self.weighted_init_fit_:
             result = lsq_linear(
-                self.fit_weights_[:, None] * self.A_,
+                self.fit_weights_[:, None] * A,
                 self.fit_weights_ * (capture_x - self._q_offset_),
                 bounds=tuple(bounds),
                 max_iter=self.max_iter
             )
         else:
             result = lsq_linear(
-                self.A_, (capture_x - self._q_offset_),
+                A, (capture_x - self._q_offset_),
                 bounds=tuple(bounds),
                 max_iter=self.max_iter
             )
+        if return_result:
+            return result
         # return fitted intensity (w)
         return result.x
 
