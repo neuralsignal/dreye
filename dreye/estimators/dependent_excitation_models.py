@@ -47,7 +47,8 @@ class DependentExcitationFit(IndependentExcitationFit):
         n_exploit=3, 
         round_during_training=False,
         normalize_during_training=False,
-        sim=False
+        sim=False, 
+        sample=None
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -78,6 +79,7 @@ class DependentExcitationFit(IndependentExcitationFit):
         self.round_during_training = round_during_training
         self.normalize_during_training = normalize_during_training
         self.sim = sim
+        self.sample = sample
 
     def _fit(self, X):
         self._rng_ = default_rng(self.seed)
@@ -320,8 +322,18 @@ class DependentExcitationFit(IndependentExcitationFit):
 
         p0_lsq_kwargs = ({} if self.p0_lsq_kwargs is None else self.p0_lsq_kwargs)
 
+        if self.sample is None:
+            trainbool = np.ones((n_epochs, n_pixels)).astype(bool)
+        else:
+            # TODO this is a little hacky
+            trainbool = self._rng_.random((n_epochs, n_pixels)) < self.sample
+            not_trained = (~trainbool).all(axis=0)
+            # train in last epoch
+            trainbool[-1, not_trained] = True
+
         if self.sim:
-            for _ in iterator:
+            # TODO implement sample for this
+            for ipoch in iterator:
                 random = self._rng_.random(p0.shape)
                 result = least_squares(
                     self._objective, 
@@ -338,7 +350,7 @@ class DependentExcitationFit(IndependentExcitationFit):
                 )
                 w0, p0 = self._format_intensities(result.x, random=random)
         else:
-            for _ in iterator:
+            for ipoch in iterator:
                 random = self._rng_.random(p0.shape)
                 # step 1
                 result = least_squares(
@@ -354,6 +366,7 @@ class DependentExcitationFit(IndependentExcitationFit):
                 w0, p0 = self._format_intensities(result.x, pixel_strength=p0)
                 if self.normalize_during_training:
                     # step 2
+                    # TODO implement sample for this
                     result = least_squares(
                         self._objective,
                         x0=p0.ravel(),
@@ -366,10 +379,11 @@ class DependentExcitationFit(IndependentExcitationFit):
                     )
                     w0, p0 = self._format_intensities(result.x, ws=w0, random=random)
                 else:
-                    if self.n_jobs is None:
-                        p0_ = np.zeros(p0.shape)
+                    # idcs to loop over
+                    idcs = np.flatnonzero(trainbool[ipoch])
 
-                        for idx in range(n_pixels):
+                    if self.n_jobs is None:
+                        for idx in idcs:
                             result = least_squares(
                                 self._ppoint_objective, 
                                 x0=p0[idx], 
@@ -380,11 +394,12 @@ class DependentExcitationFit(IndependentExcitationFit):
                                 max_nfev=epoch_iter, 
                                 **p0_lsq_kwargs
                             )
-                            p0_[idx] = result.x
-                        p0 = p0_.ravel()
+                            p0[idx] = result.x
+                        p0 = p0.ravel()
                         w0, p0 = self._format_intensities(p0, ws=w0, random=random)
+                    
                     else:
-                        p0 = Parallel(n_jobs=self.n_jobs)(
+                        results = Parallel(n_jobs=self.n_jobs)(
                             delayed(least_squares)(
                                 self._ppoint_objective, 
                                 x0=p0[idx], 
@@ -394,10 +409,11 @@ class DependentExcitationFit(IndependentExcitationFit):
                                 bounds=pbounds, 
                                 max_nfev=epoch_iter, 
                                 **p0_lsq_kwargs
-                            ) for idx in range(n_pixels)
+                            ) for idx in idcs
                         )
-                        p0 = np.array([result.x for result in p0]).ravel()
-                        w0, p0 = self._format_intensities(p0, ws=w0, random=random)
+                        p0_ = np.array([result.x for result in results])
+                        p0[idcs] = p0_
+                        w0, p0 = self._format_intensities(p0.ravel(), ws=w0, random=random)
 
         result = least_squares(
             self._objective,
