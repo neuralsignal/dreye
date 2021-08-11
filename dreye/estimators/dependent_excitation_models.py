@@ -42,7 +42,11 @@ class DependentExcitationFit(IndependentExcitationFit):
         epoch_iter=None,
         verbose=False, 
         n_jobs=None, 
-        p0_lsq_kwargs=None
+        p0_lsq_kwargs=None, 
+        exploit=0.5, 
+        n_exploit=3, 
+        round_during_training=False,
+        sim=False
     ):
         super().__init__(
             photoreceptor_model=photoreceptor_model,
@@ -68,8 +72,15 @@ class DependentExcitationFit(IndependentExcitationFit):
         self.n_epochs = n_epochs
         self.epoch_iter = epoch_iter
         self.p0_lsq_kwargs = p0_lsq_kwargs
+        self.exploit = exploit
+        self.n_exploit = n_exploit
+        self.round_during_training = round_during_training
+        self.sim = sim
 
     def _fit(self, X):
+        self._rng_ = default_rng(self.seed)
+        self._possible_ps_ = np.linspace(0, 1, 2**self.bit_depth)
+
         if self.independent_layers is None and self.layer_assignments is None:
             self._independent_layers_ = len(self.measured_spectra_)
             self._layer_assignments_ = [[idx] for idx in range(len(self.measured_spectra_))]
@@ -134,30 +145,75 @@ class DependentExcitationFit(IndependentExcitationFit):
         # len(X) x len(measured_spectra)
         return pixel_strength @ ws.T
 
-    def _format_intensities(self, w=None, ws=None, pixel_strength=None):
+    def _format_intensities(self, w=None, ws=None, pixel_strength=None, random=None, round=True):
         offset = 0
         if ws is None:
             ws = np.zeros((len(self.measured_spectra_), self._independent_layers_))
-            ws[self._row_idcs_, self._col_idcs_] = w
+            ws[self._row_idcs_, self._col_idcs_] = w[:self._offset_]
             offset = self._offset_
-            # for idx, source_idcs in enumerate(self._layer_assignments_):
-            #     ws[source_idcs, idx] = w[offset:offset+len(source_idcs)]
-            #     offset += len(source_idcs)
         
         if pixel_strength is None:
             pixel_strength = w[offset:].reshape(-1, self._independent_layers_)
             pixel_strength = self._normalize_pixels(pixel_strength)
-            # pixel_strength = self._round_pixels(pixel_strength)
+            if round:
+                pixel_strength = self._round_pixels(pixel_strength, random=random)
         return ws, pixel_strength
 
-    def _round_pixels(self, p):
-        return (np.ceil(p * 2**self.bit_depth) - 1) / (2**self.bit_depth - 1)
+    def _round_pixels(self, p, random=None):
+        # probabilistic rounding
+        dist = (p[..., None] - self._possible_ps_)
+        # smaller than zero means p is smaller - ceiling
+        # bigger than zero means p is bigger - flooring
+        dist1 = dist.copy()
+        dist1[dist1 < 0] = 1  # floored
+        dist2 = dist.copy()
+        dist2[dist2 >= 0] = 1
+        dist2 = np.abs(dist2)  # ceiled
+
+        floormin = np.argmin(dist1, axis=-1)
+        ceilmin = np.argmin(dist2, axis=-1)
+        # should be shape p
+        floorp = self._possible_ps_[floormin]
+        ceilp = self._possible_ps_[ceilmin]
+
+        ceilprob = (p - floorp)/(ceilp - floorp)
+        ceilprob = np.clip(ceilprob, 1e-4, 1-1e-4)
+        if random is None:
+            random = self._rng_.random(p.shape)
+        ceilbool = random < ceilprob
+
+        return np.where(ceilbool, ceilp, floorp)
+        # return (np.ceil(p * 2**self.bit_depth) - 1) / (2**self.bit_depth - 1)
 
     def _normalize_pixels(self, p):
-        return (p + P0_EPS) / np.max(p + P0_EPS)
+        return p / np.max(p)
+        # return (p + P0_EPS) / np.max(p + P0_EPS)
 
-    # def _normalize_derivative(self, p):
-    #     # pass
+    def _normalize_derivative(self, p):
+        argmax = np.argmax(p)
+        return (p[argmax] - p) / (p[argmax])**2
+
+    def _round_derivative(self, p):
+        if not self.round_during_training:
+            return np.ones(p.shape)
+        dist = (p[..., None] - self._possible_ps_)
+        mindist = np.min(np.abs(dist), axis=-1) / (2 ** self.bit_depth)
+        mindist = np.clip(mindist, 1e-8, None)
+        upderiv = self._up_func_deriv(mindist)
+        downderiv = self._down_func_deriv(mindist)
+        return np.where(
+            self._rng_.random(p.shape) <= self.exploit, upderiv, downderiv
+        )
+        # return np.ones(p.shape)
+
+    def _up_func_deriv(self, p):
+        # return p ** n
+        return self.n_exploit * p ** (self.n_exploit-1)
+
+    def _down_func_deriv(self, p):
+        # return (p - 1) ** n + 1
+        return self.n_exploit * (p - 1) ** (self.n_exploit-1)
+
 
     def _fit_sample(self, capture_x, excite_x):
         # adjust bounds if necessary
@@ -220,10 +276,9 @@ class DependentExcitationFit(IndependentExcitationFit):
         else:
             warnings.warn("The number of pixels is smaller than the number of independent layers.", RuntimeWarning)
             # find initial w0 using linear least squares by using the mean capture across all pixels
-            rng = default_rng(self.seed)
             w0 = self._init_sample(capture_x.mean(0), bounds)
             w0 = np.broadcast_to(w0[:, None], (w0.shape[0], self._independent_layers_))
-            p0 = rng.random((n_pixels, self._independent_layers_))
+            p0 = self._rng_.random((n_pixels, self._independent_layers_))
             # w0: np.ndarray (n_leds)
         
         # init all parameters
@@ -259,66 +314,52 @@ class DependentExcitationFit(IndependentExcitationFit):
             iterator = range(n_epochs)
 
         p0_lsq_kwargs = ({} if self.p0_lsq_kwargs is None else self.p0_lsq_kwargs)
-        # p0_lsq_kwargs['xtol'] = p0_lsq_kwargs.get('xtol', np.maximum(1e-8, 2**(-self.bit_depth-5)))
 
-        for _ in iterator:
-            # step 1
-            result = least_squares(
-                self._objective,
-                x0=w0[self._row_idcs_, self._col_idcs_],
-                args=(excite_x,),
-                kwargs={'pixel_strength': p0},
-                jac=self._w0_derivative,
-                bounds=bounds,
-                max_nfev=epoch_iter,
-                **({} if self.lsq_kwargs is None else self.lsq_kwargs)
-            )
-            # p0_lsq_kwargs['gtol'] = np.maximum(1e-8, np.linalg.norm(result.grad)*1e-8)
-            w0, p0 = self._format_intensities(result.x, pixel_strength=p0)
-            # step 2
-            result = least_squares(
-                self._objective,
-                x0=p0.ravel(),
-                args=(excite_x,),
-                kwargs={'ws': w0},
-                jac=self._p0_derivative,
-                bounds=pbounds,
-                max_nfev=epoch_iter,
-                **p0_lsq_kwargs
-            )
-            # old iteration
-            # if self.n_jobs is None:
-            #     p0_ = np.zeros(p0.shape)
-            #     for idx in range(n_pixels):
-            #         result = least_squares(
-            #             self._ppoint_objective,
-            #             x0=p0[idx],
-            #             args=(excite_x[idx],),
-            #             kwargs={'ws': w0},
-            #             jac=self._ppoint_derivative,
-            #             bounds=pbounds,
-            #             max_nfev=epoch_iter,
-            #             **p0_lsq_kwargs
-            #         )
-            #         p0_[idx] = result.x
-            #     p0 = p0_
-            # else:
-            #     p0 = Parallel(n_jobs=self.n_jobs)(
-            #             delayed(least_squares)(
-            #                 self._ppoint_objective,
-            #                 x0=p0[idx],
-            #                 args=(excite_x[idx],),
-            #                 kwargs={'ws': w0},
-            #                 jac=self._ppoint_derivative,
-            #                 bounds=pbounds,
-            #                 max_nfev=epoch_iter,
-            #                 **p0_lsq_kwargs
-            #             ) for idx in range(n_pixels)
-            #     )
-            #     p0 = np.array([p00.x for p00 in p0])
-            # p0
-            w0, p0 = self._format_intensities(p0, ws=w0)
-            p0 = self._round_pixels(p0)
+        if self.sim:
+            for _ in iterator:
+                random = self._rng_.random(p0.shape)
+                result = least_squares(
+                    self._objective, 
+                    x0=np.concatenate([w0[self._row_idcs_, self._col_idcs_], p0.ravel()]), 
+                    args=(excite_x, ), 
+                    kwargs={'random': random, 'round': self.round_during_training},
+                    jac=self._derivative,
+                    bounds=(
+                        np.concatenate([bounds[0], [pbounds[0]]*p0.size]),
+                        np.concatenate([bounds[1], [pbounds[1]]*p0.size]),
+                    ),
+                    max_nfev=epoch_iter,
+                    **({} if self.lsq_kwargs is None else self.lsq_kwargs)
+                )
+                w0, p0 = self._format_intensities(result.x, random=random)
+        else:
+            for _ in iterator:
+                random = self._rng_.random(p0.shape)
+                # step 1
+                result = least_squares(
+                    self._objective,
+                    x0=w0[self._row_idcs_, self._col_idcs_],
+                    args=(excite_x,),
+                    kwargs={'pixel_strength': p0},
+                    jac=self._w0_derivative,
+                    bounds=bounds,
+                    max_nfev=epoch_iter,
+                    **({} if self.lsq_kwargs is None else self.lsq_kwargs)
+                )
+                w0, p0 = self._format_intensities(result.x, pixel_strength=p0)
+                # step 2
+                result = least_squares(
+                    self._objective,
+                    x0=p0.ravel(),
+                    args=(excite_x,),
+                    kwargs={'ws': w0, 'random': random, 'round': self.round_during_training},
+                    jac=self._p0_derivative,
+                    bounds=pbounds,
+                    max_nfev=epoch_iter,
+                    **p0_lsq_kwargs
+                )
+                w0, p0 = self._format_intensities(result.x, ws=w0, random=random)
+                # p0 = self._round_pixels(p0) - rounding achieved before
 
         result = least_squares(
             self._objective,
@@ -352,6 +393,13 @@ class DependentExcitationFit(IndependentExcitationFit):
         # pixels x opsins
         return (self.fit_weights_ * (excite_x - x_pred)).ravel()  # residuals
 
+    def _derivative(self, w, excite_x, random=None, round=True):
+        ws, pixel_strength = self._format_intensities(w, random=random, round=round)
+        w0_der = self._w0_derivative(w[:self._offset_], excite_x, pixel_strength)
+        p0_der = self._p0_derivative(w[self._offset_:], excite_x, ws, random=random, round=round)
+        jac = np.concatenate([w0_der, p0_der], axis=-1)
+        return jac
+
     def _w0_derivative(self, w, excite_x, pixel_strength):
         nvars = w.size
         w = self._reformat_intensities(w, pixel_strength=pixel_strength).T  # n_leds x n_pixels
@@ -371,23 +419,26 @@ class DependentExcitationFit(IndependentExcitationFit):
         # (samples x opsins) x leds
         # return (self.fit_weights_[..., None] * -x_pred_deriv).reshape(-1, nvars)
 
-    def _p0_derivative(self, w, excite_x, ws):
+    def _p0_derivative(self, w, excite_x, ws, random=None, round=True):
         # propagate max
         nvars = w.size
-        # maximum used during normalization
-        argmax = np.argmax(w)
         # rename
         p = w
+        norm_p = self._normalize_pixels(p)
+        
         # reformat
-        w = self._reformat_intensities(w, ws=ws).T  # n_leds x n_pixels
+        w = self._reformat_intensities(w, ws=ws, random=random, round=round).T  # n_leds x n_pixels
         # samples x opsins x (leds->summed) x independent_layers
         fprime = (self._excite_derivative(w)[..., None] * ws[None, None, :, :]).sum(axis=-2)
         # samples x opsins x (samples x independent_layers)
         x_pred_deriv = np.apply_along_axis(
             np.diag, 0, fprime
         ).transpose((0, 2, 1, 3)).reshape(*fprime.shape[:-1], -1)
-        # quotient rule
-        x_pred_deriv = x_pred_deriv * (p[argmax] - p)/(p[argmax] ** 2)
+        
+        # multiply with derivatives of normalization and rounding step - chain rule
+        x_pred_deriv = (
+            x_pred_deriv * self._normalize_derivative(p) * self._round_derivative(norm_p)
+        )
         # (samples x opsins) x pixels
         return (self.fit_weights_[..., None] * -x_pred_deriv).reshape(-1, nvars)
 
