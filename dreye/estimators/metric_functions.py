@@ -142,6 +142,8 @@ def compute_gamut(
             overall_q = points.sum(axis=-1)
     
     points = points[overall_q != 0]
+    if points.shape[0] == 0:
+        return 0
     points = barycentric_dim_reduction(points)
     if center:
         points -= barycentric_dim_reduction(np.ones((1, points.shape[1]+1)))

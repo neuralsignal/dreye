@@ -137,7 +137,7 @@ def check_photoreceptor_model(
     return photoreceptor_model
 
 
-def check_background(background, measured_spectra, wavelengths=None):
+def check_background(background, measured_spectra, wavelengths=None, photoreceptor_model=None):
     """
     check and create background if necessary
     """
@@ -158,16 +158,17 @@ def check_background(background, measured_spectra, wavelengths=None):
         background = background.to(measured_spectra.units)
     elif is_listlike(background):
         background = optional_to(background, measured_spectra.units)
-        # check size requirements
-        if wavelengths is None:
-            assert background.size == measured_spectra.normalized_spectra.shape[
-                measured_spectra.normalized_spectra.domain_axis
-            ], "array-like object for `background` does not match wavelength shape of `measured_spectra` object."
-        background = create_spectrum(
-            intensities=background,
-            wavelengths=(measured_spectra.domain if wavelengths is None else wavelengths),
-            units=measured_spectra.units
-        )
+        if (photoreceptor_model is None) or (photoreceptor_model.n_opsins != background.size):
+            # check size requirements
+            if wavelengths is None:
+                assert background.size == measured_spectra.normalized_spectra.shape[
+                    measured_spectra.normalized_spectra.domain_axis
+                ], "array-like object for `background` does not match wavelength shape of `measured_spectra` object."
+            background = create_spectrum(
+                intensities=background,
+                wavelengths=(measured_spectra.domain if wavelengths is None else wavelengths),
+                units=measured_spectra.units
+            )
     else:
         raise ValueError(
             "Background must be Spectrum instance or dict-like, but"

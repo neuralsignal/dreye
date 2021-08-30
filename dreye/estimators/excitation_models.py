@@ -24,6 +24,7 @@ from dreye.utilities.abstract import inherit_docstrings
 
 
 # TODO what if people want to supply q_bg instead of background - could just scale the sensitivities
+# TODO simplified estimator
 
 
 @inherit_docstrings
@@ -366,6 +367,11 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
         # adjust bounds if necessary
         bounds = list(self.intensity_bounds_)
         if self._unidirectional_:
+            if self.bg_ints_ is None:
+                raise ValueError(
+                    "Cannot set `unidirectional` to True with `background` set "
+                    f"to `{self.background}` and `bg_ints` set to `{self.bg_ints}`."
+                )
             if np.all(capture_x >= self.capture_border_):
                 bounds[0] = self.bg_ints_
             elif np.all(capture_x <= self.capture_border_):
@@ -512,7 +518,7 @@ class IndependentExcitationFit(_SpectraModel, _PrModelMixin):
                 x=w.value,
                 cost=cost,
                 fun=np.zeros(capture_x.size),
-                jac=np.zeros((capture_x.size, self.bg_ints_.size)),
+                jac=np.zeros((capture_x.size, len(self.measured_spectra_))),
                 grad=np.zeros(capture_x.size),
                 optimality=0.0,
                 active_mask=0,

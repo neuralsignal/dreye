@@ -5,10 +5,35 @@ Even-ish sampling
 import numpy as np
 from scipy.special import factorial
 from numpy.random import default_rng
+from numpy.linalg import det
+from scipy.spatial import Delaunay, ConvexHull
+from scipy.stats import dirichlet
 
 from dreye.utilities.common import is_integer
 from dreye.utilities import barycentric_to_cartesian_transformer
 from dreye.utilities.convex import in_hull
+
+
+def dist_in_hull(points, n, seed=None):
+    """
+    Sampling uniformly from convex hull as given by points.
+
+    From: https://stackoverflow.com/questions/59073952/how-to-get-uniformly-distributed-points-in-convex-hull
+    """
+    rng = default_rng(seed)
+
+    dims = points.shape[-1]
+    hull = points[ConvexHull(points).vertices]
+    deln = points[Delaunay(hull).simplices]
+
+    vols = np.abs(det(deln[:, :dims, :] - deln[:, dims:, :])) / np.math.factorial(dims)    
+    sample = rng.choice(len(vols), size=n, p=vols/vols.sum())
+
+    return np.einsum(
+        'ijk, ij -> ik', 
+        deln[sample], 
+        dirichlet.rvs([1]*(dims + 1), size=n, random_state=rng)
+    )
 
 
 def phi(d, x=2.0, n_iter=10):

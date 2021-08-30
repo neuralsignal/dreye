@@ -14,7 +14,7 @@ from dreye.utilities.common import is_string
 from dreye.utilities.abstract import _InitDict, inherit_docstrings
 from dreye.estimators.base import _PrModelMixin
 from dreye.estimators.utils import get_optimal_capture_samples, get_source_idcs, get_source_idx, get_spanning_intensities, spaced_solutions
-from dreye.estimators.metric_functions import compute_est_score, compute_metric_for_samples, compute_peak_set, get_metrics
+from dreye.estimators.metric_functions import compute_est_score, compute_gamut, compute_metric_for_samples, compute_peak_set, get_metrics
 from dreye.estimators.silent_substitution import BestSubstitutionFit
 from dreye.estimators.excitation_models import IndependentExcitationFit
 from dreye.plotting import plot_simplex
@@ -119,10 +119,19 @@ class Metrics(_InitDict, _PrModelMixin):
         """
         if relative:
             relative_to = self.optimal_q_samples_
+            denom = compute_gamut(
+                relative_to, 
+                gamut_metric='mean_width', 
+                at_overall_q=None,
+                relative_to=None,
+                center=True,
+                centered=True,
+                seed=seed,
+            )
         else:
-            relative_to = None
+            denom = 1
         
-        return get_metrics(
+        df = get_metrics(
             self.source_idcs_, 
             self.measured_spectra_.names, 
             None, 
@@ -132,11 +141,13 @@ class Metrics(_InitDict, _PrModelMixin):
             sample_func=self.capture_for_selected_combo,
             gamut_metric='mean_width', 
             at_overall_q=at_overall_q, 
-            relative_to=relative_to,
+            relative_to=None,
             center=True,
             centered=True,
             seed=seed,
         )
+        df['metric'] /= denom
+        return df
 
     def compute_best_substitutions(self, **kwargs):
         """
@@ -262,7 +273,10 @@ class Metrics(_InitDict, _PrModelMixin):
         combo=None, 
         wls=None, 
         ax=None, cmap='rainbow', nonspectral_lines=False, 
-        add_center=True
+        add_center=True, 
+        add_solos=False,
+        gradient_line_kws={},
+        point_scatter_kws={},
     ):
         """
         Plot a simplex plot for a specific light source combination.
@@ -289,20 +303,37 @@ class Metrics(_InitDict, _PrModelMixin):
             )
         ]
         
-        colors = sns.color_palette(
-            cmap, len(qpoints)
+        gradient_line_kws['cmap'] = cmap
+        gradient_line_kws['add_colorbar'] = (
+            False if (n == 4) else gradient_line_kws.get('add_colorbar', True)
         )
 
-        if add_center:
-            qpoints = np.vstack([qpoints, np.ones((1, qpoints.shape[1]))/qpoints.shape[1]])
-            colors = np.array(list(colors) + ['black'], dtype=object)
-        
         ax = plot_simplex(
             n, 
             ax=ax,
-            points=qpoints, 
-            point_colors=colors,
+            gradient_line=qpoints, 
+            gradient_color=wls, 
+            gradient_line_kws=gradient_line_kws, 
         )
+
+        if add_center:
+            plot_simplex(
+                n, 
+                ax=ax, 
+                points=np.ones((1, qpoints.shape[1]))/qpoints.shape[1], 
+                point_colors='gray', 
+                point_scatter_kws=point_scatter_kws, 
+                lines=False
+            )
+
+        if add_solos:
+            for i in range(n):
+                x_ = np.zeros((2, n))
+                x_[0, i] = 1
+                x_[1] = 1
+                x_[1:, i] = 0
+                xs_ = barycentric_dim_reduction(x_)
+                ax.plot(*xs_.T, color='gray', linestyle='--', alpha=0.5)
         
         if nonspectral_lines:
         
@@ -327,17 +358,21 @@ class Metrics(_InitDict, _PrModelMixin):
             hullp = self.capture_for_selected_combo(
                 combo
             )
+            hull_kws = {
+                'color':'lightgray', 
+                'edgecolor': 'gray', 
+                'linestyle':'--',
+            }
+            if n == 3:
+                hull_kws.pop('edgecolor')
             ax = plot_simplex(
                 n, 
                 hull=hullp[
                     hullp.sum(axis=1) > 0
                 ], 
-                hull_kws={
-                    'color':'lightgray', 
-                    'edgecolor': 'gray', 
-                    'linestyle':'--',
-                }, 
-                ax=ax
+                hull_kws=hull_kws, 
+                ax=ax, 
+                lines=False
             )
         
         return ax

@@ -4,6 +4,7 @@ Load human spectral sensitivity
 
 import os
 import pandas as pd
+import numpy as np
 from dreye import DREYE_DIR, Signals
 from dreye.core.photoreceptor import create_photoreceptor_model
 
@@ -11,7 +12,7 @@ D2_FILENAME = os.path.join(DREYE_DIR, 'datasets', 'linss2_10e_1.csv')
 D10_FILENAME = os.path.join(DREYE_DIR, 'datasets', 'linss10e_1.csv')
 
 
-def load_dataset(as_pr_model=False, d10=False, **kwargs):
+def load_dataset(as_pr_model=False, d10=False, ascending=False, **kwargs):
     """
     Load human spectral sensitivity.
 
@@ -47,9 +48,16 @@ def load_dataset(as_pr_model=False, d10=False, **kwargs):
         data = pd.read_csv(D2_FILENAME, header=None)
 
     data.columns = ['wavelengths', 'L', 'M', 'S']
+    if ascending:
+        data = data[['wavelengths', 'S', 'M', 'L']]
     if as_pr_model:
         data = data.set_index('wavelengths')
-        data = Signals(data.fillna(0), domain_units='nm')
+        nanmin = np.nanmin(data.to_numpy())
+        data = Signals(data.fillna(nanmin), domain_units='nm')
+        data.interpolator_kwargs = {
+            'fill_value': nanmin, 
+            'bounds_error': False
+        }
         return create_photoreceptor_model(data, name='human', **kwargs)
 
     return data.melt(['wavelengths'], var_name='opsin').fillna(0)

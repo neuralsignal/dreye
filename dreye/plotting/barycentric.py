@@ -2,6 +2,7 @@
 Plot barycentric
 """
 
+from dreye.plotting.lines import gradient_color_lineplot
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D, art3d
 from scipy.spatial import ConvexHull
@@ -20,6 +21,7 @@ def plot_simplex(
     n=4,
     points=None,
     hull=None,
+    gradient_line=None, 
     lines=True,
     ax=None,
     line_color='black',
@@ -29,6 +31,8 @@ def plot_simplex(
     point_colors='blue',
     hull_kws={},
     point_scatter_kws={},
+    gradient_line_kws={}, 
+    gradient_color=None,
     fig_kws={},
     remove_axes=True
 ):
@@ -103,6 +107,22 @@ def plot_simplex(
             else:
                 ax.plot(*line, c=line_color)
 
+    if gradient_line is not None:
+        if gradient_line.shape[1] == n:
+            X = barycentric_dim_reduction(gradient_line)
+        elif gradient_line.shape[1] == (n-1):
+            X = gradient_line
+        else:
+            raise ValueError(
+                "`points` argument is the wronge dimension, "
+                f"must be `{n}` or `{n-1}`, but is `{gradient_line.shape[1]}`."
+            )
+
+        if gradient_color is None:
+            gradient_color = np.linspace(0, 1, X.shape[0])
+
+        gradient_color_lineplot(*X.T, c=gradient_color, **gradient_line_kws, ax=ax)
+
     if labels is not None:
         eye = np.eye(n)
         eye_cart = barycentric_to_cartesian(eye)
@@ -127,6 +147,9 @@ def plot_simplex(
             ax.set_xticks([])
             ax.set_yticks([])
             sns.despine(left=True, bottom=True, ax=ax)
+            ax.set_ylim(-0.1, 1.1)
+            ax.set_xlim(-0.1, 1.1)
+            ax.set_aspect('equal', adjustable='box')
 
     return ax
 

@@ -19,6 +19,7 @@ from dreye.estimators.utils import (
     estimate_bg_ints_from_background, get_background_from_bg_ints, 
     get_bg_ints, get_ignore_bounds, get_spanning_intensities, range_of_solutions
 )
+from dreye.utilities.array import asarray
 from dreye.utilities.common import is_string
 from dreye.utilities.convex import convex_combination, in_hull
 from dreye.core.photoreceptor import CAPTURE_STRINGS
@@ -543,7 +544,8 @@ class _PrModelMixin:
         # create background
         self.background_ = check_background(
             self.background, self.measured_spectra_, 
-            wavelengths=self.wavelengths
+            wavelengths=self.wavelengths, 
+            photoreceptor_model=self.photoreceptor_model_
         )
 
         # set background intensities if exist
@@ -578,6 +580,9 @@ class _PrModelMixin:
             self._background_external_ = False
             self._bg_ints_background_ = 0
             assert np.allclose(self.bg_ints_, 0), "If background is `{self.background_}`, bg_ints must be all zeros."
+
+        # background already q_bg - TODO?
+        # elif isinstance(self.background_, np.ndarray):
 
         elif self.background_external or self.background_external is None:
             # if background is not None assume it is from an external source (default)
@@ -649,7 +654,7 @@ class _PrModelMixin:
         # sanity
         if (
             not (is_string(self.background_) or self.background_ is None)
-            and np.allclose(self.background_.magnitude, 0)
+            and np.allclose(asarray(self.background_), 0)
             and not np.all(self.photoreceptor_model_.capture_noise_level)  # not all are noisy - then don't keep relative q
         ):
             warnings.warn(

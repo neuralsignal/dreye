@@ -519,9 +519,12 @@ class Photoreceptor(ABC):
             return q / q_bg
 
         # calculate relative capture
-        q_bg = self.capture(
-            background, return_units=return_units, wavelengths=wavelengths
-        )
+        if isinstance(background, np.ndarray) and (background.size == self.n_opsins):
+            q_bg = background
+        else:
+            q_bg = self.capture(
+                background, return_units=return_units, wavelengths=wavelengths
+            )
         # q_bg may have different units to q
         q = q / q_bg
         return q
