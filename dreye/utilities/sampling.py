@@ -24,9 +24,11 @@ def dist_in_hull(points, n, seed=None):
 
     dims = points.shape[-1]
     hull = points[ConvexHull(points).vertices]
-    deln = points[Delaunay(hull).simplices]
+    deln = hull[Delaunay(hull).simplices]
 
-    vols = np.abs(det(deln[:, :dims, :] - deln[:, dims:, :])) / np.math.factorial(dims)    
+    # volume of each simplex
+    vols = np.abs(det(deln[:, :dims, :] - deln[:, dims:, :])) / np.math.factorial(dims)
+    # indices of each simplex (weighted by the volume of the simplex)
     sample = rng.choice(len(vols), size=n, p=vols/vols.sum())
 
     return np.einsum(
