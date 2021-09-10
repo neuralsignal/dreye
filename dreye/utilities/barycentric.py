@@ -25,6 +25,18 @@ def barycentric_to_cartesian(X):
     return X @ A
 
 
+def cartesian_to_barycentric(X, I=None):
+    n = X.shape[1] + 1
+    X = np.hstack([X, np.ones((X.shape[0], 1))])
+    A = barycentric_to_cartesian_transformer(n)
+    A = np.hstack([A, np.ones((A.shape[0], 1))])
+    X = X @ np.linalg.inv(A)
+    if I is None:
+        return X
+    else:
+        return X * I[..., None]
+
+
 def barycentric_to_cartesian_transformer(n):
     assert n > 1
     A = np.zeros((n, n-1))

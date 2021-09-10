@@ -49,3 +49,25 @@ def convex_combination(points, x, bounded=True):
     # check if norm is close to zero - that is a optimal solution was found
     return w, norm, np.isclose(norm, 0)
 
+
+def hull_intersection_alpha(U, hull):
+    """
+    Get multiple of vector that intersects with hull
+
+    Adapted from:  https://stackoverflow.com/questions/30486312/intersection-of-nd-line-with-convex-hull-in-python
+    """
+    eq = hull.equations.T
+    V, b = eq[:-1], eq[-1]
+    alpha = -b / (U @ V)
+    # mask smaller equal to zero values
+    alpha[alpha <= 0] = np.nan
+    alpha = np.nanmin(alpha, axis=-1)
+    return alpha
+
+
+def find_hull_intersection(U, hull):
+    """
+    Find hull intersection of vecotr U.
+    """
+    return hull_intersection_alpha(U, hull)[..., None] * U
+
