@@ -8,6 +8,8 @@ from numpy.random import default_rng
 from numpy.linalg import det
 from scipy.spatial import Delaunay, ConvexHull
 from scipy.stats import dirichlet
+from functools import reduce
+from itertools import product
 
 from dreye.utilities.common import is_integer
 from dreye.utilities import barycentric_to_cartesian_transformer
@@ -108,3 +110,48 @@ def create_spaced_samples(n, d=3, simplex=True, append_pure=False, seed=0):
         pure = np.eye(d+1)
         ztrig = np.vstack([ztrig, pure])
     return ztrig
+
+
+def project_angles_on_hypersphere(angles, r=1):
+    """
+    Project n-dimensional angles onto n+1 hypersphere with a specific radius
+    """
+    d = angles.shape[1] + 1
+    cosx = np.cos(angles)
+    sinx = np.sin(angles)
+    X = np.zeros((angles.shape[0], d))
+    X[:, 0] = cosx[:, 0]
+    for i in range(1, d-1):
+        X[:, i] = cosx[:, i] * reduce(lambda x, y: x * y, sinx[:, :i].T)
+    X[:, d-1] = reduce(lambda x, y: x * y, sinx.T)
+    r = np.atleast_1d(r)
+    return (X * r[..., None, None]).reshape(-1, d)
+
+
+def d_equally_spaced(n, d, one_inclusive=True):
+    """
+    Creates n^d equally samples in d dimension
+    """
+    if one_inclusive:
+        x = np.linspace(0, 1, n)
+    else:
+        x = np.arange(0, 1, 1/n)
+    return np.array(list(product(*[x]*d)))
+
+
+def hypersphere_samples(n, d, r=1, seed=None):
+    """
+    Obtain well-spaced samples that lie on a hypersphere. 
+    If $n^{1/(d-1)}$ is a whole number samples are created simply by using equally spaced
+    angles in each dimension (from 0 to 2 * np.pi)
+    """
+    # samples x (d-1)
+    if d == 2:
+        angles = np.arange(0, 2*np.pi, 2*np.pi/n)[:, None]
+    else:
+        if np.isclose((n ** (1/(d-1))) % 1, 0):
+            angles = d_equally_spaced(int(n**(1/(d-1))), d-1, one_inclusive=False)
+        else:
+            angles = create_spaced_samples(n, d-1, simplex=False, seed=seed) * 2 * np.pi
+        
+    return project_angles_on_hypersphere(angles, r=r)  
