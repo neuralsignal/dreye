@@ -7,7 +7,5 @@ API Reference
     :glob:
 
     core
-    stimuli
-    hardware
     datasets
     utilities

@@ -125,7 +125,7 @@ plot_html_show_formats = False
 plot_html_show_source_link = False
 plot_pre_code = """import numpy as np
 import pandas as pd
-import dreye as pb
+import dreye
 """
 
 # nbsphinx do not use requirejs (breaks bootstrap)
@@ -411,7 +411,7 @@ ipython_warning_is_error = False
 ipython_exec_lines = [
     "import numpy as np",
     "import pandas as pd",
-    "import dreye as pb",
+    "import dreye",
     # This ensures correct rendering on system with console encoding != utf8
     # (windows). It forces pandas to encode its output reprs using utf8
     # wherever the docs are built. The docs' target is the browser, not
