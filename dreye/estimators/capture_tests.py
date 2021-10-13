@@ -105,7 +105,7 @@ class CaptureTests(_InitDict, _PrModelMixin):
         """
         return self._q_iterator(q, self._capture_in_range_)
 
-    def nonlinear_gamut_correction(self, X, neutral_point=None, n_steps_gamut_vertex_estimation=10000):
+    def nonlinear_gamut_correction(self, X, neutral_point=None, n_steps_gamut_vertex_estimation=10000, nonlin=None):
         if neutral_point is None:
             neutral_point = np.mean(X, axis=0)
 
@@ -114,7 +114,10 @@ class CaptureTests(_InitDict, _PrModelMixin):
             compute_ratios=True,
             ratios=np.linspace(0, 1, n_steps_gamut_vertex_estimation)
         )
-        points = self.get_excitation(spanning_ints.T) - neutral_point
+        if nonlin is None:
+            points = self.get_excitation(spanning_ints.T) - neutral_point
+        else:
+            points = nonlin(self.get_excitation(spanning_ints.T)) - neutral_point
         X = X - neutral_point
 
         if points.shape[1] == 1:

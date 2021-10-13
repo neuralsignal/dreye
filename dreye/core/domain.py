@@ -170,7 +170,7 @@ class Domain(_UnitArray):
                 start, end = end, start
             interval = np.abs(interval)
         else:
-            values = asarray(values, dtype=DEFAULT_FLOAT_DTYPE)
+            values = asarray(values)
             assert values.ndim == 1, "Array must be 1-dimensional"
             reverse = np.all(np.sort(values) == values[::-1])
 

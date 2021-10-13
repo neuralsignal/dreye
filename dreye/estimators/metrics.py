@@ -282,7 +282,7 @@ class Metrics(_InitDict, _PrModelMixin):
         Plot a simplex plot for a specific light source combination.
         """
         n = self.photoreceptor_model_.n_opsins
-        assert n in {3, 4}, "Simplex plots only works for tri- or tetrachromatic animals."
+        assert n in {2, 3, 4}, "Simplex plots only works for tri- or tetrachromatic animals."
         
         wls_ = self.photoreceptor_model_.wls
         if wls is None:
@@ -326,7 +326,7 @@ class Metrics(_InitDict, _PrModelMixin):
                 lines=False
             )
 
-        if add_solos:
+        if add_solos and n != 2:
             for i in range(n):
                 x_ = np.zeros((2, n))
                 x_[0, i] = 1
@@ -335,7 +335,7 @@ class Metrics(_InitDict, _PrModelMixin):
                 xs_ = barycentric_dim_reduction(x_)
                 ax.plot(*xs_.T, color='gray', linestyle='--', alpha=0.5)
         
-        if nonspectral_lines:
+        if nonspectral_lines and n != 2:
         
             qmaxs = barycentric_dim_reduction(
                 qpoints[np.argmax(qpoints, 0)]
@@ -363,7 +363,7 @@ class Metrics(_InitDict, _PrModelMixin):
                 'edgecolor': 'gray', 
                 'linestyle':'--',
             }
-            if n == 3:
+            if n <= 3:
                 hull_kws.pop('edgecolor')
             ax = plot_simplex(
                 n, 

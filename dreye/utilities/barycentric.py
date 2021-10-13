@@ -34,6 +34,7 @@ def cartesian_to_barycentric(X, I=None):
     if I is None:
         return X
     else:
+        I = np.atleast_1d(I)
         return X * I[..., None]
 
 

@@ -6,7 +6,8 @@ convex combinations and convex hulls
 import numpy as np
 from scipy.optimize import nnls
 from scipy.spatial import Delaunay
-from scipy.spatial.qhull import QhullError
+from scipy.spatial.qhull import ConvexHull, QhullError
+from quadprog import solve_qp
 
 
 def in_hull(points, x, bounded=True):
@@ -50,12 +51,39 @@ def convex_combination(points, x, bounded=True):
     return w, norm, np.isclose(norm, 0)
 
 
+def proj2hull(z, equations):
+    """
+    Project `z` to the convex hull defined by the
+    hyperplane equations of the facets
+
+    Parameters
+    ----------
+
+    z : numpy.ndarray (..., ndim)
+    equations : numpy.ndarray (nfacets, ndim + 1)
+
+    Returns
+    -------
+    x: numpy.ndarray (..., ndim)
+    """
+    Q = np.eye(z.shape[-1])
+    def helper(a):
+        return solve_qp(
+            Q, a, 
+            -equations[:, :-1].T, equations[:, -1], 
+            meq=0, factorized=True
+        )[0]
+    return np.apply_along_axis(helper, -1, z)
+
+
 def hull_intersection_alpha(U, hull):
     """
     Get multiple of vector that intersects with hull
 
     Adapted from:  https://stackoverflow.com/questions/30486312/intersection-of-nd-line-with-convex-hull-in-python
     """
+    if not isinstance(hull, ConvexHull):
+        hull = ConvexHull(hull)
     eq = hull.equations.T
     V, b = eq[:-1], eq[-1]
     alpha = -b / (U @ V)
@@ -67,7 +95,7 @@ def hull_intersection_alpha(U, hull):
 
 def find_hull_intersection(U, hull):
     """
-    Find hull intersection of vecotr U.
+    Find hull intersection of vector U.
     """
     return hull_intersection_alpha(U, hull)[..., None] * U
 
