@@ -128,6 +128,7 @@ class CaptureTests(_InitDict, _PrModelMixin):
             alpha = np.nanmin(alphas)
         else:
             assert np.all(in_hull(points, np.zeros(points.shape[1]))), "neutral point is not in hull."
+            # for non-convex nonlinearities, this doesn't really work
             hull = ConvexHull(points)
             alphas = hull_intersection_alpha(X, hull)
             alpha = np.nanmin(alphas)
@@ -157,10 +158,10 @@ class CaptureTests(_InitDict, _PrModelMixin):
         points = self.sample_points
         # remove zero point, if exists
         points = points[(points > 0).any(1)]
-        # replace zero point with one
+        # replace zero point with neutral point
         Q = Q.copy()
         zero_rows = ~(Q > 0).any(1)
-        Q[zero_rows] = 1
+        Q[zero_rows] = neutral_point
         I = Q.sum(axis=-1)
 
         center = barycentric_dim_reduction(neutral_point)

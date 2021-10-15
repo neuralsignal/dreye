@@ -166,7 +166,7 @@ def check_background(background, measured_spectra, wavelengths=None, photorecept
                 ], "array-like object for `background` does not match wavelength shape of `measured_spectra` object."
             background = create_spectrum(
                 intensities=background,
-                wavelengths=(measured_spectra.domain if wavelengths is None else wavelengths),
+                wavelengths=(measured_spectra.wavelengths if wavelengths is None else wavelengths),
                 units=measured_spectra.units
             )
     else:
