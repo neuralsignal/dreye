@@ -12,6 +12,7 @@ from sklearn.decomposition import NMF
 from dreye.api.optimize.parallel import batched_iteration, diagonal_stack, concat
 from dreye.api.optimize.utils import FAILURE_MESSAGE, error_propagation, get_batch_size, linear_transform, prepare_parameters_for_linear
 from dreye.constants.common import EPS_NP64
+# TODO Huber loss instead of just sum squares? -> outliers less penalized
 
 
 def lsq_linear(
@@ -252,7 +253,7 @@ def lsq_linear_minimize(
             X[idx * batch_size:(idx+1) * batch_size] = x
 
     if return_pred:
-        return X, (X @ A.T + baseline)
+        return X, (X @ A.T + baseline), (X**2 @ Epsilon.T)
     return X
 
 
@@ -282,6 +283,11 @@ def lsq_linear_decomposition(
     channels = B.shape[1]
 
     if subsample:
+        if isinstance(subsample, str):
+            if subsample == 'fast':
+                subsample = min(1, 1028 / size)
+            else:
+                raise NameError("subsample string must be `fast`.")
         Btotal = B
         Wtotal = W
         total_size = size

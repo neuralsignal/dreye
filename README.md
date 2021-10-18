@@ -1,17 +1,20 @@
 # [WIP] dreye
 
-## DR(osophila)EYE: color vision package for model organisms
+## DrEye: Exploiting Color Space Geometry for Visual Stimulus Design across Animals
 
-Dreye is still being actively developed and tested, and documentation will be added soon.
+Dreye is still being actively developed and tested, and documentation will be added soon. Currently, we are redesigning some of the API in order to make it easier to use and speed up some of our algorithms. Our redesign will be finished by mid-November, but our old API will remain for backwards compatibility
+
+The current documentation is currently focuses on the old API, but will be updated in the next weeks.
 
 ## Installation
 
-After cloning the repository pip install dreye:
 ```
 pip install dreye
 ```
 
-Installing hardware components:
+## Hardware module
+
+For the hardware module in dreye the following packages will also have to be installed:
 
 ```
 pip install seabreeze>=1.0.1
@@ -20,4 +23,5 @@ pip install nidaqmx>=0.5.7
 
 ## Development
 
-Current versioning: Each master branch update upgrades the micro version number by one in the `__init__.py` and `setup.py` file.
+Currently, we are redesigning the API for ease-of-use. If you are interested in helping us redesign and contribute to our project, please email at gucky@gucky.eu.
+We would also love any type of general feedback or contributions to the code and methods implemented.
