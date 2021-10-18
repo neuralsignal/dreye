@@ -57,6 +57,19 @@ def check_2darrs(*arrs):
     return (np.atleast_2d(np.asarray(arr)) for arr in arrs)
 
 
+
+def error_propagation(Epsilon, K):
+    if K is not None:
+        K = np.asarray(K) ** 2
+        if K.ndim < 2:
+            Epsilon = Epsilon * K[:, None]
+        else:
+            assert K.ndim == 2, "`K` must be one- or two-dimensional"
+            assert K.shape[0] == K.shape[-1], "`K` must be square"
+            Epsilon = K @ Epsilon
+    return Epsilon
+
+
 def linear_transform(A, K, baseline):
     """
     Helper function to reformulate `K(Ab+baseline)`
@@ -74,6 +87,19 @@ def linear_transform(A, K, baseline):
     return A, baseline
 
 
+def get_batch_size(batch_size, total_size):
+    if batch_size is None:
+        return 1
+    elif isinstance(batch_size, str):
+        allowed = ('full', 'total')
+        if batch_size in ('full', 'total'):
+            return total_size
+        else:
+            raise NameError(f"batch_size name `{batch_size}` not one of: {allowed}.")
+    else:
+        return batch_size
+
+
 def prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline):
     """
     Check types and values
@@ -81,7 +107,9 @@ def prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline):
     A, B = check_2darrs(A, B)
 
     lb = check_value(lb, 0, A.shape[-1])
+    assert np.all(np.isfinite(lb)) or np.all(np.isneginf(lb)), "bounds must all be finite or inifinite."
     ub = check_value(ub, np.inf, A.shape[-1])
+    assert np.all(np.isfinite(ub)) or np.all(np.isposinf(ub)), "bounds must all be finite or inifinite."
     W = check_value(W, 1, A.shape[0])
     if W.ndim == 1:
         W = np.broadcast_to(W[None], (B.shape[0], W.shape[0]))

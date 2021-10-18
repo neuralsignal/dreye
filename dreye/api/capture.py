@@ -3,10 +3,7 @@ Methods for capture calculation.
 """
 
 import numpy as np
-import jax.numpy as jnp
 from numbers import Number
-
-from dreye.utilities.common import is_numeric
 
 
 def calculate_capture(
@@ -43,4 +40,4 @@ def calculate_capture(
             return np.trapz(filters * signals, dx=domain, axis=-1)
         else:
             return np.sum(filters * signals, axis=-1) * domain
-    return np.trapz(filters * signals, x=domain, axis=-1)
+    return np.trapz(filters * signals, x=np.asarray(domain), axis=-1)

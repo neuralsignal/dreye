@@ -12,7 +12,7 @@ import jax.numpy as jnp
 from jax import jit, jacfwd, jacrev, grad, vmap
 
 from dreye.api.optimize.parallel import batch_arrays, batched_iteration
-from dreye.api.optimize.utils import prepare_parameters_for_linear, FAILURE_MESSAGE, replace_numpy
+from dreye.api.optimize.utils import get_batch_size, prepare_parameters_for_linear, FAILURE_MESSAGE, replace_numpy
 
 
 # B is assumed to have the affine transform already applied
@@ -68,6 +68,7 @@ def lsq_nonlinear(
     w (channels)
     """
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
+    batch_size = get_batch_size(batch_size, B.shape[0])
 
     # setup function and jacobian
     if autodiff and (nonlin is not None):
@@ -107,7 +108,7 @@ def lsq_nonlinear(
         # TODO substitute with faster algorithm
         # TODO substitute linear algorithm with faster version
         result = optimize.lsq_linear(
-            A_ * w[:, None], (b - baseline_) * w, bounds=(lb_, ub_), 
+            A_, (b - baseline_), bounds=(lb_, ub_), 
             **linopt_kwargs
         )
         idx_slice = slice(idx * batch_size, (idx+1) * batch_size)
@@ -168,3 +169,8 @@ def lsq_nonlinear(
             raise RuntimeError(FAILURE_MESSAGE.format(count=count_failure)) 
 
     return X
+
+
+# TODO nonlinear variance minimization
+# TODO nonlinear gamut adaptive minimization
+# TODO nonlinear image decomposition
