@@ -11,3 +11,6 @@ observers.
 __author__ = """gucky92"""
 __email__ = 'gucky@gucky.eu'
 __version__ = '0.3.0dev1'
+
+import os
+DREYE_DIR = os.path.dirname(__file__)

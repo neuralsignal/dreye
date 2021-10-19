@@ -12,7 +12,8 @@ import pandas as pd
 import numpy as np
 from scipy.io import loadmat
 from dreye.utilities import irr2flux
-from dreye import DREYE_DIR, Signals
+from dreye import DREYE_DIR
+from dreye.core.signal import Signals
 
 GRANADA_DATAFILE = os.path.join(DREYE_DIR, 'datasets', 'granada_daylight.mat')
 

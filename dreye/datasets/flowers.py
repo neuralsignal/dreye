@@ -6,7 +6,8 @@ http://www.reflectance.co.uk
 import os
 import pandas as pd
 
-from dreye import DREYE_DIR, Signals
+from dreye import DREYE_DIR
+from dreye.core.signal import Signals
 
 
 FLOWER_PATH = os.path.join(
