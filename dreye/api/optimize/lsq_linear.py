@@ -239,7 +239,12 @@ def lsq_linear_minimize(
     for idx, (b, w, t_delta), _ in batched_iteration(B.shape[0], (B, W, total_delta), (), batch_size=batch_size, pad=True):
         w_.value = w
         b_.value = b * w  # ensures that objective is dpp compliant
-        t_delta_.value = np.atleast_1d(t_delta)
+        if ((idx+1) * batch_size) > X.shape[0]:
+            t_delta = np.atleast_1d(t_delta).copy
+            t_delta[last_batch_size:] = 1e10  # some big number
+            t_delta_.value = t_delta
+        else:
+            t_delta_.value = np.atleast_1d(t_delta)
         
         problem.solve(**opt_kwargs)
         if not np.isfinite(problem.value):
