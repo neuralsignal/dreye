@@ -2,9 +2,11 @@
 Handling domains
 """
 
+from scipy.interpolate import interp1d
+
 def equalize_domains(
-    *args
+    domains, arrs, axes=None
 ):
-    signals = args[::2]
-    domains = args[1::2]
-    pass
+    """
+    equalize domains between different arrays.
+    """
