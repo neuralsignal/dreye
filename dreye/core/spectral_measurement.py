@@ -636,7 +636,7 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
             model = LinearGAM(
                 s(
                     0,
-                    n_splines=len(x),
+                    n_splines=min(len(x), 10),
                     spline_order=1,
                     lam=0.1,
                     constraints=constraints
