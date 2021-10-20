@@ -1,10 +1,10 @@
 """Class to define photoreceptor/capture model
 """
 
-
 import warnings
 import copy
 from abc import ABC
+from inspect import isclass
 
 import numpy as np
 
@@ -18,16 +18,25 @@ from dreye.utilities import (
     is_signallike, is_integer
 )
 from dreye.constants.common import DEFAULT_WL_RANGE
-from dreye.core.opsin_template import govardovskii2000_template
+from dreye.core.opsin_template import govardovskii2000_template, stavenga1993_template, gaussian_template
 
 
-RELATIVE_SENSITIVITY_SIGNIFICANT = 1e-1
 WL_PEAK_SPACE = 150
+# allowed strings for the background argument
+CAPTURE_STRINGS = {'mean', 'norm'}
+# templates for creating spectral sensitivities
+TEMPLATES = {
+    'govardovskii2000': govardovskii2000_template, 
+    'stavenga1993': stavenga1993_template, 
+    'gaussian': gaussian_template
+}
 
 
 def create_photoreceptor_model(
     sensitivity=None, wavelengths=None, filterfunc=None, labels=None,
-    photoreceptor_type='linear', **kwargs
+    photoreceptor_type='linear', 
+    template='govardovskii2000', template_kws={}, 
+    **kwargs
 ):
     """
     Create an arbitrary photoreceptor model.
@@ -80,9 +89,18 @@ def create_photoreceptor_model(
     wavelength of the illuminant (for example, the photoreceptor model
     by Stavenga et al, 2003).
     """
-    if photoreceptor_type not in {'linear', 'log', 'hyperbolic', 'contrast'}:
-        raise DreyeError("Photoreceptor type must be 'linear', 'log', 'hyperbolixc', or 'contrast'.")
-    if photoreceptor_type == 'linear':
+    if is_string(template):
+        template = TEMPLATES.get(template, template)
+    if is_string(template):
+        raise NameError(
+            f"Template method `{template}`, unknown. "
+            f"Acceptable template methods are in `{set(TEMPLATES)}`."
+        )
+    assert is_callable(template), f"Opsin template must be a Python callable, but is of type `{type(template)}`."
+
+    if isclass (photoreceptor_type) and issubclass(photoreceptor_type, Photoreceptor):
+        pr_class = photoreceptor_type
+    elif photoreceptor_type == 'linear':
         pr_class = LinearPhotoreceptor
     elif photoreceptor_type == 'log':
         pr_class = LogPhotoreceptor
@@ -90,9 +108,16 @@ def create_photoreceptor_model(
         pr_class = HyperbolicPhotoreceptor
     elif photoreceptor_type == 'contrast':
         pr_class = LinearContrastPhotoreceptor
+    elif photoreceptor_type == 'sqrt':
+        pr_class = SqrtPhotoreceptor
+    elif photoreceptor_type == 'chittka':
+        pr_class = ChittkaPhotoreceptor
+    else:
+        raise DreyeError("Photoreceptor type must be 'linear', 'log', 'hyperbolic', 'contrast', 'sqrt', or 'chittka'.")
 
     if is_signallike(sensitivity):
-        pass
+        # ensures zeroness
+        sensitivity.magnitude[sensitivity.magnitude < 0] = 0
     elif (hasattr(sensitivity, 'ndim') and sensitivity.ndim > 1):
         if wavelengths is None:
             wavelengths = np.linspace(300, 700, len(sensitivity))
@@ -107,13 +132,13 @@ def create_photoreceptor_model(
                 np.max(centers)+WL_PEAK_SPACE, 
                 1
             )
-        sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
+        sensitivity = template(wavelengths[:, None], centers[None, :], **template_kws)
     elif sensitivity is None:
         if wavelengths is None:
             wavelengths = DEFAULT_WL_RANGE
         centers = np.linspace(350, 550, 3)
-        sensitivity = govardovskii2000_template(wavelengths[:, None], centers[None, :])
-
+        sensitivity = template(wavelengths[:, None], centers[None, :], **template_kws)
+    
     return pr_class(
         sensitivity,
         wavelengths=wavelengths,
@@ -444,7 +469,10 @@ class Photoreceptor(ABC):
         illuminant = self._process_spectra(illuminant, wavelengths)
 
         # units of calculated absolute capture
-        new_units = illuminant.units * self.sensitivity.units * self.wavelengths.units
+        if return_units:
+            new_units = illuminant.units * self.sensitivity.units * self.wavelengths.units
+        else:
+            new_units = 1
 
         # Ensure proper broadcasting (samples x opsins x wavelengths)
         wls = self.wls
@@ -468,22 +496,35 @@ class Photoreceptor(ABC):
                              "and sensitivities do not contain negative "
                              "values.")
 
-        if return_units:
-            q = q * new_units
+        q = q * new_units
 
         if background is None:
             return q
 
         if is_string(background):
             if background == 'mean':
-                return q / np.mean(q, axis=0)
+                q_bg = np.mean(q, axis=0)
+                if add_noise:
+                    q_bg += self.capture_noise_level * new_units
+            elif background == 'norm':
+                q_bg = np.trapz(sensitivity, wls, axis=-1)
+                if add_noise:
+                    q_bg += self.capture_noise_level * new_units
             else:
-                raise TypeError("`background` must be array-like or string 'mean'.")
+                raise TypeError(
+                    "`background` must be array-like or string "
+                    "of `mean` or `norm`."
+                )
+            
+            return q / q_bg
 
         # calculate relative capture
-        q_bg = self.capture(
-            background, return_units=return_units, wavelengths=wavelengths
-        )
+        if isinstance(background, np.ndarray) and (background.size == self.n_opsins):
+            q_bg = background
+        else:
+            q_bg = self.capture(
+                background, return_units=return_units, wavelengths=wavelengths
+            )
         # q_bg may have different units to q
         q = q / q_bg
         return q
@@ -597,6 +638,20 @@ class LinearPhotoreceptor(Photoreceptor):
         """
         return arr
 
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return np.ones(arr.shape, dtype=arr.dtype)
+
+    @staticmethod
+    def _second_derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return np.zeros(arr.shape, dtype=arr.dtype)
+
 
 @inherit_docstrings
 class LogPhotoreceptor(Photoreceptor):
@@ -657,6 +712,20 @@ class LogPhotoreceptor(Photoreceptor):
         Returns the exp of `arr`.
         """
         return np.exp(arr)
+
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return 1/arr
+
+    @staticmethod
+    def _second_derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return -1/(arr**2)
 
 
 @inherit_docstrings
@@ -719,6 +788,172 @@ class HyperbolicPhotoreceptor(Photoreceptor):
         Returns the `1/(1-arr)`.
         """
         return 1 / (1 - arr)
+
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return 1 / (arr**2)
+
+    @staticmethod
+    def _second_derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return -2 * (arr**-3)
+
+
+@inherit_docstrings
+class ChittkaPhotoreceptor(Photoreceptor):
+    """
+    A hyperbolic photoreceptor model.
+
+    Parameters
+    ----------
+    sensitivity : Sensitivity instance or array-like, optional
+        An array that contains the sensitivity of different photoreceptor
+        types across wavelengths (wavelengths x types).
+    wavelengths : array-like, optional
+        The wavelength values in nanometers. This must be the same size as
+        the number of rows in the sensitivity array.
+    filterfunc : callable, optional
+        A function that accepts three positional arguments:
+        wavelengths, illuminant, and sensitivity. All three arguments are
+        `numpy.ndarray` objects that are broadcastable to each other.
+        The function should return the illuminant after the wavelength-specific
+        filter has been applied.
+    labels : array-like, optional
+        The labels for each photoreceptor. The length of labels must
+        correspond to the length of the columns in `sensitivity`.
+    capture_noise_level : None or float, optional
+        The relative capture noise level. This is used when calculating
+        absolute captures as a lower bound value.
+    kwargs : dict, optional
+        A dictionary that is directly passed to the instantiation of
+        the `dreye.Sensitivity` class.
+
+    See Also
+    --------
+    dreye.create_photoreceptor_model
+    dreye.LinearPhotoreceptor
+    dreye.LogPhotoreceptor
+
+    Notes
+    -----
+    In the hyperbolic photoreceptor model, the photoreceptor excitations
+    correspond to the hyperbolic transform of the photon captures:
+    :math:`(q-1)/q`.
+
+    It is usually not necessary to supply a `filterfunc` argument, unless the
+    photoreceptor model contains a filter that varies with the intensity and
+    wavelength of the illuminant (for example, the photoreceptor model
+    by Stavenga et al, 2003).
+    """
+
+    @staticmethod
+    def excitefunc(arr):
+        """
+        Returns the  `arr / (arr + 1)`.
+        """
+        return arr / (arr + 1)
+
+    @staticmethod
+    def inv_excitefunc(arr):
+        """
+        Returns the `arr /(1-arr)`.
+        """
+        return arr / (1 - arr)
+
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return 1 / ((arr+1)**2)
+
+    @staticmethod
+    def _second_derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return -2 * ((arr + 1)**-3)
+
+
+@inherit_docstrings
+class SqrtPhotoreceptor(Photoreceptor):
+    """
+    A sqrt photoreceptor model.
+
+    Parameters
+    ----------
+    sensitivity : Sensitivity instance or array-like, optional
+        An array that contains the sensitivity of different photoreceptor
+        types across wavelengths (wavelengths x types).
+    wavelengths : array-like, optional
+        The wavelength values in nanometers. This must be the same size as
+        the number of rows in the sensitivity array.
+    filterfunc : callable, optional
+        A function that accepts three positional arguments:
+        wavelengths, illuminant, and sensitivity. All three arguments are
+        `numpy.ndarray` objects that are broadcastable to each other.
+        The function should return the illuminant after the wavelength-specific
+        filter has been applied.
+    labels : array-like, optional
+        The labels for each photoreceptor. The length of labels must
+        correspond to the length of the columns in `sensitivity`.
+    capture_noise_level : None or float, optional
+        The relative capture noise level. This is used when calculating
+        absolute captures as a lower bound value.
+    kwargs : dict, optional
+        A dictionary that is directly passed to the instantiation of
+        the `dreye.Sensitivity` class.
+
+    See Also
+    --------
+    dreye.create_photoreceptor_model
+    dreye.LinearPhotoreceptor
+    dreye.LogPhotoreceptor
+
+    Notes
+    -----
+    In the hyperbolic photoreceptor model, the photoreceptor excitations
+    correspond to the hyperbolic transform of the photon captures:
+    :math:`(q-1)/q`.
+
+    It is usually not necessary to supply a `filterfunc` argument, unless the
+    photoreceptor model contains a filter that varies with the intensity and
+    wavelength of the illuminant (for example, the photoreceptor model
+    by Stavenga et al, 2003).
+    """
+
+    @staticmethod
+    def excitefunc(arr):
+        """
+        Returns the  `sqrt(arr)`.
+        """
+        return np.sqrt(arr)
+
+    @staticmethod
+    def inv_excitefunc(arr):
+        """
+        Returns the `((arr + 2)/2) ** 2`.
+        """
+        return arr ** 2
+
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return 0.5 / np.sqrt(arr)
+
+    @staticmethod
+    def _second_derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return -0.25 * arr ** (-3/2)
 
 
 @inherit_docstrings
@@ -783,3 +1018,17 @@ class LinearContrastPhotoreceptor(Photoreceptor):
         Returns the `arr`/(1 - `arr`).
         """
         return arr + 1
+
+    @staticmethod
+    def _derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return np.ones(arr.shape, dtype=arr.dtype)
+
+    @staticmethod
+    def _second_derivative(arr):
+        """
+        derivative with respect to arr
+        """
+        return np.ones(arr.shape, dtype=arr.dtype)

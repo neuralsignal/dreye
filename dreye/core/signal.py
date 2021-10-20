@@ -1667,24 +1667,39 @@ class Signals(_SignalsAbstractClass):
         """
         Select list of labels and return self.
         """
-        s = pd.Series(
-            np.arange(self.shape[self.labels_axis]), index=self.labels
+        warnings.warn(
+            (
+                "`loc_labels` is deprecated use `loc` indexing instead. "
+                "`loc_labels` will be removed in a future release."
+            ), 
+            DeprecationWarning
         )
-        s = s.loc[labels]
-        if isinstance(s, pd.Series):
-            idcs = s.to_numpy()
-        else:
-            idcs = s
-        key = tuple([slice(None) for _ in range(self.labels_axis)]) + (idcs,)
-        return self[key]
+
+        return self.loc[labels]
 
     @property
     def loc(self):
+        
         class Loc:
+            
             def __init__(self, s_instance):
-                self.s_instance = s_instance            
+                self.s_instance = s_instance
+                self.s_labels = pd.Series(
+                    np.arange(self.s_instance.shape[self.s_instance.labels_axis]), 
+                    index=self.s_instance.labels
+                )         
+            
             def __getitem__(self, key):
-                return self.s_instance.loc_labels(key)
+                s = self.s_labels.loc[key]
+                if isinstance(s, pd.Series):
+                    idcs = s.to_numpy()
+                else:
+                    idcs = s
+                key = tuple(
+                    [slice(None) for _ in range(self.s_instance.labels_axis)]
+                ) + (idcs,)
+                return self.s_instance[key]
+
         # Loc labels class instance
         return Loc(self)
 

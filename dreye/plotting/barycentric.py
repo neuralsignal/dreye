@@ -2,6 +2,7 @@
 Plot barycentric
 """
 
+from dreye.plotting.lines import gradient_color_lineplot
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D, art3d
 from scipy.spatial import ConvexHull
@@ -20,6 +21,7 @@ def plot_simplex(
     n=4,
     points=None,
     hull=None,
+    gradient_line=None, 
     lines=True,
     ax=None,
     line_color='black',
@@ -29,13 +31,21 @@ def plot_simplex(
     point_colors='blue',
     hull_kws={},
     point_scatter_kws={},
+    gradient_line_kws={}, 
+    gradient_color=None,
     fig_kws={},
     remove_axes=True
 ):
     """
     Plot simplex of points and/or convex hull
     """
-    assert n in {3, 4}
+    hull_kws = hull_kws.copy()
+    hull_color = hull_kws.pop('color', hull_color)
+
+    point_scatter_kws = point_scatter_kws.copy()
+    point_colors = point_scatter_kws.pop('c', point_colors)
+
+    assert n in {2, 3, 4}
 
     if ax is None:
         if n == 4:
@@ -46,19 +56,31 @@ def plot_simplex(
             ax = plt.subplot(111)
 
     if hull is not None:
-        if not isinstance(hull, ConvexHull):
+        if n == 2:
             if hull.shape[1] == n:
-                hull = barycentric_dim_reduction(hull)
-            assert hull.shape[1] == (n-1)
-            hull = ConvexHull(hull)
-
-        pts = hull.points
+                pts = barycentric_dim_reduction(hull)
+            else:
+                pts = hull
+        else:
+            if not isinstance(hull, ConvexHull):
+                if hull.shape[1] == n:
+                    hull = barycentric_dim_reduction(hull)
+                assert hull.shape[1] == (n-1)
+                hull = ConvexHull(hull)
+            pts = hull.points
+        
         if n == 3:
             for simplex in hull.simplices:
                 ax.plot(
                     pts[simplex, 0], pts[simplex, 1],
                     color=hull_color, **hull_kws
                 )
+        elif n == 2:
+            hull_kws['linewidth'] = 3
+            ax.plot(
+                pts, np.ones(pts.size)*0.2,
+                color=hull_color, **hull_kws
+            )
         else:
             org_triangles = [pts[s] for s in hull.simplices]
             f = Faces(org_triangles)
@@ -83,9 +105,12 @@ def plot_simplex(
                 "`points` argument is the wronge dimension, "
                 f"must be `{n}` or `{n-1}`, but is `{points.shape[1]}`."
             )
-        ax.scatter(
-            *X.T, c=point_colors, **point_scatter_kws
-        )
+        if n == 2:
+            ax.scatter(X.squeeze(), np.ones(X.size)*0.25, c=point_colors, **point_scatter_kws)
+        else:
+            ax.scatter(
+                *X.T, c=point_colors, **point_scatter_kws
+            )
 
     if lines:
         A = barycentric_to_cartesian_transformer(n)
@@ -94,10 +119,32 @@ def plot_simplex(
             line = np.transpose(np.array(line))
             if n == 4:
                 ax.plot3D(*line, c=line_color)
+            elif n == 2:
+                ax.plot(line.squeeze(), np.ones(line.size)*0.35, c=line_color, linewidth=3)
             else:
                 ax.plot(*line, c=line_color)
 
-    if labels is not None:
+    if gradient_line is not None:
+        if gradient_line.shape[1] == n:
+            X = barycentric_dim_reduction(gradient_line)
+        elif gradient_line.shape[1] == (n-1):
+            X = gradient_line
+        else:
+            raise ValueError(
+                "`points` argument is the wronge dimension, "
+                f"must be `{n}` or `{n-1}`, but is `{gradient_line.shape[1]}`."
+            )
+
+        if gradient_color is None:
+            gradient_color = np.linspace(0, 1, X.shape[0])
+
+        if n == 2:
+            gradient_line_kws['linewidth'] = 3
+            gradient_color_lineplot(X.squeeze(), np.ones(X.size)*0.3, c=gradient_color, **gradient_line_kws, ax=ax)
+        else:
+            gradient_color_lineplot(*X.T, c=gradient_color, **gradient_line_kws, ax=ax)
+
+    if labels is not None and n != 2:
         eye = np.eye(n)
         eye_cart = barycentric_to_cartesian(eye)
         for idx, (point, label) in enumerate(zip(eye_cart, labels)):
@@ -121,6 +168,9 @@ def plot_simplex(
             ax.set_xticks([])
             ax.set_yticks([])
             sns.despine(left=True, bottom=True, ax=ax)
+            ax.set_xlim(-0.1, 1.1)
+            ax.set_ylim(-0.1, 1.1)
+            ax.set_aspect('equal', adjustable='box')
 
     return ax
 

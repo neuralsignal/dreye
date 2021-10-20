@@ -4,10 +4,11 @@ Utility functions
 
 from itertools import combinations, product
 import numpy as np
+from sklearn.preprocessing import normalize
 
 from dreye.constants import ureg
 from dreye.core.spectral_measurement import MeasuredSpectraContainer
-from dreye.core.photoreceptor import Photoreceptor, create_photoreceptor_model
+from dreye.core.photoreceptor import CAPTURE_STRINGS, Photoreceptor, create_photoreceptor_model
 from dreye.utilities.common import (
     is_dictlike, is_listlike, is_signallike, is_string, optional_to, 
     is_numeric
@@ -16,7 +17,8 @@ from dreye.core.signal import Signal
 from dreye.core.measurement_utils import create_measured_spectra_container
 from dreye.core.spectrum_utils import create_spectrum
 from dreye.utilities.array import asarray
-
+from dreye.utilities.convex import in_hull
+from dreye.err import DreyeError
 
 
 def check_measured_spectra(
@@ -29,6 +31,7 @@ def check_measured_spectra(
     check and create measured spectra container if necessary
     """
     if isinstance(measured_spectra, MeasuredSpectraContainer):
+        # TODO - intensity_bounds?, photoreceptor_model interpolate wavelengths
         pass
     elif is_dictlike(measured_spectra):
         if photoreceptor_model is not None:
@@ -134,7 +137,7 @@ def check_photoreceptor_model(
     return photoreceptor_model
 
 
-def check_background(background, measured_spectra, wavelengths=None):
+def check_background(background, measured_spectra, wavelengths=None, photoreceptor_model=None):
     """
     check and create background if necessary
     """
@@ -149,22 +152,23 @@ def check_background(background, measured_spectra, wavelengths=None):
         return
     elif is_string(background) and (background == 'null'):
         return
-    elif is_string(background) and (background == 'mean'):
+    elif is_string(background) and (background in CAPTURE_STRINGS):
         return background
     elif is_signallike(background):
         background = background.to(measured_spectra.units)
     elif is_listlike(background):
         background = optional_to(background, measured_spectra.units)
-        # check size requirements
-        if wavelengths is None:
-            assert background.size == measured_spectra.normalized_spectra.shape[
-                measured_spectra.normalized_spectra.domain_axis
-            ], "array-like object for `background` does not match wavelength shape of `measured_spectra` object."
-        background = create_spectrum(
-            intensities=background,
-            wavelengths=(measured_spectra.domain if wavelengths is None else wavelengths),
-            units=measured_spectra.units
-        )
+        if (photoreceptor_model is None) or (photoreceptor_model.n_opsins != background.size):
+            # check size requirements
+            if wavelengths is None:
+                assert background.size == measured_spectra.normalized_spectra.shape[
+                    measured_spectra.normalized_spectra.domain_axis
+                ], "array-like object for `background` does not match wavelength shape of `measured_spectra` object."
+            background = create_spectrum(
+                intensities=background,
+                wavelengths=(measured_spectra.wavelengths if wavelengths is None else wavelengths),
+                units=measured_spectra.units
+            )
     else:
         raise ValueError(
             "Background must be Spectrum instance or dict-like, but"
@@ -241,12 +245,13 @@ def estimate_bg_ints_from_background(
     max_iter=None, 
     ignore_bounds=None, 
     lsq_kwargs=None, 
+    **kwargs
 ):
     """
     Estimate background intensity for light sources given a background spectrum to fit to.
     """
     # internal import required here
-    from dreye import IndependentExcitationFit
+    from dreye.estimators.excitation_models import IndependentExcitationFit
     # fit background and assign bg_ints_
     # build estimator
     # if subclasses should still use this fitting procedure
@@ -263,7 +268,8 @@ def estimate_bg_ints_from_background(
         lsq_kwargs=lsq_kwargs,
         background_external=False, 
         intensity_bounds=intensity_bounds, 
-        wavelengths=wavelengths
+        wavelengths=wavelengths, 
+        **kwargs
     )
     est._lazy_background_estimation = True
     est.fit(np.atleast_2d(Xbg))
@@ -292,7 +298,7 @@ def get_source_idcs(names, combos):
             n, combos
         )
     elif is_listlike(combos):
-        combos = asarray(combos).astype(int)
+        combos = asarray(combos)
         if combos.ndim == 1:
             if is_string(combos[0]):  # if first element is string all should be
                 source_idcs = np.array([
@@ -300,6 +306,7 @@ def get_source_idcs(names, combos):
                     for source_idx in combos
                 ])
             else:  # else assume it is a list of ks
+                combos = combos.astype(int)
                 source_idcs = []
                 for k in combos:
                     source_idx = get_source_idcs_from_k(n, k)
@@ -333,7 +340,7 @@ def get_source_idx(names, source_idx, asbool=False):
     elif asbool and source_idx.dtype != np.bool:
         _source_idx = np.zeros(len(names)).astype(bool)
         _source_idx[source_idx] = True
-        source_idx = source_idx
+        source_idx = _source_idx
     return source_idx
 
 
@@ -358,7 +365,7 @@ def get_spanning_intensities(
     samples *= (intensity_bounds[1] - intensity_bounds[0]) + intensity_bounds[0]
     if compute_ratios:
         samples_ = []
-        for (idx, isample), (jdx, jsample) in zip(enumerate(samples), enumerate(samples)):
+        for (idx, isample), (jdx, jsample) in product(enumerate(samples), enumerate(samples)):
             if idx >= jdx:
                 continue
             s_ = (ratios[:, None] * isample) + ((1-ratios[:, None]) * jsample)
@@ -376,27 +383,24 @@ def get_optimal_capture_samples(
     compute_isolation : bool = False,
     compute_ratios : bool = False
 ) -> np.ndarray:
-    from dreye import BestSubstitutionFit
+    """
+    Get optimal capture samples for the chromatic hyperplane
+    """
     dirac_delta_spectra = np.eye(photoreceptor_model.wls.size)
     captures = photoreceptor_model.capture(
         dirac_delta_spectra,
         background=background,
         return_units=False
     )
+    # normalize for chromatic plane (proportional captures)
+    captures = normalize(captures, norm='l1', axis=1)
     if compute_isolation:
-        model = BestSubstitutionFit(
-            photoreceptor_model=photoreceptor_model, 
-            measured_spectra=dirac_delta_spectra, 
-            ignore_bounds=True, 
-            substitution_type=1, 
-            background=background
-        )
-        model.fit(np.eye(photoreceptor_model.n_opsins).astype(bool))
-        isolating_captures = model.fitted_capture_X_
+        # fast approximation of isolating captures (max of ratios)
+        isolating_captures = captures[np.argmax(captures, axis=0)]
         captures = np.vstack([captures, isolating_captures])
         if compute_ratios:
             qs = []
-            for idx, jdx in zip(range(photoreceptor_model.n_opsins), range(photoreceptor_model.n_opsins)):
+            for idx, jdx in product(range(photoreceptor_model.n_opsins), range(photoreceptor_model.n_opsins)):
                 if idx >= jdx:
                     continue
                 qs_ = (
@@ -409,59 +413,159 @@ def get_optimal_capture_samples(
         captures = np.unique(captures, axis=0)
     return captures
 
-# @property
-# def sensitivity_ratios(self):
-#     """
-#     Compute ratios of the sensitivities
-#     """
-#     s = self.data + self.capture_noise_level
-#     if np.any(s < 0):
-#         warnings.warn(
-#             "Zeros or smaller in sensitivities array!", RuntimeWarning
-#         )
-#         s[s < 0] = 0
-#     return normalize(s, norm='l1')
 
-# def best_isolation(self, method='argmax', background=None):
-#     """
-#     Find wavelength that best isolates each opsin.
-#     """
-#     ratios = self.sensitivity_ratios
+def range_of_solutions(
+    A, x, bounds, check=True
+):
+    """
+    Range of solutions for underdetermined matrix
 
-#     if method == 'argmax':
-#         return self.wls[np.argmax(ratios, axis=0)]
-#     elif method == 'substitution':
-#         from dreye import create_measured_spectra_container, BestSubstitutionFit
+    A - opsins x leds - normalized capture matrix
+    x - opsin captures
+    bounds - (min, max)
+    """
+
+    if check:
+        assert A.shape[0] < A.shape[1], "System is not underdetermined."
+        samples = get_spanning_intensities(bounds)
+        points = samples @ A.T  # n_samples x n_opsins
+        assert in_hull(points, x), "No perfect solutions exist for system."
+
+    maxs = bounds[0].copy()
+    mins = bounds[1].copy()
+
+    # difference between number of opsins and leds
+    n_diff = A.shape[1] - A.shape[0]
+    
+    # combinations x n_diff
+    omat = np.array(list(product(*[[0, 1]]*n_diff)))
+
+    idcs = np.arange(A.shape[1])    
+    for ridcs in product(*[idcs]*n_diff):
+        # always use ascending order idcs
+        if not np.all(np.diff(np.argsort(ridcs)) < 0):
+            # ascending always
+            continue
         
-#         perfect_system = create_measured_spectra_container(
-#             np.eye(self.wls.size)[:, 1:-1], wavelengths=self.wls
-#         )
-#         model = BestSubstitutionFit(
-#             photoreceptor_model=self, 
-#             measured_spectra=perfect_system, 
-#             ignore_bounds=True, 
-#             substitution_type=1, 
-#             background=background
-#         )
-#         model.fit(np.eye(self.n_opsins).astype(bool))
-#         return np.sum(model.fitted_intensities_ * self.wls, axis=1) / np.sum(model.fitted_intensities_, axis=1)
-#     else:
-#         raise NameError(
-#             "Only available methods are `argmax` "
-#             f"and `substitution` and not {method}"
-#         )
+        ridcs = list(ridcs)
+        Arest = A[:, ridcs]
+        # combinations x n_diff
+        offsets = omat * (
+            bounds[1][ridcs] - bounds[0][ridcs]
+        ) + bounds[0][ridcs]
+        # filter non-real values
+        offsets[np.isnan(offsets)] = 0.0
+        offsets = offsets[np.isfinite(offsets).all(axis=1)]
+        # combinations x opsins
+        offset = (offsets @ Arest.T)
+        
+        Astar = np.delete(A, ridcs, axis=1)
+        
+        sols = np.linalg.solve(
+            Astar, 
+            (x - offset).T
+        ).T
+        # combinations x used leds
 
-# def wavelength_range(self, rtol=None, peak2peak=False):
-#     """
-#     Range of wavelengths that the photoreceptors are sensitive to.
-#     Returns a tuple of the min and max wavelength value.
-#     """
-#     if peak2peak:
-#         dmax = self.sensitivity.dmax
-#         return np.min(dmax), np.max(dmax)
-#     rtol = (RELATIVE_SENSITIVITY_SIGNIFICANT if rtol is None else rtol)
-#     tol = (
-#         (self.sensitivity.max() - self.sensitivity.min())
-#         * rtol
-#     )
-#     return self.sensitivity.nonzero_range(tol).boundaries
+        # allowed bounds for included 
+        b0 = np.delete(bounds[0], ridcs)
+        b1 = np.delete(bounds[1], ridcs)
+        
+        # all within bounds
+        psols = np.all((sols >= b0) & (sols <= b1), axis=1)
+        
+        if not np.any(psols):
+            # continue if no solutions exist
+            continue
+
+        # add minimum and maximum to global minimum and maximum
+        rbool = np.isin(idcs, ridcs)
+        _mins = np.zeros(A.shape[1])
+        _maxs = np.zeros(A.shape[1])
+
+        _mins[rbool] = offsets[psols].min(axis=0)
+        _maxs[rbool] = offsets[psols].max(axis=0)
+        _mins[~rbool] = sols[psols].min(axis=0)
+        _maxs[~rbool] = sols[psols].max(axis=0)
+
+        mins = np.minimum(mins, _mins)
+        maxs = np.maximum(maxs, _maxs)
+        
+    return mins, maxs
+
+
+def spaced_solutions(
+    wmin, wmax,
+    A, x, n=20, 
+    eps=1e-7
+):
+    """
+    Spaced intensity solutions from `wmin` to `wmax`.
+    If the difference between the number
+    of light sources and the number of opsins exceeds 1 
+    than the number of samples cannot be predetermined 
+    but will be greate than `n` ** `n_diff`.
+    """
+    n_diff = A.shape[1] - A.shape[0]
+
+    if n_diff > 1:
+        # go through first led -> remove -> find new range of solution
+        # restrict by wmin and wmax
+        # repeat until only one extra LED
+        # then get equally spaced solutions
+        ws = []
+
+        # for numerical stability
+        eps_ = (wmax - wmin) * eps
+        idcs = np.arange(A.shape[1])
+
+        for idx in idcs:
+            # for indexing
+            not_idx = ~(idcs == idx)
+            argsort = np.concatenate([[idx], idcs[not_idx]])
+            
+            for iw in np.linspace(wmin[idx]+eps_[idx], wmax[idx]-eps_[idx], n):
+                Astar = A[:, not_idx]
+                offset = A[:, idx] * iw
+                xstar = x - offset
+                boundsstar = (
+                    wmin[not_idx], 
+                    wmax[not_idx]
+                )
+                wminstar, wmaxstar = range_of_solutions(
+                    Astar, xstar, boundsstar, check=False
+                )
+                if (wminstar > wmaxstar).any():
+                    continue
+
+                wsstar = spaced_solutions(
+                    wminstar, wmaxstar, Astar, xstar, n=n, 
+                    eps=eps
+                )
+                w_ = np.hstack([
+                    np.ones((wsstar.shape[0], 1)) * iw, 
+                    wsstar
+                ])[:, argsort]
+                ws.append(w_)
+
+        return np.vstack(ws)
+
+    else:
+        # create equally space solutions
+        ws = np.zeros((n, A.shape[1]))
+        
+        # for numerical stability
+        eps_ = (wmax[0] - wmin[0]) * eps
+        
+        idx = 0
+        for iw in np.linspace(wmin[0]+eps_, wmax[0]-eps_, n):
+            Astar = A[:, 1:]
+            offset = A[:, 0] * iw
+            sols = np.linalg.solve(
+                Astar, 
+                (x - offset)
+            )
+            ws[idx] = np.concatenate([[iw], sols])
+            idx += 1
+            
+        return ws

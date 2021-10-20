@@ -4,7 +4,7 @@ Test stimuli
 
 from . import context
 from .context import test_datapath
-from dreye import read_json, write_json
+from dreye.io import read_json, write_json
 
 import pandas as pd
 import numpy as np

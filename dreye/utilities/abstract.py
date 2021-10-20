@@ -62,6 +62,17 @@ class _InitDict:
         """
         return cls(**data)
 
+    def __str__(self):
+        return (
+            f"{type(self).__name__}"
+            + "("
+            + ", ".join([
+                '{k}={v}'.format(k=k, v=v) 
+                for k, v in self.to_dict().items()
+            ])
+            + ")"
+        )
+
 
 @inherit_docstrings
 class CallableList(list):

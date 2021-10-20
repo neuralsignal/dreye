@@ -7,6 +7,7 @@ import warnings
 
 from scipy.optimize import OptimizeResult
 import numpy as np
+from scipy.optimize import lsq_linear
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_array, check_is_fitted
 
@@ -16,9 +17,12 @@ from dreye.estimators.utils import (
     check_background, check_measured_spectra, 
     check_photoreceptor_model, 
     estimate_bg_ints_from_background, get_background_from_bg_ints, 
-    get_bg_ints, get_ignore_bounds
+    get_bg_ints, get_ignore_bounds, get_spanning_intensities, range_of_solutions
 )
+from dreye.utilities.array import asarray
 from dreye.utilities.common import is_string
+from dreye.utilities.convex import convex_combination, in_hull
+from dreye.core.photoreceptor import CAPTURE_STRINGS
 
 
 class OptimizeResultContainer(_AbstractContainer):
@@ -147,6 +151,14 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         return 1 - res.sum(axis) / tot.sum(axis)
 
     @staticmethod
+    def _in_hull(X, X_pred, axis=0, **kwargs):
+        # are all fits in hull
+        return np.isclose(
+            np.linalg.norm(X - X_pred, axis=axis), 0,
+            **kwargs
+        )
+
+    @staticmethod
     def _agg_scores(scores, axis, aggfunc=None, default='mean'):
         if aggfunc is None:
             aggfunc = default
@@ -194,6 +206,9 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         # residual across photoreceptors
         if method == 'r2':
             return self._r2_scores(
+                X, X_pred, axis=axis, **kwargs)
+        elif method == 'inhull':
+            return self._in_hull(
                 X, X_pred, axis=axis, **kwargs)
         elif method == 'rel':
             return self._rel_changes_scores(
@@ -267,6 +282,26 @@ class _SpectraModel(BaseEstimator, TransformerMixin):
         feature_scores
         """
         return self.feature_scores(X, method=method, **kwargs).mean()
+
+    def sample_score(self, X=None, y=None, method='inhull', **kwargs):
+        """
+        Sample score method.
+
+        Parameters
+        ----------
+        X : array-like (n_samples, n_features)
+            X values passed to the `fit` method.
+
+        Returns
+        -------
+        score : float
+            Mean of score across all samples
+
+        See Also
+        --------
+        sample_scores
+        """
+        return self.sample_scores(X, method=method, **kwargs).mean()
 
     def transform(self, X=None):
         """
@@ -415,6 +450,7 @@ class _PrModelMixin:
     bg_ints = None
     background_external = None
     capture_noise_level = None
+    _sample_points = None
     """
     The following attributes will be set (using `_set_pr_model_related_objects` method):
     * photoreceptor_model_
@@ -508,7 +544,8 @@ class _PrModelMixin:
         # create background
         self.background_ = check_background(
             self.background, self.measured_spectra_, 
-            wavelengths=self.wavelengths
+            wavelengths=self.wavelengths, 
+            photoreceptor_model=self.photoreceptor_model_
         )
 
         # set background intensities if exist
@@ -526,7 +563,8 @@ class _PrModelMixin:
             if self.background_external:
                 warnings.warn(
                     "Ignoring `background_external` argument, "
-                    "automatically set to False as `background` is None."
+                    "automatically set to False as `background` is None.", 
+                    RuntimeWarning
                 )
 
             if (
@@ -538,11 +576,13 @@ class _PrModelMixin:
                 self.background_ = self._bg_ints_background_
                 # otherwise keep background_ None
 
-        elif is_string(self.background_) and (self.background_ == 'mean'):
+        elif is_string(self.background_) and (self.background_ in CAPTURE_STRINGS):
             self._background_external_ = False
             self._bg_ints_background_ = 0
-            assert not np.any(self.photoreceptor_model_.capture_noise_level), "Capture noise must be zero, if using `mean` for background"
             assert np.allclose(self.bg_ints_, 0), "If background is `{self.background_}`, bg_ints must be all zeros."
+
+        # background already q_bg - TODO?
+        # elif isinstance(self.background_, np.ndarray):
 
         elif self.background_external or self.background_external is None:
             # if background is not None assume it is from an external source (default)
@@ -582,6 +622,7 @@ class _PrModelMixin:
             self._bg_ints_background_ = 0
             Xbg = np.ones(self.photoreceptor_model_.n_opsins)
             Xbg = self.photoreceptor_model_.excitefunc(Xbg)
+            # TODO variance optimization and underdetermined optimization
             self.bg_ints_ = estimate_bg_ints_from_background(
                 Xbg,
                 self.photoreceptor_model,
@@ -592,23 +633,34 @@ class _PrModelMixin:
                 ignore_bounds=getattr(self, 'ignore_bounds', None),
                 lsq_kwargs=getattr(self, 'lsq_kwargs', None),
                 intensity_bounds=self.intensity_bounds, 
-                wavelengths=self.wavelengths
+                wavelengths=self.wavelengths, 
+                capture_noise_level=getattr(self, 'capture_noise_level', None), 
+                underdetermined_opt=getattr(self, 'underdetermined_opt', None), 
+                pr_samples=getattr(self, 'pr_samples', None), 
+                A_var=getattr(self, 'A_var', None),
+                var_opt=getattr(self, 'var_opt', False),
+                var_min=getattr(self, 'var_min', 1e-8), 
+                var_alpha=getattr(self, 'var_alpha', 1), 
+                l2_eps=getattr(self, 'l2_eps', 1e-4), 
+                n_jobs=getattr(self, 'n_jobs', None)
             )
             warnings.warn(
                 "Assuming the `background` illuminant will be simulated "
                 f"using the LEDs. Fitted background intensities lazily: "
-                f"{self.bg_ints_.tolist()}."
+                f"{self.bg_ints_.tolist()}.", 
+                RuntimeWarning
             )
 
         # sanity
         if (
             not (is_string(self.background_) or self.background_ is None)
-            and np.allclose(self.background_.magnitude, 0)
+            and np.allclose(asarray(self.background_), 0)
             and not np.all(self.photoreceptor_model_.capture_noise_level)  # not all are noisy - then don't keep relative q
         ):
             warnings.warn(
                 "background array is all zero and no capture noise, "
-                "setting `background` illuminant to None."
+                "setting `background` illuminant to None.", 
+                RuntimeWarning
             )
             self.background_ = None
 
@@ -638,8 +690,6 @@ class _PrModelMixin:
         if self.photoreceptor_model_.filterfunc is None:
             # threshold by noise if necessary and apply nonlinearity
             x_pred = (self.A_ @ w).T
-            if np.any(self.photoreceptor_model_.capture_noise_level):
-                x_pred += self.noise_term_
         else:
             warnings.warn("Fitting with filterfunc not tested!", RuntimeWarning)
             illuminant = self.measured_spectra_.ints_to_spectra(w)
@@ -647,8 +697,8 @@ class _PrModelMixin:
                 illuminant,
                 background=self.background_,
                 return_units=False
-            )
-        x_pred += self.q_bg_
+            ) - self.noise_term_
+        x_pred += self._q_offset_
         return x_pred
 
     def get_excitation(self, w):
@@ -663,6 +713,110 @@ class _PrModelMixin:
         """
         return self.photoreceptor_model_.excitefunc(self.get_capture(w))
 
+    def _excite_derivative(self, w):
+        """
+        Calculate derivative of excitation with respect to w 
+        
+        Returns
+        -------
+        derivative : numpy.ndarray (opsin x leds)
+        """
+        capture_x = self.get_capture(w)
+        # opsin x leds
+        excite_deriv = (
+            self.photoreceptor_model_._derivative(capture_x)[..., None] * self.A_
+        )
+        return excite_deriv
+
+    @property
+    def _q_offset_(self):
+        """
+        offset in capture produced by constant light source and noise in photoreceptor
+        """
+        return self.noise_term_ + self.q_bg_
+
+    # TODO vectorize q
+
+    def _capture_in_range_(self, q, bounds=None, points=None):
+        """
+        Check if capture is in measured spectra convex hull.
+
+        Parameters
+        ----------
+        q : numpy.array (n_opsins)
+            One set of captures.
+        bounds : tuple of array-like
+            Tuple of lower and upper bound of intensities.
+        """
+
+        if bounds is None:
+            bounds = self.intensity_bounds_
+            points = (self._sample_points if points is None else points)
+
+        isinf = np.all(np.isinf(bounds[1]))
+        if np.any(np.isinf(bounds[1])) and not isinf:
+            # only check if linear combination works using nnls
+            raise ValueError(
+                "All max bounds must be inf or not. Cannot combine "
+                "real-numbered bounds and inf bounds to determine if capture "
+                "has a perfect solution."
+            )
+
+        elif isinf:
+            bounds = (bounds[0], np.ones(bounds[1].size))
+
+        if points is None:
+            samples = get_spanning_intensities(bounds)
+            points = self.get_capture(samples.T)
+
+        if isinf:
+            offset = np.min(points, axis=0)
+            # for handling conical hull (inf-case)
+            points = points - offset
+            q = q - offset
+
+        return in_hull(points, q, bounded=not isinf)
+
+    def _range_of_solutions_(self, q, bounds=None):
+        if bounds is None:
+            bounds = self.intensity_bounds_
+
+        inhull = self._capture_in_range_(q, bounds=bounds)
+        # remove necessary offset
+        q = q - self._q_offset_  # remove offset
+
+        if not inhull:
+            result = lsq_linear(self.A_, q, bounds=bounds)
+            
+            warnings.warn(
+                f"No perfect solution exists for capture of value `{tuple(q)}`, "
+                f"returning best solution with norm `{result.cost}`", 
+                RuntimeWarning
+            )
+            
+            return result.x, result.x
+        
+        if not self._is_underdetermined_:
+            result = lsq_linear(self.A_, q, bounds=bounds)
+            
+            warnings.warn(
+                "System of light source equations is not underdetermined, "
+                "only a single solution exists.", 
+                RuntimeWarning
+            )
+            
+            return result.x, result.x
+        
+        return range_of_solutions(self.A_, q, bounds=bounds, check=False)
+
+    @property
+    def _is_underdetermined_(self):
+        """
+        Return True, if the system of linear equations of 
+        light sources to captures is underdetermined.
+        """
+        # fewer opsins than light sources
+        return self.A_.shape[0] < self.A_.shape[1]
 
 # -- misc helper functions
 
