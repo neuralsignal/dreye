@@ -648,7 +648,7 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
         elif self.inverse_map_method == 'gamma':
             from scipy.optimize import curve_fit
             xdata = (x - x.min()) / (x.max() - x.min())
-            if self.zero_is_lower:
+            if not self.zero_is_lower:
                 xdata = 1 - xdata
             ydata = (y - y.min()) / (y.max() - y.min())
 
