@@ -136,7 +136,7 @@ def is_signallike(obj):
     """
     Return True if object is dreye.Signal, dreye.Signals, or dreye.DomainSignal.
     """
-    from dreye import Signal, Signals, DomainSignal
+    from dreye.core.signal import Signal, Signals, DomainSignal
     return isinstance(obj, (Signal, Signals, DomainSignal))
 
 
@@ -144,7 +144,7 @@ def is_signalslike(obj):
     """
     Return True if object is dreye.Signals or dreye.DomainSignal.
     """
-    from dreye import Signals, DomainSignal
+    from dreye.core.signal import Signals, DomainSignal
     return isinstance(obj, (Signals, DomainSignal))
 
 

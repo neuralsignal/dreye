@@ -45,7 +45,7 @@ def convex_combination(points, x, bounded=True):
         A = points.T
 
     # perform nnls to find a solution
-    w, norm = nnls(A, x)
+    w, norm = nnls(A, x)  # TODO use lsq_linear?
     
     # check if norm is close to zero - that is a optimal solution was found
     return w, norm, np.isclose(norm, 0)

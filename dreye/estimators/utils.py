@@ -251,7 +251,7 @@ def estimate_bg_ints_from_background(
     Estimate background intensity for light sources given a background spectrum to fit to.
     """
     # internal import required here
-    from dreye import IndependentExcitationFit
+    from dreye.estimators.excitation_models import IndependentExcitationFit
     # fit background and assign bg_ints_
     # build estimator
     # if subclasses should still use this fitting procedure

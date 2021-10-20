@@ -6,6 +6,7 @@ import numpy as np
 from scipy.special import factorial
 from numpy.random import default_rng
 from numpy.linalg import det
+from scipy.linalg import norm
 from scipy.spatial import Delaunay, ConvexHull
 from scipy.stats import dirichlet
 from functools import reduce
@@ -126,6 +127,64 @@ def project_angles_on_hypersphere(angles, r=1):
     X[:, d-1] = reduce(lambda x, y: x * y, sinx.T)
     r = np.atleast_1d(r)
     return (X * r[..., None, None]).reshape(-1, d)
+
+
+def from_spherical_to_cartesian(Y):
+    """
+    Convert from spherical to cartesian coordinates
+    """
+    if Y.shape[-1] == 1:
+        return Y
+    
+    # first dimension are the radii, the rest are angles
+    angles = Y[..., 1:]
+    r = Y[..., :1]
+    
+    # cosine and sine of all angle values
+    cosx = np.cos(angles)
+    sinx = np.sin(angles)
+    
+    X = np.zeros(Y.shape)
+    # first dimension
+    X[..., 0] = cosx[:, 0]
+    # second to second to last
+    for i in range(1, Y.shape[-1]-1):
+        X[..., i] = cosx[:, i] * reduce(lambda x, y: x * y, sinx[:, :i].T)
+    # last
+    X[..., -1] = reduce(lambda x, y: x * y, sinx.T)
+    
+    return X * r
+
+
+def from_cartesian_to_spherical(X):
+    
+    if X.shape[-1] == 1:
+        return X
+    
+    r = norm(X, axis=-1, ord=2)
+    Y = np.zeros(X.shape)
+    Y[..., 0] = r
+    d = X.shape[1] - 1
+    zeros = (X == 0)
+    
+    for i in range(d-1):
+        Y[..., i+1] = np.where(
+            zeros[:, i:].all(-1),
+            0,
+            np.arccos(X[..., i]/norm(X[..., i:], axis=-1, ord=2))
+        )
+    
+    lasty = np.arccos(X[..., -2]/norm(X[..., -2:]))
+    Y[..., -1] = np.where(
+        zeros[:, -2:].all(-1), 
+        0, 
+        np.where(
+            X[..., -2] >= 0, 
+            lasty, 
+            2*np.pi - lasty
+        )
+    )
+    return Y
 
 
 def d_equally_spaced(n, d, one_inclusive=True):

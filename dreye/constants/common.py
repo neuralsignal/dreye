@@ -3,8 +3,11 @@
 
 import numpy as np
 
+
 DEFAULT_FLOAT_DTYPE = np.float64
 DEFAULT_INT_DTYPE = np.int64
+EPS_NP64 = np.finfo(np.float64).eps
+EPS_NP32 = np.finfo(np.float32).eps
 
 RELATIVE_ACCURACY = 5
 """

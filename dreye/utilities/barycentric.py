@@ -131,6 +131,9 @@ def _find_points_to_intersect_for_simplex(points, c):
 
 
 def simplex_plane_points_in_hull(points, c):
+    """
+    Project the convex hull described by `points` to simplex with sum of `c`.
+    """
     assert np.all(points >= 0), 'all `points` must be positive'
     assert np.all(c > 0), '`c` must be positive'
     # TODO efficiency

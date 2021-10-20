@@ -617,6 +617,7 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
         """
         get mapping from outputs to intensity
         """
+        # x are volts and y are intensities
         # perform isotonic regression
         if self.inverse_map_method == 'isotonic':
             isoreg = IsotonicRegression(
@@ -626,7 +627,7 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
                 increasing=self.zero_is_lower
             )
             isoreg.fit(x, y)
-            inverse_mapper = isoreg.transform
+            new_y = isoreg.transform(x)
         elif self.inverse_map_method == 'spline':
             from pygam import s, LinearGAM
             constraints = (
@@ -643,14 +644,26 @@ class MeasuredSpectrum(_IntensityDomainSpectrumMixin, DomainSignal):
                 max_iter=1000
             )
             model.fit(x, y)
-            inverse_mapper = model.predict
+            new_y = model.predict(x)
+        elif self.inverse_map_method == 'gamma':
+            from scipy.optimize import curve_fit
+            xdata = (x - x.min()) / (x.max() - x.min())
+            if self.zero_is_lower:
+                xdata = 1 - xdata
+            ydata = (y - y.min()) / (y.max() - y.min())
+
+            def func(xdata, gamma):
+                return xdata ** gamma
+
+            popt, _ = curve_fit(func, xdata, ydata, p0=[1], bounds=[0.2, 5])
+
+            new_y = func(xdata, *popt) * (y.max() - y.min()) + y.min()
         else:
             raise NameError(
                 f"inverse_map_method `{self.inverse_map_method}` "
                 "not recognized."
             )
 
-        new_y = inverse_mapper(x)
         if self.zero_is_lower:
             interp = interp1d(
                 x, new_y,

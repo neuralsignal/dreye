@@ -5,7 +5,8 @@ Load human spectral sensitivity
 import os
 import pandas as pd
 import numpy as np
-from dreye import DREYE_DIR, Signals
+from dreye import DREYE_DIR
+from dreye.core.signal import Signals
 from dreye.core.photoreceptor import create_photoreceptor_model
 
 D2_FILENAME = os.path.join(DREYE_DIR, 'datasets', 'linss2_10e_1.csv')
