@@ -39,5 +39,5 @@ def calculate_capture(
         if trapz:
             return np.trapz(filters * signals, dx=domain, axis=-1)
         else:
-            return np.sum(filters * signals, axis=-1) * domain
+            return np.sum(filters * signals * domain, axis=-1)
     return np.trapz(filters * signals, x=np.asarray(domain), axis=-1)
