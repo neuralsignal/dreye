@@ -2,6 +2,7 @@
 The scipy lsq_linear algorithm implemented using jax.numpy
 """
 
+from numbers import Number
 import warnings
 from scipy import optimize
 import numpy as np
@@ -80,6 +81,8 @@ def lsq_linear_cp(
     batch_size=1,
     verbose=0, 
     return_pred=False,
+    l2_eps=None,
+    underdetermined_opt='l2',
     **opt_kwargs
 ):
     """
@@ -125,9 +128,33 @@ def lsq_linear_cp(
         constraints.append(x_ <= ub_)
     
     # objective function
-    objective = cp.Minimize(
-        cp.sum_squares((cp.multiply(A_, w_[:, None]) @ x_ - b_))
-    )
+    if l2_eps is None:
+        objective = cp.Minimize(
+            cp.sum_squares((cp.multiply(A_, w_[:, None]) @ x_ - b_))
+        )
+    else:
+        assert batch_size == 1, "For underdetermined optimization batch_size has to be 1"
+        constraint = cp.norm2(cp.multiply(A_, w_[:, None]) @ x_ - b_) <= l2_eps
+        constraints.append(constraint)
+        # TODO add indexing of intensities
+        # TODO vectorization
+        if isinstance(underdetermined_opt, Number):
+            objective = cp.Minimize(cp.sum_squares(cp.sum(x_) - underdetermined_opt))
+        if isinstance(underdetermined_opt, np.ndarray):
+            raise NotImplementedError("Target intensities for light sources.")
+        elif not isinstance(underdetermined_opt, str):
+            raise TypeError(f"`{underdetermined_opt}` is not a underdetermined_opt option.")
+        elif underdetermined_opt == 'l2':
+            objective = cp.Minimize(cp.norm2(x_))
+        elif underdetermined_opt == 'min':
+            objective = cp.Minimize(cp.sum(x_))
+        elif underdetermined_opt == 'max':
+            objective = cp.Maximize(cp.sum(x_))
+        elif underdetermined_opt == 'var':
+            objective = cp.Minimize(x_ - cp.sum(x_)/x_.size)
+        else:
+            raise NameError(f"`{underdetermined_opt}` is not a underdetermined_opt option.")
+
     problem = cp.Problem(objective, constraints)
     assert problem.is_dcp(dpp=True)
 
