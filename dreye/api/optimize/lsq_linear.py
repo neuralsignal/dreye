@@ -140,7 +140,7 @@ def lsq_linear_cp(
         # TODO vectorization
         if isinstance(underdetermined_opt, Number):
             objective = cp.Minimize(cp.sum_squares(cp.sum(x_) - underdetermined_opt))
-        if isinstance(underdetermined_opt, np.ndarray):
+        elif isinstance(underdetermined_opt, np.ndarray):
             raise NotImplementedError("Target intensities for light sources.")
         elif not isinstance(underdetermined_opt, str):
             raise TypeError(f"`{underdetermined_opt}` is not a underdetermined_opt option.")

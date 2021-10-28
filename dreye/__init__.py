@@ -10,7 +10,7 @@ observers.
 
 __author__ = """gucky92"""
 __email__ = 'gucky@gucky.eu'
-__version__ = '0.3.0dev2'
+__version__ = '0.3.0dev3'
 
 import os
 DREYE_DIR = os.path.dirname(__file__)
