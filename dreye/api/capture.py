@@ -13,7 +13,7 @@ def calculate_capture(
     trapz=True, 
 ):
     """
-    Calculate the light-induced capture.
+    Calculate the stimulus-induced capture.
 
     Parameters
     ----------

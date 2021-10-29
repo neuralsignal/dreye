@@ -158,7 +158,8 @@ def projX2hull(X, equations):
     X : numpy.ndarray (..., ndim)
     """
     Q = np.eye(X.shape[-1])
-    # TODO replace with cvxpy
+    # TODO replace with cvxpy or more general qpsolvers (for solutions)? - However, quadprog is probably faster?
+    # TODO TEST
     # TODO efficiency - vectorization
     def helper(a):
         return solve_qp(

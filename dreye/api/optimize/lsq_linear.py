@@ -11,7 +11,7 @@ import cvxpy as cp
 from sklearn.decomposition import NMF
 
 from dreye.api.optimize.parallel import batched_iteration, diagonal_stack, concat
-from dreye.api.optimize.utils import FAILURE_MESSAGE, error_propagation, get_batch_size, linear_transform, prepare_parameters_for_linear
+from dreye.api.optimize.utils import FAILURE_MESSAGE, error_propagation, get_batch_size, prepare_parameters_for_linear
 from dreye.constants.common import EPS_NP64
 # TODO Huber loss instead of just sum squares? -> outliers less penalized
 

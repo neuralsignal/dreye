@@ -174,12 +174,12 @@ def from_cartesian_to_spherical(X):
             np.arccos(X[..., i]/norm(X[..., i:], axis=-1, ord=2))
         )
     
-    lasty = np.arccos(X[..., -2]/norm(X[..., -2:]))
+    lasty = np.arccos(X[..., -2]/norm(X[..., -2:], axis=-1, ord=2))
     Y[..., -1] = np.where(
         zeros[:, -2:].all(-1), 
         0, 
         np.where(
-            X[..., -2] >= 0, 
+            X[..., -1] >= 0, 
             lasty, 
             2*np.pi - lasty
         )

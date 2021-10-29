@@ -13,7 +13,7 @@ X : numpy.ndarray (npoints x ndim)
 import numpy as np
 from scipy.optimize import nnls
 from scipy.spatial import Delaunay
-from scipy.spatial.qhull import ConvexHull, QhullError
+from scipy.spatial.qhull import QhullError
 
 
 def in_hull(P, x, bounded=True):
@@ -53,6 +53,7 @@ def convex_combination(P, x, bounded=True):
     norm : float
     in_hull : bool
     """
+    # TODO vectorize
     if bounded:
         # add one to ensure a convex combination
         A = np.r_[P.T, np.ones((1, P.shape[0]))]
@@ -61,7 +62,7 @@ def convex_combination(P, x, bounded=True):
         A = P.T
 
     # perform nnls to find a solution
-    # TODO efficiency - use cvxpy?
+    # TODO efficiency - use cvxpy for vectorization?
     w, norm = nnls(A, x)
     
     # check if norm is close to zero - that is a optimal solution was found
