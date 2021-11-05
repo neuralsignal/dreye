@@ -215,7 +215,7 @@ def lsq_linear_minimize(
     if I is None:
         intensity_constraint = False
         I = np.zeros(B.shape[0])
-    if isinstance(I, Number):
+    elif isinstance(I, Number):
         intensity_constraint = True
         I = np.array([I]*B.shape[0])
     else:
