@@ -4,7 +4,8 @@ Handling n-dimensional spherical coordinates
 
 from functools import reduce
 import numpy as np
-from scipy.linalg import norm
+
+from dreye.api.utils import l2norm
 
 
 # TODO test
@@ -45,7 +46,7 @@ def cartesian2spherical(X):
     if X.shape[-1] == 1:
         return X
     
-    r = norm(X, axis=-1, ord=2)
+    r = l2norm(X, axis=-1)
     Y = np.zeros(X.shape)
     Y[..., 0] = r
     d = X.shape[1] - 1
@@ -55,10 +56,10 @@ def cartesian2spherical(X):
         Y[..., i+1] = np.where(
             zeros[:, i:].all(-1),
             0,
-            np.arccos(X[..., i]/norm(X[..., i:], axis=-1, ord=2))
+            np.arccos(X[..., i]/l2norm(X[..., i:], axis=-1))
         )
     
-    lasty = np.arccos(X[..., -2]/norm(X[..., -2:], axis=-1, ord=2))
+    lasty = np.arccos(X[..., -2]/l2norm(X[..., -2:], axis=-1))
     Y[..., -1] = np.where(
         zeros[:, -2:].all(-1), 
         0, 

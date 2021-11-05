@@ -11,39 +11,31 @@ X : numpy.ndarray (npoints x ndim)
 """
 
 import numpy as np
-from scipy.optimize import nnls
 from scipy.spatial import Delaunay
 from scipy.spatial.qhull import QhullError
+import cvxpy as cp
+
+from dreye.api.utils import l2norm
 
 
-def in_hull(P, x, bounded=True):
+def in_hull(P, X, bounded=True):
     """
     Compute if `x` is in the convex hull of `points`
     or a convex combination of `points` if not bounded.
     """
     if bounded:
-        # TODO check math for projection -> probably doesn't work
-        # hull, ndim, svd = projP4hull(
-        #     P, hull_class=Delaunay, return_ndim=True, return_transformer=True
-        # )
-        # if svd is not None:
-        #     x = svd.transform(x[None])[0]
-        # if ndim == 1:
-        #     inhull = (x <= hull.max()) & (x >= hull.min())
-        # else:
-        #     inhull = hull.find_simplex(x) >= 0
         try:
-            # hull algorithm is more efficient
+            # try hull algorithm before relying on convex combination algorithm
             hull = Delaunay(P)
-            inhull = hull.find_simplex(x) >= 0
+            inhull = hull.find_simplex(X) >= 0
         except QhullError:
-            _, _, inhull = convex_combination(P, x, bounded=bounded)
+            _, _, inhull = convex_combination(P, X, bounded=bounded)
     else:
-        _, _, inhull = convex_combination(P, x, bounded=bounded)
+        _, _, inhull = convex_combination(P, X, bounded=bounded)
     return inhull
 
 
-def convex_combination(P, x, bounded=True):
+def convex_combination(P, X, bounded=True, **kwargs):
     """
     Return convex combination.
 
@@ -53,17 +45,40 @@ def convex_combination(P, x, bounded=True):
     norm : float
     in_hull : bool
     """
-    # TODO vectorize
+    ndim = X.ndim
+    X = np.atleast_2d(X)
+    nsamples = X.shape[0]
+    
     if bounded:
         # add one to ensure a convex combination
-        A = np.r_[P.T, np.ones((1, P.shape[0]))]
-        x = np.r_[x, np.ones(1)]
+        A = np.vstack([P.T, np.ones((1, P.shape[0]))])
+        X = np.hstack([X, np.ones((X.shape[0], 1))])
     else:
         A = P.T
 
+    w = cp.Variable(A.shape[1])
+    x = cp.Parameter(A.shape[0])
+
+    constraints = [w >= 0]
+    objective = cp.Minimize(cp.sum_squares(A @ w - x))
+    problem = cp.Problem(objective, constraints)
+    assert problem.is_dcp(dpp=True)
+
     # perform nnls to find a solution
-    # TODO efficiency - use cvxpy for vectorization?
-    w, norm = nnls(A, x)
-    
+    W = np.zeros((nsamples, A.shape[1]))
+    # TODO parallelize? or batching?
+    for idx, x_ in enumerate(X):
+        x.value = x_
+        problem.solve(**kwargs)
+        if not np.isfinite(problem.value):
+            raise RuntimeError("Convex Combination did not converge.")
+        W[idx] = w.value
+
+    norms = l2norm(W @ A.T - X, axis=-1)
     # check if norm is close to zero - that is a optimal solution was found
-    return w, norm, np.isclose(norm, 0)
+    in_hulls = np.isclose(norms, 0)
+
+    if ndim == 1:
+        return W[0], norms[0], in_hulls[0]
+
+    return W, norms, in_hulls

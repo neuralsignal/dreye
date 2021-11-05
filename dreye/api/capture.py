@@ -24,7 +24,7 @@ def calculate_capture(
 
     Returns
     -------
-    captures : ndarray (signal_dim x filter_dim)
+    captures : ndarray (..., signal_dim x filter_dim)
     """
     filters = np.asarray(filters)
     signals = np.asarray(signals)
@@ -33,7 +33,6 @@ def calculate_capture(
     if (filters.ndim > 1) and (signals.ndim > 1):
         filters = filters[..., None, :, :]
         signals = signals[..., :, None, :]
-
 
     if isinstance(domain, Number):
         if trapz:

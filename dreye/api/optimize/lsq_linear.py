@@ -12,7 +12,8 @@ from sklearn.decomposition import NMF
 
 from dreye.api.optimize.parallel import batched_iteration, diagonal_stack, concat
 from dreye.api.optimize.utils import FAILURE_MESSAGE, error_propagation, get_batch_size, prepare_parameters_for_linear
-from dreye.constants.common import EPS_NP64
+from dreye.api.utils import l2norm
+from dreye.api.defaults import EPS_NP64
 # TODO Huber loss instead of just sum squares? -> outliers less penalized
 
 
@@ -81,8 +82,8 @@ def lsq_linear_cp(
     batch_size=1,
     verbose=0, 
     return_pred=False,
-    l2_eps=None,
-    underdetermined_opt='l2',
+    l2_eps=EPS_NP64,
+    underdetermined_opt=None,
     **opt_kwargs
 ):
     """
@@ -128,30 +129,38 @@ def lsq_linear_cp(
         constraints.append(x_ <= ub_)
     
     # objective function
-    if l2_eps is None:
+    if underdetermined_opt is None: 
         objective = cp.Minimize(
             cp.sum_squares((cp.multiply(A_, w_[:, None]) @ x_ - b_))
         )
     else:
-        assert batch_size == 1, "For underdetermined optimization batch_size has to be 1"
+        # TODO batching
+        assert A.shape[1] > A.shape[0], "System is not underdetermined."
+        assert batch_size == 1, "For underdetermined optimization batch_size has to be 1."
+
+        if isinstance(underdetermined_opt, tuple):
+            underdetermined_opt, idcs = underdetermined_opt
+            xselect_ = x_[idcs]
+        else:
+            xselect_ = x_
+        
         constraint = cp.norm2(cp.multiply(A_, w_[:, None]) @ x_ - b_) <= l2_eps
         constraints.append(constraint)
-        # TODO add indexing of intensities
-        # TODO vectorization
+        
         if isinstance(underdetermined_opt, Number):
-            objective = cp.Minimize(cp.sum_squares(cp.sum(x_) - underdetermined_opt))
+            objective = cp.Minimize(cp.sum_squares(cp.sum(xselect_) - underdetermined_opt))
         elif isinstance(underdetermined_opt, np.ndarray):
-            raise NotImplementedError("Target intensities for light sources.")
+            objective = cp.Minimize(cp.sum_squares(xselect_ - underdetermined_opt))
         elif not isinstance(underdetermined_opt, str):
-            raise TypeError(f"`{underdetermined_opt}` is not a underdetermined_opt option.")
+            raise TypeError(f"Type `{type(underdetermined_opt)}` is not the correct underdetermined_opt type.")
         elif underdetermined_opt == 'l2':
-            objective = cp.Minimize(cp.norm2(x_))
+            objective = cp.Minimize(cp.norm2(xselect_))
         elif underdetermined_opt == 'min':
-            objective = cp.Minimize(cp.sum(x_))
+            objective = cp.Minimize(cp.sum(xselect_))
         elif underdetermined_opt == 'max':
-            objective = cp.Maximize(cp.sum(x_))
+            objective = cp.Maximize(cp.sum(xselect_))
         elif underdetermined_opt == 'var':
-            objective = cp.Minimize(x_ - cp.sum(x_)/x_.size)
+            objective = cp.Minimize(cp.sum_squares(xselect_ - cp.sum(xselect_)/xselect_.size))
         else:
             raise NameError(f"`{underdetermined_opt}` is not a underdetermined_opt option.")
 
@@ -187,7 +196,9 @@ def lsq_linear_minimize(
     lb=None, ub=None, W=None,
     K=None, baseline=None, 
     norm=None,
-    delta=None,
+    l2_eps=EPS_NP64,
+    I=None,
+    i_eps=EPS_NP64,
     n_jobs=None, 
     batch_size=1,
     verbose=0, 
@@ -197,10 +208,20 @@ def lsq_linear_minimize(
     """
     Linear minimization approach
     """
-    delta = (EPS_NP64 if delta is None else delta)
-    
+
     Epsilon = error_propagation(Epsilon, K)
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
+    
+    if I is None:
+        intensity_constraint = False
+        I = np.zeros(B.shape[0])
+    if isinstance(I, Number):
+        intensity_constraint = True
+        I = np.array([I]*B.shape[0])
+    else:
+        intensity_constraint = True
+        I = np.asarray(I)
+        assert I.size == B.shape[0]
     
     if norm is None:
         _, B0 = lsq_linear_cp(
@@ -210,10 +231,10 @@ def lsq_linear_minimize(
             return_pred=True,
             **opt_kwargs
         )
-        norm = np.sum((W*B0 - W*B)**2, axis=-1)
+        norm = l2norm((W*B0 - W*B), axis=-1)
     
     B = B - baseline
-    total_delta = np.broadcast_to(np.atleast_1d(delta + norm), B.shape[0])
+    total_delta = np.broadcast_to(np.atleast_1d(l2_eps + norm), B.shape[0])
     batch_size = get_batch_size(batch_size, B.shape[0])
 
     if n_jobs is not None:
@@ -239,14 +260,23 @@ def lsq_linear_minimize(
         xkwargs = {}
     x_ = cp.Variable(A_.shape[1], **xkwargs)
     constraints = [
+        # TODO check reshaping
         # proper reshaping
-        cp.sum(
+        cp.norm2(
             cp.reshape(
                 cp.multiply(A_, w_[:, None]) @ x_ - b_, 
                 (batch_size, A.shape[0])
-            ) ** 2, axis=1
+            ), axis=1
         ) <= t_delta_
     ]
+
+    i_ = cp.Parameter(batch_size, **xkwargs)
+    if intensity_constraint:
+        # TODO check reshaping
+        constraints.append(
+            cp.sum(cp.reshape(x_, (batch_size, A.shape[1])), axis=-1) <= (i_ + i_eps), 
+            cp.sum(cp.reshape(x_, (batch_size, A.shape[1])), axis=-1) >= (i_ - i_eps), 
+        )
     if np.all(np.isfinite(lb)):
         constraints.append(x_ >= lb_)
     if np.all(np.isfinite(ub)):
@@ -263,9 +293,10 @@ def lsq_linear_minimize(
     X = np.zeros((B.shape[0], A.shape[-1]))
     last_batch_size = X.shape[0] % batch_size
     # iterate over batches - and pad last batch
-    for idx, (b, w, t_delta), _ in batched_iteration(B.shape[0], (B, W, total_delta), (), batch_size=batch_size, pad=True):
+    for idx, (b, w, t_delta, i), _ in batched_iteration(B.shape[0], (B, W, total_delta, I), (), batch_size=batch_size, pad=True):
         w_.value = w
         b_.value = b * w  # ensures that objective is dpp compliant
+        i_.value = i
         if ((idx+1) * batch_size) > X.shape[0]:
             t_delta = np.atleast_1d(t_delta).copy
             t_delta[last_batch_size:] = 1e10  # some big number

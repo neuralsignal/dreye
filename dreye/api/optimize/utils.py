@@ -57,7 +57,6 @@ def check_2darrs(*arrs):
     return (np.atleast_2d(np.asarray(arr)) for arr in arrs)
 
 
-
 def error_propagation(Epsilon, K):
     if K is not None:
         K = np.asarray(K) ** 2

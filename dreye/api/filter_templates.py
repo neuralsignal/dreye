@@ -5,12 +5,12 @@ Various sensitivity template functions
 import numpy as np
 from scipy.stats import norm
 
-from dreye.utilities import optional_to
-
 # TODO docstring
 
 
-def stavenga1993_band_calculation(x, a, b):
+def stavenga1993_band_calculation(
+    x, a, b
+):
     """
     Band calculation according to Stavenga et al (1993).
     """
@@ -53,9 +53,6 @@ def stavenga1993_template(
     a_beta : float or array-like, optional
     b_beta : float or array-like, optional
     """
-    wavelengths = optional_to(wavelengths, units='nm')
-    alpha_max = optional_to(alpha_max, units='nm')
-    beta_max = optional_to(beta_max, units='nm')
 
     x_alpha = np.log10(wavelengths / alpha_max)
     alpha_band = stavenga1993_band_calculation(x_alpha, a_alpha, b_alpha)
@@ -102,9 +99,6 @@ def govardovskii2000_template(
     """
     Calculate Opsin template according to Govardovskii et al (2000).
     """
-    wavelengths = optional_to(wavelengths, units='nm')
-    alpha_max = optional_to(alpha_max, units='nm')
-
     x_alpha = (wavelengths / alpha_max) ** -1
     a_alpha = a_alpha1 + a_alpha2 * np.exp(-(alpha_max - a_alpha3)**2 / a_alpha4)
 
@@ -143,8 +137,6 @@ def govardovskii2000_beta_band_template(
     """
     Calculate beta band according to Govardovskii et al (2000).
     """
-    wavelengths = optional_to(wavelengths, units='nm')
-
     beta_max = beta_max1 + beta_max2 * alpha_max
     d_beta = d_beta1 + d_beta2 * alpha_max
     beta_band = np.exp(
