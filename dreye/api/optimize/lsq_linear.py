@@ -144,6 +144,7 @@ def lsq_linear_cp(
         else:
             xselect_ = x_
         
+        # TODO this constraint assumes that things are within the hull
         constraint = cp.norm2(cp.multiply(A_, w_[:, None]) @ x_ - b_) <= l2_eps
         constraints.append(constraint)
         
@@ -273,10 +274,10 @@ def lsq_linear_minimize(
     i_ = cp.Parameter(batch_size, **xkwargs)
     if intensity_constraint:
         # TODO check reshaping
-        constraints.append(
-            cp.sum(cp.reshape(x_, (batch_size, A.shape[1])), axis=-1) <= (i_ + i_eps), 
-            cp.sum(cp.reshape(x_, (batch_size, A.shape[1])), axis=-1) >= (i_ - i_eps), 
-        )
+        constraints.extend([
+            cp.sum(cp.reshape(x_, (batch_size, A.shape[1])), axis=1) <= (i_ + i_eps), 
+            cp.sum(cp.reshape(x_, (batch_size, A.shape[1])), axis=1) >= (i_ - i_eps), 
+        ])
     if np.all(np.isfinite(lb)):
         constraints.append(x_ >= lb_)
     if np.all(np.isfinite(ub)):
@@ -296,7 +297,7 @@ def lsq_linear_minimize(
     for idx, (b, w, t_delta, i), _ in batched_iteration(B.shape[0], (B, W, total_delta, I), (), batch_size=batch_size, pad=True):
         w_.value = w
         b_.value = b * w  # ensures that objective is dpp compliant
-        i_.value = i
+        i_.value = np.atleast_1d(i)
         if ((idx+1) * batch_size) > X.shape[0]:
             t_delta = np.atleast_1d(t_delta).copy
             t_delta[last_batch_size:] = 1e10  # some big number
@@ -401,6 +402,7 @@ def lsq_linear_decomposition(
             Xvar[mask == 0] == 0
         )
     # all subframes have the same overall intensity
+    # TODO make constraints optional
     if n_layers > 1:
         x_constraints.append(
             cp.diff(cp.sum(Xvar, axis=1)) == 0
@@ -489,6 +491,7 @@ def lsq_linear_adaptive(
     lb (inputs)
     w (channels)
     """
+    # TODO if all in hull just skip
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
     size = B.shape[0]
     inputs = A.shape[1]
@@ -536,6 +539,7 @@ def lsq_linear_adaptive(
         )
     ] + bound_constraints
     # scale things as little as possible
+    # TODO maximize scales objective
     objective = cp.Minimize(cp.sum_squares(cp.multiply(scale_w, (scales - 1))))
     # problem
     problem = cp.Problem(objective, constraints)

@@ -6,6 +6,8 @@ from numbers import Number
 import numpy as np
 from scipy.interpolate import interp1d
 
+from dreye.api.utils import arange
+
 
 def equalize_domains(
     domains, arrs, axes=None, fill_value=0, 
@@ -28,8 +30,12 @@ def equalize_domains(
         lemin = np.maximum(lemin, np.min(domain))
         lemax = np.minimum(lemax, np.max(domain))
         lediff = np.maximum(lediff, np.mean(np.diff(np.sort(domain))))
+        
+    if (lemin >= lemax) or ((lemax - lemin) < lediff):
+        raise ValueError("Cannot equalize domains.")
 
-    new_domain = np.arange(lemin, lemax+lediff-lemax%lediff, lediff)
+    new_domain = arange(lemin, lemax, lediff)
+    # new_domain = np.arange(lemin, lemax+lediff-lemax%lediff, lediff)
     new_arrs = []
     for domain, arr, axis in zip(domain, arrs, axes):
         arr = interp1d(domain, arr, axis=axis, fill_value=fill_value, bounds_error=bounds_error)(new_domain)

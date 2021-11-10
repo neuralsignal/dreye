@@ -28,14 +28,14 @@ def optional_to(obj, units, *args, **kwargs):
     return obj
 
 
-def irr2flux(irradiance, wavelengths, return_units=None, prefix=None, irr_units='W/m^2/nm'):
+def irr2flux(irradiance, wavelengths, return_units=None, prefix=None, irr_units='I'):
     """
     Convert from irradiance to photonflux.
 
     Parameters
     ----------
     irradiance : float or array-like
-        Array in spectral irradiance units (W/m^2/nm) or units that
+        Array in spectral irradiance units (I=W/m^2/nm) or units that
         can be converted to spectra irradiance.
     wavelengths : float or array-like
         Array that can be broadcast to irradiance array in nanometer units
@@ -82,7 +82,7 @@ def flux2irr(photonflux, wavelengths, return_units=None, prefix=None, flux_units
     Parameters
     ----------
     photonflux : float or array-like
-        Array in spectral photonflux (mol/m^2/s/nm) or units that
+        Array in spectral photonflux (E=mol/m^2/s/nm) or units that
         can be converted to photonflux.
     wavelengths : float or array-like
         Array that can be broadcast to irradiance array in nanometer units

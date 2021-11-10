@@ -18,6 +18,10 @@ import cvxpy as cp
 from dreye.api.utils import l2norm
 
 
+def getPfromA(A, lb, ub, K=None, baseline=None):
+    pass
+
+
 def in_hull(P, X, bounded=True):
     """
     Compute if `x` is in the convex hull of `points`
