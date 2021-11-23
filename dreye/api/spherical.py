@@ -2,7 +2,6 @@
 Handling n-dimensional spherical coordinates
 """
 
-from functools import reduce
 import numpy as np
 
 from dreye.api.utils import l2norm
@@ -31,9 +30,9 @@ def spherical2cartesian(Y):
     X[..., 0] = cosx[:, 0]
     # second to second to last
     for i in range(1, Y.shape[-1]-1):
-        X[..., i] = cosx[:, i] * reduce(lambda x, y: x * y, sinx[:, :i].T)
+        X[..., i] = cosx[:, i] * np.prod(sinx[:, :i], axis=-1)
     # last
-    X[..., -1] = reduce(lambda x, y: x * y, sinx.T)
+    X[..., -1] = np.prod(sinx, axis=-1)
     
     return X * r
 

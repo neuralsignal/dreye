@@ -135,6 +135,7 @@ def lsq_linear_cp(
         )
     else:
         # TODO batching
+        # TODO vectorize l2_eps and underdetermined_opt, idcs
         assert A.shape[1] > A.shape[0], "System is not underdetermined."
         assert batch_size == 1, "For underdetermined optimization batch_size has to be 1."
 
@@ -144,7 +145,7 @@ def lsq_linear_cp(
         else:
             xselect_ = x_
         
-        # TODO this constraint assumes that things are within the hull
+        # TODO this constraint assumes that things are within the hull - TEST
         constraint = cp.norm2(cp.multiply(A_, w_[:, None]) @ x_ - b_) <= l2_eps
         constraints.append(constraint)
         
@@ -209,9 +210,15 @@ def lsq_linear_minimize(
     """
     Linear minimization approach
     """
-
-    Epsilon = error_propagation(Epsilon, K)
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
+    if isinstance(Epsilon, str):
+        if Epsilon == 'poisson':
+            # mean == variance
+            Epsilon = A
+        else:
+            raise NameError(f"Epsilon must be array or `poisson`, but is `{Epsilon}`")
+    else:
+        Epsilon = error_propagation(Epsilon, K)
     
     if I is None:
         intensity_constraint = False
@@ -284,6 +291,9 @@ def lsq_linear_minimize(
         constraints.append(x_ <= ub_)
     
     # objective function
+    # TODO incorporate w?
+    # TODO square x or not? - or poisson??
+    # TODO correlation of x terms?
     objective = cp.Minimize(
         cp.sum(Epsilon_ @ x_**2)
     )
@@ -377,6 +387,7 @@ def lsq_linear_decomposition(
     # P @ X @ A.T
 
     # initialize P matrix (usually pixel intensities)
+    # TODO faster version?
     nmf = NMF(
         n_components=n_layers, 
         random_state=seed, 
@@ -385,7 +396,8 @@ def lsq_linear_decomposition(
     )
     P0 = nmf.fit(B.T).components_.T
     P0 = np.abs(P0) / np.max(np.abs(P0))  # range is 0-1
-    P0 = (P0 - lbp) / (ubp - lbp) 
+    # P0 = (P0 - lbp) / (ubp - lbp)
+    P0 = P0 * (ubp - lbp) + lbp  # rescale to range
     Ppar.value = P0
 
     # p constraints
@@ -472,7 +484,7 @@ def lsq_linear_adaptive(
     K=None, baseline=None, 
     neutral_point=None,
     verbose=0, 
-    delta=0,
+    delta=EPS_NP64,
     scale_w=1,
     solver=cp.ECOS, 
     return_pred=False,
@@ -491,7 +503,7 @@ def lsq_linear_adaptive(
     lb (inputs)
     w (channels)
     """
-    # TODO if all in hull just skip
+    # TODO if all in hull just skip to linear
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
     size = B.shape[0]
     inputs = A.shape[1]
@@ -530,6 +542,7 @@ def lsq_linear_adaptive(
 
     constraints = [
         # intensity constraint
+        # TODO delta intensity range?
         int_pred == int_actual, 
         # radii constraint
         (
