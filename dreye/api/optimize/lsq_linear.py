@@ -15,6 +15,8 @@ from dreye.api.optimize.utils import FAILURE_MESSAGE, error_propagation, get_bat
 from dreye.api.utils import l2norm
 from dreye.api.defaults import EPS_NP64
 # TODO Huber loss instead of just sum squares? -> outliers less penalized
+# TODO Poisson model
+# TODO excitation model
 
 
 def lsq_linear(
@@ -145,7 +147,7 @@ def lsq_linear_cp(
         else:
             xselect_ = x_
         
-        # TODO this constraint assumes that things are within the hull - TEST
+        # TODO this constraint assumes that things are within the hull - TEST and FIT normal
         constraint = cp.norm2(cp.multiply(A_, w_[:, None]) @ x_ - b_) <= l2_eps
         constraints.append(constraint)
         
@@ -212,11 +214,11 @@ def lsq_linear_minimize(
     """
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
     if isinstance(Epsilon, str):
-        if Epsilon == 'poisson':
+        if Epsilon == 'heteroscedastic':
             # mean == variance
             Epsilon = A
         else:
-            raise NameError(f"Epsilon must be array or `poisson`, but is `{Epsilon}`")
+            raise NameError(f"Epsilon must be array or `heteroscedastic`, but is `{Epsilon}`")
     else:
         Epsilon = error_propagation(Epsilon, K)
     
@@ -292,7 +294,7 @@ def lsq_linear_minimize(
     
     # objective function
     # TODO incorporate w?
-    # TODO square x or not? - or poisson??
+    # TODO square x or not? - or poisson model??
     # TODO correlation of x terms?
     objective = cp.Minimize(
         cp.sum(Epsilon_ @ x_**2)
@@ -484,7 +486,8 @@ def lsq_linear_adaptive(
     K=None, baseline=None, 
     neutral_point=None,
     verbose=0, 
-    delta=EPS_NP64,
+    delta_radius=EPS_NP64,
+    delta_norm1=EPS_NP64,
     scale_w=1,
     solver=cp.ECOS, 
     return_pred=False,
@@ -503,6 +506,7 @@ def lsq_linear_adaptive(
     lb (inputs)
     w (channels)
     """
+    # TODO better naming convetion for radii and int
     # TODO if all in hull just skip to linear
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
     size = B.shape[0]
@@ -529,7 +533,9 @@ def lsq_linear_adaptive(
     
     B_pred = X @ A.T + baseline[None]
     
+    # capture prediction minus the neutral point for that vector scaled by intensity
     radii_vec_pred = B_pred - cp.multiply(neutral_points, scales[0])
+    # actual radius scalled by scalar radius
     radii_vec_actual = cp.multiply(scales[1], Brad)
     int_pred =  cp.sum(B_pred, axis=1) 
     int_actual = cp.multiply(Bsum, scales[0])
@@ -543,11 +549,18 @@ def lsq_linear_adaptive(
     constraints = [
         # intensity constraint
         # TODO delta intensity range?
-        int_pred == int_actual, 
+        # int_pred == int_actual, 
+        (
+            # cp.sum_squares(int_pred - int_actual) <= delta_norm1
+            cp.max(cp.abs(int_pred - int_actual)) <= delta_norm1
+            if delta_norm1
+            else int_pred == int_actual
+        ),
         # radii constraint
         (
-            cp.sum_squares(radii_vec_actual - radii_vec_pred) <= delta
-            if delta
+            # cp.sum_squares(radii_vec_actual - radii_vec_pred) <= delta_radius
+            cp.max(cp.abs(radii_vec_actual - radii_vec_pred)) <= delta_radius
+            if delta_radius
             else radii_vec_pred == radii_vec_actual
         )
     ] + bound_constraints

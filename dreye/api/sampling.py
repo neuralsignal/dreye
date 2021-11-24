@@ -10,6 +10,7 @@ from numpy.random import default_rng
 from scipy.spatial import ConvexHull, Delaunay
 
 
+# TODO sample in hull with quasi markov chains
 def sample_in_hull(P, n, seed=None):
     """
     Sampling uniformly from convex hull as given by points.

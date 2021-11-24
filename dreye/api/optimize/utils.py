@@ -117,10 +117,10 @@ def prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline):
     A, baseline = linear_transform(A, K, baseline)
     
     if isinstance(W, str):
-        if W == 'poisson':
+        if W == 'inverse':
             W = 1/B
         else:
-            raise NameError(f"W must be array or `poisson`, but is `{W}`")
+            raise NameError(f"W must be array or `inverse`, but is `{W}`")
     
     W = check_value(W, 1, A.shape[0])
     if W.ndim == 1:
