@@ -8,9 +8,9 @@ The current documentation focuses on the old API, but will be updated in the nex
 
 ## Timeline for new API release
 
-* Nov 20: API ready for testing
-* Nov 25: Tutorials for new API
-* Nov 31: Web application for stimulus design and color space manipulation
+* Dec 20: API ready for testing
+* Dec 25: Tutorials for new API
+* Jan 31: Web application for stimulus design and color space manipulation
 
 ## Installation
 
