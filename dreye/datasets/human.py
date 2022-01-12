@@ -6,36 +6,33 @@ import os
 import pandas as pd
 import numpy as np
 from dreye import DREYE_DIR
-from dreye.core.signal import Signals
-from dreye.core.photoreceptor import create_photoreceptor_model
 
 D2_FILENAME = os.path.join(DREYE_DIR, 'datasets', 'linss2_10e_1.csv')
 D10_FILENAME = os.path.join(DREYE_DIR, 'datasets', 'linss10e_1.csv')
 
 
-def load_dataset(as_pr_model=False, d10=False, ascending=False, **kwargs):
+def load_dataset(as_wide=False, d10=False, ascending=False):
     """
     Load human spectral sensitivity.
 
     Parameters
     ----------
-    as_pr_model : bool, optional
+    as_wide : bool, optional
         Whether to return a `dreye.Photoreceptor`. If False,
         returns a long-format `pandas.DataFrame`. Defaults to False.
     d10 : bool, optional
         Whether to return the 10 degree measurements. Otherwise, fetches the
         2 degree measurements.
-    kwargs : dict
-        Keyword arguments passed to `dreye.create_photoreceptor_model`.
 
     Returns
     -------
-    df : `pandas.DataFrame` or `dreye.Photoreceptor`
+    df : `pandas.DataFrame`
         A long-format `pandas.DataFrame` with the following columns:
             * `wavelengths`
             * `opsin`
             * `value`
-        Or a `dreye.Photoreceptor` instance.
+        Or a wide-format `pandas.DataFrame` with columns `S`, `M`, and `L` and 
+        row indices `wavelengths`.
 
     References
     ----------
@@ -51,14 +48,12 @@ def load_dataset(as_pr_model=False, d10=False, ascending=False, **kwargs):
     data.columns = ['wavelengths', 'L', 'M', 'S']
     if ascending:
         data = data[['wavelengths', 'S', 'M', 'L']]
-    if as_pr_model:
+    
+    nanmin = np.nanmin(data[['S', 'M', 'L']].to_numpy())
+    
+    if as_wide:
         data = data.set_index('wavelengths')
-        nanmin = np.nanmin(data.to_numpy())
-        data = Signals(data.fillna(nanmin), domain_units='nm')
-        data.interpolator_kwargs = {
-            'fill_value': nanmin, 
-            'bounds_error': False
-        }
-        return create_photoreceptor_model(data, name='human', **kwargs)
+        data = data.fillna(nanmin)
+        return data
 
-    return data.melt(['wavelengths'], var_name='opsin').fillna(0)
+    return data.melt(['wavelengths'], var_name='opsin').fillna(nanmin)

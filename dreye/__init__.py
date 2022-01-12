@@ -10,7 +10,14 @@ observers.
 
 __author__ = """gucky92"""
 __email__ = 'gucky@gucky.eu'
-__version__ = '0.3.0dev6'
+__version__ = '1.0.0dev1'
 
 import os
 DREYE_DIR = os.path.dirname(__file__)
+
+from dreye.api import calculate_capture, ReceptorEstimator
+
+__all__ = [
+    'calculate_capture', 
+    'ReceptorEstimator', 
+]

@@ -14,7 +14,8 @@ from jax import jit, jacfwd, jacrev, grad, vmap
 
 from dreye.api.optimize.parallel import batch_arrays, batched_iteration
 from dreye.api.optimize.utils import get_batch_size, prepare_parameters_for_linear, FAILURE_MESSAGE, replace_numpy
-from dreye.api.optimize.lsq_linear import lsq_linear_cp
+from dreye.api.optimize.lsq_linear import lsq_linear
+from dreye.api.utils import get_prediction
 
 
 # B is assumed to have the affine transform already applied
@@ -96,7 +97,7 @@ def lsq_nonlinear(
     if X0 is None:
         linopt_kwargs['batch_size'] = max(1, int(2**10 * 1/np.prod(A.shape)))  # TODO test optimality
         linopt_kwargs['n_jobs'] = None
-        X0 = lsq_linear_cp(
+        X0 = lsq_linear(
             A=A, B=B, lb=lb, ub=ub, W=W, 
             # K=K, -> transformation already applied above 
             baseline=baseline, return_pred=False,
@@ -145,10 +146,11 @@ def lsq_nonlinear(
 
     X = np.zeros((E.shape[0], A.shape[-1]))
     count_failure = 0
-    for idx, (e, w, x0), (A_, baseline_, lb_, ub_) in batched_iteration(E.shape[0], (E, W, X0), (A, baseline, lb, ub), batch_size=batch_size):
-        # TODO parallelizing
-        # TODO test using sparse matrices when batching
-        # TODO substitute with faster algorithm
+    for idx, (e, w, x0), (A_, baseline_, lb_, ub_) in batched_iteration(E.shape[0], (E, W, X0), (A, baseline, lb, ub), batch_size=batch_size, verbose=verbose):
+        # TODO-later parallelizing
+        # TODO-later padding
+        # TODO-later test using sparse matrices when batching
+        # TODO-later substitute with faster algorithm
         idx_slice = slice(idx * batch_size, (idx+1) * batch_size)
         # reshape resulting x
         x0 = x0.reshape(-1, A.shape[-1])
@@ -206,7 +208,8 @@ def lsq_nonlinear(
             raise RuntimeError(FAILURE_MESSAGE.format(count=count_failure)) 
 
     if return_pred:
-        return X, nonlin(X @ A.T + baseline)
+        B = get_prediction(X, A, baseline)
+        return X, B, nonlin(B)
     return X
 
 

@@ -4,8 +4,13 @@ Utiliy functions for optimization functions
 
 import inspect
 from functools import wraps
-from numbers import Number
 import numpy as np
+
+from dreye.api.utils import (
+    check_2darr, 
+    check_value, 
+    check_and_return_transformed_values
+)
 
 
 FAILURE_MESSAGE = "Optimization unsuccessful for {count} samples/batches."
@@ -35,57 +40,6 @@ def replace_numpy(module, func):
     return wraps(func)(namespace[func.__name__])
 
 
-def check_value(value, default, size):
-    if value is None:
-        return np.ones(size) * default
-    elif isinstance(value, Number):
-        return np.ones(size) * value
-    else:
-        return np.asarray(value)
-
-
-def check_2darr(arr, axis0_size=None, axis1_size=None):
-    arr = np.atleast_2d(np.asarray(arr))
-    if axis0_size is not None:
-        assert axis0_size == arr.shape[0], "array size mismatch along first dimension"
-    if axis1_size is not None:
-        assert axis1_size == arr.shape[1], "array size mismat along second dimension"
-    return arr
-
-
-def check_2darrs(*arrs):
-    return (np.atleast_2d(np.asarray(arr)) for arr in arrs)
-
-
-def error_propagation(Epsilon, K):
-    if K is not None:
-        K = np.asarray(K) ** 2
-        if K.ndim < 2:
-            Epsilon = Epsilon * K[:, None]
-        else:
-            assert K.ndim == 2, "`K` must be one- or two-dimensional"
-            assert K.shape[0] == K.shape[-1], "`K` must be square"
-            Epsilon = K @ Epsilon
-    return Epsilon
-
-
-def linear_transform(A, K, baseline):
-    """
-    Helper function to reformulate `K(Ab+baseline)`
-    """
-    if K is not None:
-        K = np.asarray(K)
-        if K.ndim < 2:
-            A = A * K[:, None]
-            baseline = K * baseline
-        else:
-            assert K.ndim == 2, "`K` must be one- or two-dimensional"
-            assert K.shape[0] == K.shape[-1], "`K` must be square"
-            A = K @ A
-            baseline = K @ baseline
-    return A, baseline
-
-
 def get_batch_size(batch_size, total_size):
     if batch_size is None:
         return 1
@@ -103,18 +57,10 @@ def prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline):
     """
     Check types and values
     """
-    # TODO K as string `norm`
-    # TODO add Epsilon here instead of in a separate function
-    # TODO rename poisson to inverse
-    A, B = check_2darrs(A, B)
-
-    lb = check_value(lb, 0, A.shape[-1])
-    assert np.all(np.isfinite(lb)) or np.all(np.isneginf(lb)), "bounds must all be finite or inifinite."
-    ub = check_value(ub, np.inf, A.shape[-1])
-    assert np.all(np.isfinite(ub)) or np.all(np.isposinf(ub)), "bounds must all be finite or inifinite."
-    baseline = check_value(baseline, 0, A.shape[0])
-
-    A, baseline = linear_transform(A, K, baseline)
+    
+    A, lb, ub, baseline = check_and_return_transformed_values(A, lb, ub, K, baseline)
+    
+    B = check_2darr(B)
     
     if isinstance(W, str):
         if W == 'inverse':

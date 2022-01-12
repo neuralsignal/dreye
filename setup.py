@@ -15,7 +15,7 @@ with open("README.md", encoding="utf-8") as f:
 
 setuptools.setup(
     name='dreye',
-    version='0.3.0dev6',
+    version='1.0.0dev1',
     description='Dreye: Color models and stimuli for all model organisms',
     long_description=README,
     author='Matthias Christenson',

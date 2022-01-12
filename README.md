@@ -18,6 +18,8 @@ Nov 31: Web application for stimulus design and color space manipulation
 pip install dreye
 ```
 
+Installing jax...
+
 ## Hardware module
 
 For the hardware module in dreye the following packages will also have to be installed:

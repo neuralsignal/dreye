@@ -7,7 +7,6 @@ import os
 import pandas as pd
 
 from dreye import DREYE_DIR
-from dreye.core.signal import Signals
 
 
 FLOWER_PATH = os.path.join(
@@ -15,22 +14,20 @@ FLOWER_PATH = os.path.join(
 )
 
 
-def load_dataset(as_spectra=False, label_cols='data_id'):
+def load_dataset(as_wide=False, label_cols='data_id'):
     """
     Load a set of flower reflectances as a dataframe.
 
     Parameters
     ----------
-    as_spectra : bool, optional
-        Whether to return a `dreye.Spectra`. If False,
-        returns a long-format `pandas.DataFrame`. Defaults to False.
+    as_wide : bool, optional
+        Whether to return the dataframe as a wide-format dataframe.
     label_cols : str or list-like, optional
-        The label columns for the `dreye.Spectra` instance.
-        Defaults to `data_id`.
+        The column `pandas.MultiIndex`, if `as_wide` is True.
 
     Returns
     -------
-    df : `pandas.DataFrame` or `dreye.IntensitySpectra`
+    df : `pandas.DataFrame`
         A long-format `pandas.DataFrame` with the following columns:
             * `country`
             * `flower_genus`
@@ -44,9 +41,7 @@ def load_dataset(as_spectra=False, label_cols='data_id'):
             * `wavelengths`
             * `reflectance`
             * `flower_family`
-        Or a `dreye.Spectra` instance in dimensionless units and labels
-        along the column axis.
-        The column labels are a `pandas.MultiIndex`.
+        The columns attribute is a `pandas.MultiIndex` in wide-format.
 
     References
     ----------
@@ -76,10 +71,7 @@ def load_dataset(as_spectra=False, label_cols='data_id'):
     df.loc[:, 'reflectance'] = df['reflectance'].fillna(0)
     df.loc[df['reflectance'] < 0, 'reflectance'] = 0
 
-    if as_spectra:
-        return Signals(
-            pd.pivot_table(df, 'reflectance', 'wavelengths', label_cols).fillna(0), 
-            domain_units='nm'
-        )
+    if as_wide:
+        return pd.pivot_table(df, 'reflectance', 'wavelengths', label_cols).fillna(0)
 
     return df

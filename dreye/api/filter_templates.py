@@ -8,11 +8,22 @@ from scipy.stats import norm
 # TODO docstring
 
 
-def stavenga1993_band_calculation(
-    x, a, b
-):
-    """
-    Band calculation according to Stavenga et al (1993).
+def stavenga1993_band_calculation(x, a, b):
+    """Band calculation according to Stavenga et al (1993).
+
+    Parameters
+    ----------
+    x : [type]
+        [description]
+    a : [type]
+        [description]
+    b : [type]
+        [description]
+
+    Returns
+    -------
+    [type]
+        [description]
     """
     return np.exp(
         -a * x ** 2 * (
@@ -22,6 +33,22 @@ def stavenga1993_band_calculation(
 
 
 def gaussian_template(wavelengths, mean, std=30):
+    """[summary]
+
+    Parameters
+    ----------
+    wavelengths : [type]
+        [description]
+    mean : [type]
+        [description]
+    std : int, optional
+        [description], by default 30
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
     y = norm.pdf(wavelengths, mean, std)
     return y / np.max(y, axis=0, keepdims=True)
 
@@ -36,22 +63,31 @@ def stavenga1993_template(
     a_beta=247,
     b_beta=3.59,
 ):
-    """
-    Calculate opsin template according to Stavenga et al (1993).
+    """Calculate opsin template according to Stavenga et al (1993).
 
     Parameters
     ----------
-    wavelengths : array-like
-        Wavelengths to calculate the opsin absorbance for.
-    alpha_max : float or array-like
-        The peak wavelengths of the absorbance spectra. If array-like,
-        `alpha_max` must be broadcastable with `wavelengths`.
-    a_alpha : float or array-like, optional
-    b_alpha : float or array-like, optional
-    beta_max : float or array-like, optional
-    A_beta : float or array-like, optional
-    a_beta : float or array-like, optional
-    b_beta : float or array-like, optional
+    wavelengths : [type]
+        [description]
+    alpha_max : [type]
+        [description]
+    a_alpha : int, optional
+        [description], by default 380
+    b_alpha : float, optional
+        [description], by default 6.09
+    beta_max : int, optional
+        [description], by default 350
+    A_beta : float, optional
+        [description], by default 0.29
+    a_beta : int, optional
+        [description], by default 247
+    b_beta : float, optional
+        [description], by default 3.59
+
+    Returns
+    -------
+    [type]
+        [description]
     """
 
     x_alpha = np.log10(wavelengths / alpha_max)
@@ -69,8 +105,23 @@ def stavenga1993_beta_band_template(
     a_beta=247,
     b_beta=3.59,
 ):
-    """
-    Beta band calculation according to Stavenga et al (1993).
+    """Beta band calculation according to Stavenga et al (1993).
+
+    Parameters
+    ----------
+    wavelengths : [type]
+        [description]
+    beta_max : int, optional
+        [description], by default 350
+    a_beta : int, optional
+        [description], by default 247
+    b_beta : float, optional
+        [description], by default 3.59
+
+    Returns
+    -------
+    [type]
+        [description]
     """
     x_beta = np.log10(wavelengths / beta_max)
     beta_band = stavenga1993_band_calculation(x_beta, a_beta, b_beta)
@@ -96,8 +147,49 @@ def govardovskii2000_template(
     d_beta1=-40.5,
     d_beta2=0.195
 ):
-    """
-    Calculate Opsin template according to Govardovskii et al (2000).
+    """Calculate Opsin template according to Govardovskii et al (2000).
+
+    Parameters
+    ----------
+    wavelengths : [type]
+        [description]
+    alpha_max : [type]
+        [description]
+    A_alpha : float, optional
+        [description], by default 69.7
+    a_alpha1 : float, optional
+        [description], by default 0.8795
+    a_alpha2 : float, optional
+        [description], by default 0.0459
+    a_alpha3 : int, optional
+        [description], by default 300
+    a_alpha4 : int, optional
+        [description], by default 11940
+    B_alpha : int, optional
+        [description], by default 28
+    b_alpha : float, optional
+        [description], by default 0.922
+    C_alpha : float, optional
+        [description], by default -14.9
+    c_alpha : float, optional
+        [description], by default 1.104
+    D_alpha : float, optional
+        [description], by default 0.674
+    A_beta : float, optional
+        [description], by default 0.26
+    beta_max1 : int, optional
+        [description], by default 189
+    beta_max2 : float, optional
+        [description], by default 0.315
+    d_beta1 : float, optional
+        [description], by default -40.5
+    d_beta2 : float, optional
+        [description], by default 0.195
+
+    Returns
+    -------
+    [type]
+        [description]
     """
     x_alpha = (wavelengths / alpha_max) ** -1
     a_alpha = a_alpha1 + a_alpha2 * np.exp(-(alpha_max - a_alpha3)**2 / a_alpha4)
@@ -134,8 +226,27 @@ def govardovskii2000_beta_band_template(
     d_beta1=-40.5,
     d_beta2=0.195
 ):
-    """
-    Calculate beta band according to Govardovskii et al (2000).
+    """Calculate beta band according to Govardovskii et al (2000).
+
+    Parameters
+    ----------
+    wavelengths : [type]
+        [description]
+    alpha_max : [type]
+        [description]
+    beta_max1 : int, optional
+        [description], by default 189
+    beta_max2 : float, optional
+        [description], by default 0.315
+    d_beta1 : float, optional
+        [description], by default -40.5
+    d_beta2 : float, optional
+        [description], by default 0.195
+
+    Returns
+    -------
+    [type]
+        [description]
     """
     beta_max = beta_max1 + beta_max2 * alpha_max
     d_beta = d_beta1 + d_beta2 * alpha_max

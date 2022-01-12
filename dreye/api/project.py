@@ -5,7 +5,7 @@ P : numpy.ndarray (npoints x ndim)
     Set of vectors that entail a convex hull
     or whose projection into a lower dimension 
     describes a convex hull
-X : numpy.ndarray (npoints x ndim)
+B : numpy.ndarray (npoints x ndim)
     Arbitary set of vectors
 """
 
@@ -18,7 +18,7 @@ from sklearn.decomposition import PCA
 from quadprog import solve_qp
 
 
-def projP4hull(P, hull_class=ConvexHull, return_ndim=False, return_hull=True, return_transformer=False):
+def proj_P_for_hull(P, hull_class=ConvexHull, return_ndim=False, return_hull=True, return_transformer=False):
     """
     Project `P` until it defines a convex hull.
     """
@@ -55,7 +55,7 @@ def projP4hull(P, hull_class=ConvexHull, return_ndim=False, return_hull=True, re
         return ndim
 
 
-def line2simplex(x1, x2, c, axis=-1, checks=True):
+def line_to_simplex(x1, x2, c, axis=-1, checks=True):
     """
     Return the point where the line defined by vectors `x1`
     and `x2` intersects with the simplex with sum of `c`
@@ -93,7 +93,7 @@ def yieldPpairs4proj2simplex(P, c):
     assert not np.all(threshbool), "target `c` too high."
 
     if P.shape[0] > P.shape[1]:
-        hull, ndim = projP4hull(P, return_ndim=True)
+        hull, ndim = proj_P_for_hull(P, return_ndim=True)
 
         # points lie in one dimension
         if ndim == 1:  # or if hull is None
@@ -108,7 +108,7 @@ def yieldPpairs4proj2simplex(P, c):
             for idx, jdx in product(e, e):
                 if idx == jdx:
                     continue
-                if (idx, jdx) in edges or (jdx, idx) in edges:
+                if ((idx, jdx) in edges) or ((jdx, idx) in edges):
                     continue
                 # can't be both below threshold
                 if idx in idcs1 and jdx in idcs1:
@@ -128,7 +128,7 @@ def yieldPpairs4proj2simplex(P, c):
         return product(p1, p2)
 
 
-def projP2simplex(P, c):
+def proj_P_to_simplex(P, c):
     """
     Project the points that project the convex hull entailed
     by `P` onto the simplex with sum of `c`.
@@ -138,12 +138,12 @@ def projP2simplex(P, c):
     assert np.all(c > 0), '`c` must be positive'
     # TODO efficiency
     return np.array([
-        line2simplex(x1, x2, c, checks=False)
+        line_to_simplex(x1, x2, c, checks=False)
         for x1, x2 in yieldPpairs4proj2simplex(P, c)
     ])
 
 
-def projX2hull(X, equations):
+def proj_B_to_hull(B, equations):
     """
     Project `X` to the convex hull defined by the
     hyperplane equations of the facets
@@ -157,7 +157,7 @@ def projX2hull(X, equations):
     -------
     X : numpy.ndarray (..., ndim)
     """
-    Q = np.eye(X.shape[-1])
+    Q = np.eye(B.shape[-1])
     # TODO replace with cvxpy or more general qpsolvers (for solutions)? - However, quadprog is probably faster?
     # TODO TEST
     # TODO efficiency - vectorization
@@ -167,25 +167,24 @@ def projX2hull(X, equations):
             -equations[:, :-1].T, equations[:, -1], 
             meq=0, factorized=True
         )[0]
-    return np.apply_along_axis(helper, -1, X)
+    return np.apply_along_axis(helper, -1, B)
 
 
-def alpha4XwithP(X, equations):
+def alpha_for_B_with_P(B, equations):
     """
     Get multiple of vector that intersects with hull
     """
     V, b = equations[:-1], equations[-1]
-    alpha = -b / (X @ V)
+    alpha = -b / (B @ V)
     # mask smaller equal to zero values
     alpha[alpha <= 0] = np.nan
     alpha = np.nanmin(alpha, axis=-1)
     return alpha
 
 
-def XwithP(X, equations):
+def B_with_P(B, equations):
     """
-    Find hull intersection of vectors `X`.
+    Find hull intersection of vectors `B`.
     """
-    return alpha4XwithP(X, equations)[..., None] * X
-
+    return alpha_for_B_with_P(B, equations)[..., None] * B
 
