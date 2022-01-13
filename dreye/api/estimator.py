@@ -13,6 +13,7 @@ from dreye.api.optimize.lsq_linear import lsq_linear, lsq_linear_adaptive, lsq_l
 from dreye.api.optimize.lsq_nonlinear import lsq_nonlinear
 from dreye.api.sampling import sample_in_hull
 from dreye.api.utils import check_bounds
+from dreye.api.metrics import compute_gamut
 
 
 class ReceptorEstimator:
@@ -81,7 +82,7 @@ class ReceptorEstimator:
         # K being one d or two d
         self.K = np.atleast_1d(K)
     
-    def register_background_adaptation(self, background, domain=None, trapz=True, add_baseline=True, add=False):
+    def register_background_adaptation(self, background, domain=None, add_baseline=True, add=False):
         """[summary]
 
         Parameters
@@ -90,12 +91,10 @@ class ReceptorEstimator:
             [description]
         domain : [type], optional
             [description], by default None
-        trapz : bool, optional
-            [description], by default True
         add_baseline : bool, optional
             [description], by default True
         """
-        qb = self.capture(background, domain=domain, trapz=trapz)
+        qb = self.capture(background, domain=domain)
         if add_baseline:
             qb = qb + self.baseline
         if add:
@@ -255,6 +254,57 @@ class ReceptorEstimator:
         else:
             self.Epsilon = np.asarray(Epsilon)
             assert self.Epsilon.shape == self.A.shape, "Shape of Epsilon must match (n_channels x n_sources)."
+    
+    def compute_gamut(
+        self, 
+        fraction=True,
+        at_l1=None, metric='width', seed=None, 
+        relative=True, 
+    ):
+        """[summary]
+
+        Parameters
+        ----------
+        fraction : bool, optional
+            [description], by default True
+        at_l1 : [type], optional
+            [description], by default None
+        metric : str, optional
+            [description], by default 'width'
+        seed : [type], optional
+            [description], by default None
+        relative : bool, optional
+            [description], by default True
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        self._assert_registered()
+        P = get_P_from_A(
+            self.A, self.lb, self.ub, 
+            K=(self.K if relative else None), 
+            baseline=(self.baseline if relative else None), 
+            bounded=True
+        )
+        if fraction:
+            # dirac delta functions for perfect excitation
+            signals = np.eye(self.filters.shape[-1])
+            if relative:
+                relative_to = self.relative_capture(signals)
+            else:
+                relative_to = self.capture(signals)
+        else:
+            relative_to = None
+        
+        return compute_gamut(
+            P, at_l1=at_l1, relative_to=relative_to, 
+            center_to_neutral=False, 
+            center=True, 
+            metric=metric, 
+            seed=seed, 
+        )
     
     @property
     def registered(self):
@@ -426,6 +476,26 @@ class ReceptorEstimator:
     def range_of_solutions(
         self, B=None, relative=True, error='raise', n=None, eps=1e-5
     ):
+        """[summary]
+
+        Parameters
+        ----------
+        B : [type], optional
+            [description], by default None
+        relative : bool, optional
+            [description], by default True
+        error : str, optional
+            [description], by default 'raise'
+        n : [type], optional
+            [description], by default None
+        eps : [type], optional
+            [description], by default 1e-5
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         self._assert_registered()
         if B is None:
             self._assert_registered_targets()
@@ -557,7 +627,7 @@ class ReceptorEstimator:
         self.scales = scales
         if internal:
             return self
-        return X, B, scales
+        return X, scales, B
     
     def fit_decomposition(
         self,
@@ -648,6 +718,7 @@ class ReceptorEstimator:
     def minimize_variance(
         self,
         B=None,
+        Epsilon=None,
         batch_size=1, 
         verbose=0, 
         l2_eps=1e-5, 
@@ -657,6 +728,9 @@ class ReceptorEstimator:
         **opt_kwargs
     ):
         self._assert_registered()
+        if Epsilon is None:
+            Epsilon = self.Epsilon
+
         if B is None:
             internal = True
             self._assert_registered_targets()
@@ -665,7 +739,7 @@ class ReceptorEstimator:
             internal = False
         
         X, B, Bvar = lsq_linear_minimize(
-            self.A, B, self.Epsilon, 
+            self.A, B, Epsilon, 
             lb=self.lb, ub=self.ub, 
             W=self.W, K=self.K, 
             baseline=self.baseline, 
@@ -712,6 +786,8 @@ class ReceptorEstimator:
     # def simplex_plot(self):
     #     pass
     
+    # def gamut_plot(self):
+    
 
 def _simple_plotting_function(x, ys, labels=None, colors=None, ax=None, **kwargs):
     if ax is None:
@@ -721,12 +797,11 @@ def _simple_plotting_function(x, ys, labels=None, colors=None, ax=None, **kwargs
         x = np.arange(ys.shape[-1])
         
     if colors is None:
-        sns.color_palette('rainbow', ys.shape[0])
+        colors = sns.color_palette('rainbow', ys.shape[0])
         
     if labels is None:
         labels = np.arange(ys.shape[0])
-        
-    
+
     for label, y, color in zip(labels, ys, colors):
         kwargs['label'] = label
         kwargs['color'] = color

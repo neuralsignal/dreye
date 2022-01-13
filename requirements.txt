@@ -1,3 +1,4 @@
+pytest
 scipy
 matplotlib
 numpy
@@ -6,7 +7,6 @@ pint>=0.16.1
 cloudpickle>=1.5.0
 scikit-learn
 pandas
-pytest
 cvxpy>=1.1.10
 pyarrow>=3.0.0
 pygam>=0.8.0
@@ -14,3 +14,4 @@ tqdm
 cvxopt>=1.2.6
 qpsolvers>=1.7.0
 quadprog
+jax[cpu]

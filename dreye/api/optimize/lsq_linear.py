@@ -11,6 +11,7 @@ W (samples x channels)
 """
 
 from numbers import Number
+import warnings
 from tqdm import tqdm
 
 import numpy as np
@@ -746,6 +747,8 @@ def lsq_linear_decomposition(
         P = Ppar.value = Pvar.value
         
         current_loss = np.linalg.norm(W * (P @ X @ A.T - B), ord='fro')
+        # current variables
+        current_vars = np.concatenate([np.ravel(X), np.ravel(P)])
         
         if n:
             # tolerance for terminatino by the change of the cost function
@@ -755,7 +758,6 @@ def lsq_linear_decomposition(
                 break
             
             # Tolerance for termination by the change of the independent variables. 
-            current_vars = np.concatenate([np.ravel(X), np.ravel(P)])
             if l2norm(prev_vars - current_vars) < (xtol * (xtol + l2norm(current_vars))):
                 if verbose:
                     print(f"Tolerance criteria met for independen variables; stopping at {n} iterations.")
@@ -764,6 +766,12 @@ def lsq_linear_decomposition(
         # reassign previous loss
         prev_loss = current_loss
         prev_vars = current_vars
+        
+    else:
+        warnings.warn(
+            f"Maximum number of iterations {max_iter} reached. Increase it to improve convergence.", 
+            RuntimeWarning
+        )
     
     if verbose:
         print("Refitting `X` values as final fitting step")

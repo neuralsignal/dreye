@@ -5,8 +5,6 @@ Various sensitivity template functions
 import numpy as np
 from scipy.stats import norm
 
-# TODO docstring
-
 
 def stavenga1993_band_calculation(x, a, b):
     """Band calculation according to Stavenga et al (1993).
