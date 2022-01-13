@@ -76,8 +76,6 @@ def is_hashable(obj):
         or isinstance(obj, tuple)
         or obj is None
     )
-    # return isinstance(obj, (numbers.Integral, str, tuple))
-    # return isinstance(obj, Hashable)  # problem with pint.Quantity
 
 
 def is_string(obj):

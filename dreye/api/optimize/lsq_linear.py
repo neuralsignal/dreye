@@ -2,6 +2,7 @@
 The scipy lsq_linear algorithm implemented using jax.numpy
 """
 
+from numbers import Number
 import warnings
 from scipy import optimize
 import numpy as np
@@ -10,8 +11,9 @@ import cvxpy as cp
 from sklearn.decomposition import NMF
 
 from dreye.api.optimize.parallel import batched_iteration, diagonal_stack, concat
-from dreye.api.optimize.utils import FAILURE_MESSAGE, error_propagation, get_batch_size, linear_transform, prepare_parameters_for_linear
-from dreye.constants.common import EPS_NP64
+from dreye.api.optimize.utils import FAILURE_MESSAGE, error_propagation, get_batch_size, prepare_parameters_for_linear
+from dreye.api.utils import l2norm
+from dreye.api.defaults import EPS_NP64
 # TODO Huber loss instead of just sum squares? -> outliers less penalized
 
 
@@ -80,6 +82,8 @@ def lsq_linear_cp(
     batch_size=1,
     verbose=0, 
     return_pred=False,
+    l2_eps=EPS_NP64,
+    underdetermined_opt=None,
     **opt_kwargs
 ):
     """
@@ -125,9 +129,43 @@ def lsq_linear_cp(
         constraints.append(x_ <= ub_)
     
     # objective function
-    objective = cp.Minimize(
-        cp.sum_squares((cp.multiply(A_, w_[:, None]) @ x_ - b_))
-    )
+    if underdetermined_opt is None: 
+        objective = cp.Minimize(
+            cp.sum_squares((cp.multiply(A_, w_[:, None]) @ x_ - b_))
+        )
+    else:
+        # TODO batching
+        # TODO vectorize l2_eps and underdetermined_opt, idcs
+        assert A.shape[1] > A.shape[0], "System is not underdetermined."
+        assert batch_size == 1, "For underdetermined optimization batch_size has to be 1."
+
+        if isinstance(underdetermined_opt, tuple):
+            underdetermined_opt, idcs = underdetermined_opt
+            xselect_ = x_[idcs]
+        else:
+            xselect_ = x_
+        
+        # TODO this constraint assumes that things are within the hull - TEST
+        constraint = cp.norm2(cp.multiply(A_, w_[:, None]) @ x_ - b_) <= l2_eps
+        constraints.append(constraint)
+        
+        if isinstance(underdetermined_opt, Number):
+            objective = cp.Minimize(cp.sum_squares(cp.sum(xselect_) - underdetermined_opt))
+        elif isinstance(underdetermined_opt, np.ndarray):
+            objective = cp.Minimize(cp.sum_squares(xselect_ - underdetermined_opt))
+        elif not isinstance(underdetermined_opt, str):
+            raise TypeError(f"Type `{type(underdetermined_opt)}` is not the correct underdetermined_opt type.")
+        elif underdetermined_opt == 'l2':
+            objective = cp.Minimize(cp.norm2(xselect_))
+        elif underdetermined_opt == 'min':
+            objective = cp.Minimize(cp.sum(xselect_))
+        elif underdetermined_opt == 'max':
+            objective = cp.Maximize(cp.sum(xselect_))
+        elif underdetermined_opt == 'var':
+            objective = cp.Minimize(cp.sum_squares(xselect_ - cp.sum(xselect_)/xselect_.size))
+        else:
+            raise NameError(f"`{underdetermined_opt}` is not a underdetermined_opt option.")
+
     problem = cp.Problem(objective, constraints)
     assert problem.is_dcp(dpp=True)
 
@@ -160,7 +198,9 @@ def lsq_linear_minimize(
     lb=None, ub=None, W=None,
     K=None, baseline=None, 
     norm=None,
-    delta=None,
+    l2_eps=EPS_NP64,
+    I=None,
+    i_eps=EPS_NP64,
     n_jobs=None, 
     batch_size=1,
     verbose=0, 
@@ -170,10 +210,26 @@ def lsq_linear_minimize(
     """
     Linear minimization approach
     """
-    delta = (EPS_NP64 if delta is None else delta)
-    
-    Epsilon = error_propagation(Epsilon, K)
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
+    if isinstance(Epsilon, str):
+        if Epsilon == 'poisson':
+            # mean == variance
+            Epsilon = A
+        else:
+            raise NameError(f"Epsilon must be array or `poisson`, but is `{Epsilon}`")
+    else:
+        Epsilon = error_propagation(Epsilon, K)
+    
+    if I is None:
+        intensity_constraint = False
+        I = np.zeros(B.shape[0])
+    elif isinstance(I, Number):
+        intensity_constraint = True
+        I = np.array([I]*B.shape[0])
+    else:
+        intensity_constraint = True
+        I = np.asarray(I)
+        assert I.size == B.shape[0]
     
     if norm is None:
         _, B0 = lsq_linear_cp(
@@ -183,10 +239,10 @@ def lsq_linear_minimize(
             return_pred=True,
             **opt_kwargs
         )
-        norm = np.sum((W*B0 - W*B)**2, axis=-1)
+        norm = l2norm((W*B0 - W*B), axis=-1)
     
     B = B - baseline
-    total_delta = np.broadcast_to(np.atleast_1d(delta + norm), B.shape[0])
+    total_delta = np.broadcast_to(np.atleast_1d(l2_eps + norm), B.shape[0])
     batch_size = get_batch_size(batch_size, B.shape[0])
 
     if n_jobs is not None:
@@ -212,20 +268,32 @@ def lsq_linear_minimize(
         xkwargs = {}
     x_ = cp.Variable(A_.shape[1], **xkwargs)
     constraints = [
+        # TODO check reshaping
         # proper reshaping
-        cp.sum(
+        cp.norm2(
             cp.reshape(
                 cp.multiply(A_, w_[:, None]) @ x_ - b_, 
                 (batch_size, A.shape[0])
-            ) ** 2, axis=1
+            ), axis=1
         ) <= t_delta_
     ]
+
+    i_ = cp.Parameter(batch_size, **xkwargs)
+    if intensity_constraint:
+        # TODO check reshaping
+        constraints.extend([
+            cp.sum(cp.reshape(x_, (batch_size, A.shape[1])), axis=1) <= (i_ + i_eps), 
+            cp.sum(cp.reshape(x_, (batch_size, A.shape[1])), axis=1) >= (i_ - i_eps), 
+        ])
     if np.all(np.isfinite(lb)):
         constraints.append(x_ >= lb_)
     if np.all(np.isfinite(ub)):
         constraints.append(x_ <= ub_)
     
     # objective function
+    # TODO incorporate w?
+    # TODO square x or not? - or poisson??
+    # TODO correlation of x terms?
     objective = cp.Minimize(
         cp.sum(Epsilon_ @ x_**2)
     )
@@ -236,9 +304,10 @@ def lsq_linear_minimize(
     X = np.zeros((B.shape[0], A.shape[-1]))
     last_batch_size = X.shape[0] % batch_size
     # iterate over batches - and pad last batch
-    for idx, (b, w, t_delta), _ in batched_iteration(B.shape[0], (B, W, total_delta), (), batch_size=batch_size, pad=True):
+    for idx, (b, w, t_delta, i), _ in batched_iteration(B.shape[0], (B, W, total_delta, I), (), batch_size=batch_size, pad=True):
         w_.value = w
         b_.value = b * w  # ensures that objective is dpp compliant
+        i_.value = np.atleast_1d(i)
         if ((idx+1) * batch_size) > X.shape[0]:
             t_delta = np.atleast_1d(t_delta).copy
             t_delta[last_batch_size:] = 1e10  # some big number
@@ -318,6 +387,7 @@ def lsq_linear_decomposition(
     # P @ X @ A.T
 
     # initialize P matrix (usually pixel intensities)
+    # TODO faster version?
     nmf = NMF(
         n_components=n_layers, 
         random_state=seed, 
@@ -326,7 +396,8 @@ def lsq_linear_decomposition(
     )
     P0 = nmf.fit(B.T).components_.T
     P0 = np.abs(P0) / np.max(np.abs(P0))  # range is 0-1
-    P0 = (P0 - lbp) / (ubp - lbp) 
+    # P0 = (P0 - lbp) / (ubp - lbp)
+    P0 = P0 * (ubp - lbp) + lbp  # rescale to range
     Ppar.value = P0
 
     # p constraints
@@ -343,6 +414,7 @@ def lsq_linear_decomposition(
             Xvar[mask == 0] == 0
         )
     # all subframes have the same overall intensity
+    # TODO make constraints optional
     if n_layers > 1:
         x_constraints.append(
             cp.diff(cp.sum(Xvar, axis=1)) == 0
@@ -412,7 +484,7 @@ def lsq_linear_adaptive(
     K=None, baseline=None, 
     neutral_point=None,
     verbose=0, 
-    delta=0,
+    delta=EPS_NP64,
     scale_w=1,
     solver=cp.ECOS, 
     return_pred=False,
@@ -431,6 +503,7 @@ def lsq_linear_adaptive(
     lb (inputs)
     w (channels)
     """
+    # TODO if all in hull just skip to linear
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
     size = B.shape[0]
     inputs = A.shape[1]
@@ -469,6 +542,7 @@ def lsq_linear_adaptive(
 
     constraints = [
         # intensity constraint
+        # TODO delta intensity range?
         int_pred == int_actual, 
         # radii constraint
         (
@@ -478,6 +552,7 @@ def lsq_linear_adaptive(
         )
     ] + bound_constraints
     # scale things as little as possible
+    # TODO maximize scales objective
     objective = cp.Minimize(cp.sum_squares(cp.multiply(scale_w, (scales - 1))))
     # problem
     problem = cp.Problem(objective, constraints)

@@ -57,7 +57,6 @@ def check_2darrs(*arrs):
     return (np.atleast_2d(np.asarray(arr)) for arr in arrs)
 
 
-
 def error_propagation(Epsilon, K):
     if K is not None:
         K = np.asarray(K) ** 2
@@ -104,18 +103,28 @@ def prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline):
     """
     Check types and values
     """
+    # TODO K as string `norm`
+    # TODO add Epsilon here instead of in a separate function
+    # TODO rename poisson to inverse
     A, B = check_2darrs(A, B)
 
     lb = check_value(lb, 0, A.shape[-1])
     assert np.all(np.isfinite(lb)) or np.all(np.isneginf(lb)), "bounds must all be finite or inifinite."
     ub = check_value(ub, np.inf, A.shape[-1])
     assert np.all(np.isfinite(ub)) or np.all(np.isposinf(ub)), "bounds must all be finite or inifinite."
-    W = check_value(W, 1, A.shape[0])
-    if W.ndim == 1:
-        W = np.broadcast_to(W[None], (B.shape[0], W.shape[0]))
     baseline = check_value(baseline, 0, A.shape[0])
 
     A, baseline = linear_transform(A, K, baseline)
+    
+    if isinstance(W, str):
+        if W == 'poisson':
+            W = 1/B
+        else:
+            raise NameError(f"W must be array or `poisson`, but is `{W}`")
+    
+    W = check_value(W, 1, A.shape[0])
+    if W.ndim == 1:
+        W = np.broadcast_to(W[None], (B.shape[0], W.shape[0]))
 
     assert A.shape[0] == B.shape[-1], "Channel number does not match."
 
