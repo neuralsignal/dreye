@@ -4,7 +4,7 @@
 
 ## Documentationa and tutorials
 
-Documentation and tutorials can be found here <https://dreye.readthedocs.io/en/master/>.
+Documentation and tutorials can be found here <https://dreye.readthedocs.io/en/latest/>.
 
 ## Installation
 
