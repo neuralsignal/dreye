@@ -147,10 +147,10 @@ For example:
 ::
 
     # preferred
-    from dreye.frame import FrameEngine
+    from dreye.api.utils import l1norm
 
     # not preferred
-    from .frame import FrameEngine
+    from .api.utils import l1norm
 
     # wrong
-    from frame import FrameEngine
+    from dreye import l1norm

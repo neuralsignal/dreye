@@ -1,16 +1,20 @@
 """Object-oriented Estimator class for all fitting procedures
 """
 
+from itertools import combinations
 from numbers import Number
 import numpy as np
+from scipy.special import comb
 import matplotlib.pyplot as plt
-import seaborn as sns
 
+from dreye.api.barycentric import barycentric_dim_reduction, cartesian_to_barycentric
 from dreye.api.capture import calculate_capture
 from dreye.api.convex import get_P_from_A, in_hull_from_A, range_of_solutions
 from dreye.api.domain import equalize_domains
 from dreye.api.optimize.lsq_linear import lsq_linear, lsq_linear_adaptive, lsq_linear_decomposition, lsq_linear_excitation, lsq_linear_minimize, lsq_linear_underdetermined
 from dreye.api.optimize.lsq_nonlinear import lsq_nonlinear
+from dreye.api.plotting.basic import hull_outline, simple_plotting_function, vectors_plot
+from dreye.api.plotting.simplex_plot import plot_simplex
 from dreye.api.sampling import sample_in_hull
 from dreye.api.utils import check_bounds
 from dreye.api.metrics import compute_gamut
@@ -41,7 +45,9 @@ class ReceptorEstimator:
         w=1.0,
         labels=None, 
         K=1.0, 
-        baseline=0.0
+        baseline=0.0, 
+        sources=None, 
+        lb=None, ub=None, sources_labels=None
     ):
         self.filters = np.asarray(filters)
         self.domain = (domain if isinstance(domain, Number) else np.asarray(domain))
@@ -49,11 +55,14 @@ class ReceptorEstimator:
             filters_uncertainty if filters_uncertainty is None 
             else np.asarray(filters_uncertainty)
         )
-        self.w = np.broadcast_to(w, (self.filters.shape[0],))
+        self.w = self.W = np.broadcast_to(w, (self.filters.shape[0],))  # initially set capital W to the same
         self.labels = (np.arange(self.filters.shape[0]) if labels is None else np.asarray(labels))
         
         self.register_adaptation(K)
         self.register_baseline(baseline)
+        
+        if sources is not None:
+            self.register_system(sources, domain=domain, lb=lb, ub=ub, labels=sources_labels)
         
     def register_uncertainty(self, filters_uncertainty):
         """[summary]
@@ -282,12 +291,7 @@ class ReceptorEstimator:
             [description]
         """
         self._assert_registered()
-        P = get_P_from_A(
-            self.A, self.lb, self.ub, 
-            K=(self.K if relative else None), 
-            baseline=(self.baseline if relative else None), 
-            bounded=True
-        )
+        P = self._get_P_from_A(relative=relative, bounded=True)
         if fraction:
             # dirac delta functions for perfect excitation
             signals = np.eye(self.filters.shape[-1])
@@ -308,6 +312,13 @@ class ReceptorEstimator:
     
     @property
     def registered(self):
+        """[summary]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         return hasattr(self, 'A') and hasattr(self, 'Epsilon')
     
     def _assert_registered(self):
@@ -315,6 +326,13 @@ class ReceptorEstimator:
     
     @property
     def underdetermined(self):
+        """[summary]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         return self.registered and (self.A.shape[0] < self.A.shape[1])
     
     def system_capture(self, X):
@@ -397,8 +415,30 @@ class ReceptorEstimator:
             self.lb = lb_
         if ub is not None:
             self.ub = ub_
+            
+    def _get_P_from_A(self, relative=True, bounded=None):
+        """[summary]
+
+        Parameters
+        ----------
+        relative : bool, optional
+            [description], by default True
+        bounded : [type], optional
+            [description], by default None
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        return get_P_from_A(
+            self.A, self.lb, self.ub, 
+            K=(self.K if relative else None), 
+            baseline=(self.baseline if relative else None), 
+            bounded=bounded
+        )
     
-    def sample_in_hull(self, n=10, seed=None, engine=None):
+    def sample_in_hull(self, n=10, seed=None, engine=None, l1=None, relative=True):
         """[summary]
 
         Parameters
@@ -409,6 +449,8 @@ class ReceptorEstimator:
             [description], by default None
         engine : [type], optional
             [description], by default None
+        l1 : [type], optional
+            [description], by default None
 
         Returns
         -------
@@ -418,8 +460,18 @@ class ReceptorEstimator:
         self._assert_registered()
         # check if bounded
         bounded = np.all(np.isfinite(self.ub))
-        P = get_P_from_A(self.A, self.lb, self.ub, K=self.K, baseline=self.baseline, bounded=bounded)
-        return sample_in_hull(P, n, seed=seed, engine=engine)
+        P = self._get_P_from_A(relative=relative, bounded=bounded)
+        if l1 is None:
+            return sample_in_hull(P, n, seed=seed, engine=engine)
+        else:
+            # sample within a simplex
+            l1 = P.sum(axis=-1)
+            # remove zero intensity
+            P = P[l1 != 0]
+            # reduce to barycentric coordinates and sample within that hull
+            P = barycentric_dim_reduction(P)
+            X = sample_in_hull(P, n, seed=seed, engine=engine)
+            return cartesian_to_barycentric(X, L1=l1)
         
     ### fitting functions
     
@@ -441,9 +493,20 @@ class ReceptorEstimator:
         else:
             self.W = np.asarray(W)
         return self
-            
+    
+    @property
+    def registered_targets(self):
+        """[summary]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        return hasattr(self, 'B')
+
     def _assert_registered_targets(self):
-        assert hasattr(self, 'B'), "No target has yet been registered for fitting."
+        assert self.registered_targets, "No target has yet been registered for fitting."
         
     def _assert_fitted(self):
         assert hasattr(self, 'X'), "Target have not been fitted to system yet."
@@ -518,6 +581,8 @@ class ReceptorEstimator:
 
         Parameters
         ----------
+        B : [type], optional
+            [description], by default None
         model : str, optional
             [description], by default 'gaussian'
         batch_size : int, optional
@@ -601,6 +666,28 @@ class ReceptorEstimator:
         verbose=0, 
         **opt_kwargs
     ):
+        """[summary]
+
+        Parameters
+        ----------
+        B : [type], optional
+            [description], by default None
+        neutral_point : [type], optional
+            [description], by default None
+        delta_radius : [type], optional
+            [description], by default 1e-5
+        delta_norm1 : [type], optional
+            [description], by default 1e-5
+        adaptive_objective : str, optional
+            [description], by default "unity"
+        verbose : int, optional
+            [description], by default 0
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         self._assert_registered()
         if B is None:
             internal = True
@@ -645,6 +732,42 @@ class ReceptorEstimator:
         ftol=1e-8, 
         **opt_kwargs
     ):
+        """[summary]
+
+        Parameters
+        ----------
+        B : [type], optional
+            [description], by default None
+        n_layers : [type], optional
+            [description], by default None
+        mask : [type], optional
+            [description], by default None
+        lbp : int, optional
+            [description], by default 0
+        ubp : int, optional
+            [description], by default 1
+        max_iter : int, optional
+            [description], by default 200
+        init_iter : int, optional
+            [description], by default 1000
+        seed : [type], optional
+            [description], by default None
+        subsample : str, optional
+            [description], by default 'fast'
+        verbose : int, optional
+            [description], by default 0
+        equal_l1norm_constraint : bool, optional
+            [description], by default True
+        xtol : [type], optional
+            [description], by default 1e-8
+        ftol : [type], optional
+            [description], by default 1e-8
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         self._assert_registered()
         if B is None:
             internal = True
@@ -687,6 +810,26 @@ class ReceptorEstimator:
         verbose=0,
         **opt_kwargs
     ):
+        """[summary]
+
+        Parameters
+        ----------
+        B : [type], optional
+            [description], by default None
+        underdetermined_opt : [type], optional
+            [description], by default None
+        l2_eps : [type], optional
+            [description], by default 1e-5
+        batch_size : int, optional
+            [description], by default 1
+        verbose : int, optional
+            [description], by default 0
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         self._assert_registered()
         if B is None:
             internal = True
@@ -727,6 +870,32 @@ class ReceptorEstimator:
         norm=None,
         **opt_kwargs
     ):
+        """[summary]
+
+        Parameters
+        ----------
+        B : [type], optional
+            [description], by default None
+        Epsilon : [type], optional
+            [description], by default None
+        batch_size : int, optional
+            [description], by default 1
+        verbose : int, optional
+            [description], by default 0
+        l2_eps : [type], optional
+            [description], by default 1e-5
+        L1 : [type], optional
+            [description], by default None
+        l1_eps : [type], optional
+            [description], by default 1e-5
+        norm : [type], optional
+            [description], by default None
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         self._assert_registered()
         if Epsilon is None:
             Epsilon = self.Epsilon
@@ -764,13 +933,29 @@ class ReceptorEstimator:
     
     ### scoring methods
     
-    # r2-score, residuals, relative score, cosine similarity, etc.
+    # TODO r2-score, residuals, relative score, cosine similarity, etc.
         
     ### plotting functions
     
     def sources_plot(self, ax=None, colors=None, labels=None, **kwargs):
+        """[summary]
+
+        Parameters
+        ----------
+        ax : [type], optional
+            [description], by default None
+        colors : [type], optional
+            [description], by default None
+        labels : [type], optional
+            [description], by default None
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         self._assert_registered()
-        return _simple_plotting_function(
+        return simple_plotting_function(
             self.sources_domain, 
             self.sources, 
             labels=(self.sources_labels if labels is None else labels),
@@ -778,35 +963,324 @@ class ReceptorEstimator:
         )
     
     def filter_plot(self, ax=None, colors=None, labels=None, **kwargs):
-        return _simple_plotting_function(
+        """[summary]
+
+        Parameters
+        ----------
+        ax : [type], optional
+            [description], by default None
+        colors : [type], optional
+            [description], by default None
+        labels : [type], optional
+            [description], by default None
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        return simple_plotting_function(
             self.domain, self.filters, 
             labels=(self.labels if labels is None else labels), 
             colors=colors, ax=ax, **kwargs)
     
-    # def simplex_plot(self):
-    #     pass
-    
-    # def gamut_plot(self):
-    
+    def simplex_plot(
+        self, 
+        B=None,
+        domain=None, 
+        ax=None,
+        cmap='rainbow',
+        gradient_line_kws=None, 
+        point_scatter_kws=None,
+        hull_kws=None, 
+        impure_lines=False, 
+        add_center=True, 
+        add_grid=False,
+        add_hull=True,
+        relative=True,
+        domain_line=True,
+        labels=None,
+        label_size=16,
+        **kwargs
+    ):
+        """[summary]
 
-def _simple_plotting_function(x, ys, labels=None, colors=None, ax=None, **kwargs):
-    if ax is None:
-        ax = plt.gca()
-        
-    if isinstance(x, Number):
-        x = np.arange(ys.shape[-1])
-        
-    if colors is None:
-        colors = sns.color_palette('rainbow', ys.shape[0])
-        
-    if labels is None:
-        labels = np.arange(ys.shape[0])
+        Parameters
+        ----------
+        B : [type], optional
+            [description], by default None
+        domain : [type], optional
+            [description], by default None
+        ax : [type], optional
+            [description], by default None
+        cmap : str, optional
+            [description], by default 'rainbow'
+        gradient_line_kws : [type], optional
+            [description], by default None
+        point_scatter_kws : [type], optional
+            [description], by default None
+        hull_kws : [type], optional
+            [description], by default None
+        impure_lines : bool, optional
+            [description], by default False
+        add_center : bool, optional
+            [description], by default True
+        add_grid : bool, optional
+            [description], by default False
+        add_hull : bool, optional
+            [description], by default True
+        relative : bool, optional
+            [description], by default True
+        domain_line : bool, optional
+            [description], by default True
+        labels : [type], optional
+            [description], by default None
+        label_size : int, optional
+            [description], by default 16
 
-    for label, y, color in zip(labels, ys, colors):
-        kwargs['label'] = label
-        kwargs['color'] = color
-        ax.plot(x, y, **kwargs)
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        gradient_line_kws = ({} if gradient_line_kws is None else gradient_line_kws)
+        point_scatter_kws = ({} if point_scatter_kws is None else point_scatter_kws)
+        hull_kws = ({} if hull_kws is None else hull_kws)
+        labels = (self.labels if labels is None else labels)
+        
+        if B is None and self.registered_targets:
+            B = self.B
+        
+        n = self.filters.shape[0]
+        assert n in {2, 3, 4}, "Simplex plots only works for tri- or tetrachromatic animals."
+        
+        domain_ = self.domain
+        if isinstance(domain_, Number):
+            domain_ = np.arange(0, self.filters.shape[-1] * domain_, domain_)
+        
+        if domain is None:
+            domain = 10  # default value
+        # if numeric it indicates spacing
+        if isinstance(domain, Number):
+            dmin = np.min(domain_)
+            dmax = np.max(domain_)
+            # earliest round number
+            dmin = np.ceil(dmin / domain) * domain
+            domain = np.arange(dmin, dmax, domain)
+            
+        # dirac delta functions for perfect excitation
+        signals = np.eye(self.filters.shape[-1])
+        if relative:
+            optimal = self.relative_capture(signals)
+        else:
+            optimal = self.capture(signals)
+            
+        ax = plot_simplex(
+            n, ax=ax, labels=labels, label_size=label_size
+        )
+        
+        if domain_line:
+            points = optimal[
+                np.argmin(
+                    np.abs(
+                        domain_[:, None] - domain
+                    ), axis=0
+                )
+            ]
+            
+            gradient_line_kws['cmap'] = cmap
+            
+            ax = plot_simplex(
+                n, 
+                ax=ax,
+                gradient_line=points, 
+                gradient_color=domain, 
+                lines=False,
+                gradient_line_kws=gradient_line_kws, 
+            )
+            
+            # add impure lines that connect non-adjacent sensitivities in the plot
+            # also known as non-spectral lines in color science
+            if impure_lines and (n != 2):
+                qmaxs = barycentric_dim_reduction(
+                    points[np.argmax(points, 0)]
+                )
+                for idx, jdx in combinations(range(n), 2):
+                    # sensitivities next to each other
+                    if abs(idx - jdx) == 1:
+                        continue
+                    _qs = qmaxs[[idx, jdx]].T
+                    ax.plot(
+                        *_qs,
+                        color='black', 
+                        linestyle='--', 
+                        alpha=0.8
+                    )
+
+        if add_center:
+            plot_simplex(
+                n, 
+                ax=ax, 
+                points=np.ones((1, self.filters.shape[0])), 
+                point_colors='gray', 
+                point_scatter_kws=point_scatter_kws, 
+                lines=False
+            )
+
+        if add_grid and (n != 2):
+            # add lines that connect edges to center
+            for i in range(n):
+                x_ = np.zeros((2, n))
+                x_[0, i] = 1
+                x_[1] = 1
+                x_[1:, i] = 0
+                xs_ = barycentric_dim_reduction(x_)
+                ax.plot(*xs_.T, color='gray', linestyle='--', alpha=0.5)
+                
+        if add_hull:
+            
+            P = self._get_P_from_A(relative=relative, bounded=True)
+            default_kws = {
+                'color':'lightgray', 
+                'edgecolor': 'gray', 
+                'linestyle':'--',
+            }
+            default_kws.update(hull_kws)
+            hull_kws = default_kws
+            
+            if n <= 3:
+                hull_kws.pop('edgecolor')
+            
+            ax = plot_simplex(
+                n, 
+                hull=P[P.sum(axis=1) > 0], 
+                hull_kws=hull_kws, 
+                ax=ax, 
+                lines=False
+            )
+            
+        if B is not None:
+            ax = plot_simplex(
+                n, 
+                ax=ax, 
+                points=B, 
+                lines=False, 
+                point_scatter_kws=kwargs
+            )
+        
+        return ax
     
-    return ax
+    def gamut_plot(
+        self, B=None, 
+        axes=None, labels=None, 
+        sources_labels=None,
+        colors=None, ncols=None, 
+        fig_kws=None, relative=True, 
+        sources_vectors=True,
+        hull_kws=None,
+        vectors_kws=None,
+        **kwargs
+    ):
+        """[summary]
+
+        Parameters
+        ----------
+        B : [type], optional
+            [description], by default None
+        axes : [type], optional
+            [description], by default None
+        labels : [type], optional
+            [description], by default None
+        sources_labels : [type], optional
+            [description], by default None
+        colors : [type], optional
+            [description], by default None
+        ncols : [type], optional
+            [description], by default None
+        fig_kws : [type], optional
+            [description], by default None
+        relative : bool, optional
+            [description], by default True
+        sources_vectors : bool, optional
+            [description], by default True
+        hull_kws : [type], optional
+            [description], by default None
+        vectors_kws : [type], optional
+            [description], by default None
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        self._assert_registered()
+        
+        if B is None and self.registered_targets:
+            B = self.B
+        
+        nfilters = self.filters.shape[0]
+        ncombos = comb(nfilters, 2, exact=True)
+        
+        if axes is None:
+            fig_kws = ({} if fig_kws is None else fig_kws)
+            kws = dict(
+                # defaults
+                sharex=False, 
+                sharey=False, 
+            )
+            kws.update(fig_kws)
+            
+            fig, axes = plt.subplots(
+                ncols=(1 if ncols is None else ncols), 
+                nrows=(ncombos if ncols is None else int(np.ceil(ncombos/ncols))), 
+                **kws  
+            )
+            axes = np.atleast_1d(axes)
+            axes = axes.ravel()
+        else:
+            fig = plt.gcf()
+            assert len(axes) == ncombos, f"the number of axes {len(axes)} is not equal to the number of combinations {ncombos}"
+        
+        labels = (self.labels if labels is None else labels)
+        sources_labels = (self.sources_labels if sources_labels is None else sources_labels)
+        
+        P = self._get_P_from_A(relative=relative, bounded=True)
+        
+        # only one source active - and flip since get_P_from_A has sources in reversed order
+        if relative:
+            singleP = self.system_relative_capture(np.eye(self.sources.shape[0]) * self.ub)
+            offsets = self.system_relative_capture(np.eye(self.sources.shape[0]) * self.lb)
+        else:
+            singleP = self.system_capture(np.eye(self.sources.shape[0]) * self.ub)
+            offsets = self.system_capture(np.eye(self.sources.shape[0]) * self.lb)
+        
+        hull_kws = ({} if hull_kws is None else hull_kws)
+        vectors_kws = ({} if vectors_kws is None else vectors_kws)
+        hull_kws['zorder'] = hull_kws.get('zorder', 1)
+        vectors_kws['zorder'] = vectors_kws.get('zorder', 1.5)
+        kwargs['zorder'] = kwargs.get('zorder', 2)
+        
+        for idx, (xidx, yidx) in enumerate(combinations(range(nfilters), 2)):
+            ax = axes[idx]
+            # hull and vectors plot
+            P_ = P[:, [xidx, yidx]]
+            singleP_ = singleP[:, [xidx, yidx]]
+            offsets_ = offsets[:, [xidx, yidx]]
+            
+            hull_outline(P_, ax=ax, **hull_kws)
+            if sources_vectors:
+                vectors_plot(
+                    singleP_, 
+                    offsets=offsets_,
+                    ax=ax, colors=colors, labels=sources_labels, **vectors_kws
+                )
+                
+            if B is not None:
+                ax.scatter(B[:, xidx], B[:, yidx], **kwargs)
+                
+            ax.set_xlabel(labels[xidx])
+            ax.set_ylabel(labels[yidx])
+
+        return fig, axes
         
     

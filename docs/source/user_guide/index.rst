@@ -11,17 +11,18 @@ Installation
 
 `DrEye` can be installed via pip from `PyPI <https://pypi.org/project/dreye>`__:
 
+
 .. code-block:: bash
 
    pip install dreye
 
 You can also clone the git repository and install the package from source.
 
+In order to use the non-linear fitting procedures, JAX should be installed separately:
 
-Quick Start
------------
+.. code-block:: bash
 
-TODO
+   pip install jax[cpu]
 
 
 Tutorials
@@ -29,16 +30,10 @@ Tutorials
 
 The different tutorials are listed below:
 
-* `Introduction to signal-type classes <signals.ipynb>`_.
-* `Saving and loading dreye objects <serialization.ipynb>`_.
-* `Photoreceptor models <photoreceptors.ipynb>`_.
-* `Estimating chromatic stimuli <estimators.ipynb>`_.
-* `Estimation with noise-limited photoreceptor model <estimators_noise.ipynb>`_.
-* `Building stimuli <stimuli.ipynb>`_.
-* `Comparing LED systems <led_systems.ipynb>`_.
-* `Using and Building hardware classes <hardware.ipynb>`_.
-* `Performing LED measurements <measurements.ipynb>`_.
-* `Reconstructing natural stimuli <natural.ipynb>`_.
+* `Introduction to dreye <introduction.ipynb>`_.
+* `Dealing with filter uncertainty and underdetermined systems <uncertainty.ipynb>`_.
+* `Gamut-corrective approaches <gamut_corrections.ipynb>`_.
+* `Patterned stimuli <patterned.ipynb>`_.
 
 .. toctree::
     :maxdepth: 2
@@ -46,13 +41,8 @@ The different tutorials are listed below:
     :hidden:
 
     philosophy
-    Introduction to signal-type classes <signals.nblink>
-    Saving and loading dreye objects <serialization.nblink>
-    Photoreceptor models <photoreceptors.nblink>
-    Estimating chromatic stimuli <estimators.nblink>
-    Noise-limited photoreceptor models <estimators_noise.nblink>
-    Building stimuli <stimuli.nblink>
-    Comparing LED systems <led_systems.nblink>
-    Using and Building hardware classes <hardware.nblink>
-    Performing LED measurements <measurements.nblink>
-    Reconstructing natural stimuli <natural.nblink>
+    Introduction to *drEye* <introduction.nblink>
+    Dealing with filter uncertainty and underdetermined systems <uncertainty.nblink>
+    Gamut-corrective approaches <gamut_corrections.nblink>
+    Patterned stimuli <patterned.nblink>
+

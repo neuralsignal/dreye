@@ -1,0 +1,13 @@
+.. _whatsnew_0001:
+
+{{ header }}
+
+Version 1.0.0 (May 15, 2020)
+-----------------------------
+
+Initial version of dreye.
+
+Contributors
+~~~~~~~~~~~~
+
+* Matthias Christenson (gucky92)

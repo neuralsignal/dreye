@@ -29,11 +29,9 @@ def all_combinations_of_bounds(
     """
     Get all possible combinations of the lower bound `lb` 
     and `ub` as a two-dimensional array.
-    """
-    n = len(lb)
-    
+    """    
     # all possible combinations of the lower and upper bound
-    samples = np.array(list(product(*([[0, 1]] * n)))).astype(float)
+    samples = np.array(list(product([0., 1.], repeat=len(lb))))
     # rescaling to lower and upper bounds
     samples = samples * (ub - lb) + lb
     
@@ -46,9 +44,8 @@ def all_combinations_of_bounds(
             samples_.append(s_)
         samples_ = np.vstack(samples_)
         samples = np.vstack([samples, samples_])
-    
-    # remove non-unique samples
-    samples = np.unique(samples, axis=0)
+        # remove non-unique samples
+        samples = np.unique(samples, axis=0)
     return samples
 
 

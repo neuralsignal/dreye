@@ -197,6 +197,43 @@ def l1norm(arr, axis=-1, keepdims=False):
     return norm(arr, ord=1, axis=axis, keepdims=keepdims)
 
 
+def integral(arr, domain, axis=-1, keepdims=False):
+    """[summary]
+
+    Parameters
+    ----------
+    arr : [type]
+        [description]
+    domain : [type]
+        [description]
+    axis : int, optional
+        [description], by default -1
+    keepdims : bool, optional
+        [description], by default False
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+    kwargs = {'axis': axis}
+    if isinstance(domain, Number):
+        kwargs['dx'] = domain
+    else:
+        kwargs['x'] = domain
+    trapz = np.trapz(arr, **kwargs)
+    if keepdims:
+        return trapz[_keepdims_slice_helper(arr.shape, axis)]
+    else:
+        return trapz
+    
+    
+def _keepdims_slice_helper(shape, axis):
+    slices = len(shape) * [slice(None, None, None)]
+    slices[axis] = None
+    return tuple(slices)
+
+
 def signif(x, p=1):
     """
     Round an array to a significant digit. 

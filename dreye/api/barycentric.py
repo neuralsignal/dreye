@@ -51,14 +51,14 @@ def barycentric_to_cartesian(X, center=False):
         return X @ A
 
 
-def cartesian_to_barycentric(X, I=None, centered=False):
+def cartesian_to_barycentric(X, L1=None, centered=False):
     """Convert from cartesian to barycentric coordinates.
 
     Parameters
     ----------
     X : [type]
         [description]
-    I : [type], optional
+    L1 : [type], optional
         [description], by default None
     centered : bool, optional
         [description], by default False
@@ -77,11 +77,11 @@ def cartesian_to_barycentric(X, I=None, centered=False):
     A = np.hstack([A, np.ones((A.shape[0], 1))])
     X = X @ np.linalg.inv(A)
     
-    if I is None:
+    if L1 is None:
         return X
     else:
-        I = np.atleast_1d(I)
-        return X * I[..., None]
+        L1 = np.atleast_1d(L1)
+        return X * L1[..., None]
 
 
 def barycentric_to_cartesian_transformer(n):

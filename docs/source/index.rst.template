@@ -4,9 +4,9 @@
 
 .. module:: dreye
 
-*********************************************************
-DrEye - chromatic stimulus estimation for model organisms
-*********************************************************
+**************************************************************
+DrEye - Exploiting Receptor Space Geometry for Stimulus Design
+**************************************************************
 
 **Date**: |today| **Version**: |version|
 

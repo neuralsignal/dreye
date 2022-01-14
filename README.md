@@ -1,20 +1,26 @@
-# DrEye: Exploiting Color Space Geometry for Visual Stimulus Design across Animals
+# DrEye: Exploiting Receptor Space Geometry for Stimulus Design across Animals
 
-Dreye is still being actively developed and tested, and documentation will be added soon. Currently, we are redesigning some of the API in order to make it easier to use and speed up some of our algorithms. Our redesign will be finished by mid-November, but our old API will remain for backwards compatibility
+*drEye* is a package that implements various approaches to design stimuli for sensory receptors. The main focus of the package is geared towards designing color stimuli for any animal under investigation, where the photoreceptor spectral sensitivities are known. The hardware-agnostic approach incorporates photoreceptor models within the framework of the principle of univariance. This enables experimenters to identify the most effective way to combine multiple light sources to create desired distributions of light, and thus easily construct relevant stimuli for mapping the color space of an organism. The methods support broad applications in color vision science and provide a framework for uniform stimulus designs across experimental systems. Many of the methods described can be used more generally to design stimuli for other sensory organs or used more broadly where a set of linear filters define the input to a system. In this introductory tutorial, we will cover some of the basics of the *drEye* API using basic examples from color vision science.
 
 ## Installation
 
-```
+```bash
 pip install dreye
+```
+
+In order to use the non-linear fitting procedures, JAX should be installed separately:
+
+```bash
+pip install jax[cpu]
 ```
 
 ## Tutorials
 
-Tutorials can be found here: 
+Tutorials can be found here: ...
 
 ## Common Issues
 
-* Installation of jax on the new Macbook Pro chips.
+* Running jax on the new Macbook Pro chips can run into problems. Make sure to install the latest version
 
 ## Development
 

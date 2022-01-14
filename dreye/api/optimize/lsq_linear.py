@@ -356,7 +356,7 @@ def lsq_linear_underdetermined(
 
 
 def lsq_linear_minimize(
-    A, B, Epsilon, 
+    A, B, Epsilon=None, 
     lb=None, ub=None, W=None,
     K=None, baseline=None, 
     norm=None,
@@ -444,9 +444,11 @@ def lsq_linear_minimize(
     
     total_delta = np.broadcast_to(np.atleast_1d(l2_eps + norm), B.shape[0])
     # Format Epsilon
-    if isinstance(Epsilon, str):
+    if Epsilon is None:
+        Epsilon = A.copy() ** 2  # Epsilon is the variance -> squaring necessary
+    elif isinstance(Epsilon, str):
         if Epsilon == 'heteroscedastic':
-            Epsilon = A.copy()
+            Epsilon = A.copy() ** 2  # Epsilon is the variance -> squaring necessary
         else:
             raise NameError(f"Epsilon must be array or `heteroscedastic`, but is `{Epsilon}`")
     else:
