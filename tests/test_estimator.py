@@ -239,9 +239,14 @@ def test_introduction():
     colors = sns.color_palette('tab10', len(Bnew))
 
     # Fitting points
-    X, Bnewhat = est.fit(Bnew, verbose=1)
+    X, Bnewhat1 = est.fit(Bnew, verbose=1)
+    # Using different models - gives a different result for out-of-gamut points - see API for details
+    X, Bnewhat2 = est.fit(Bnew, model='poisson', verbose=1)
+    X, Bnewhat3 = est.fit(Bnew, model='excitation', verbose=1, solver='ECOS')
 
     fig, axes = est.gamut_plot(Bnew, colors=sources_colors, c=colors, alpha=0.3)
-    fig, axes = est.gamut_plot(Bnewhat, colors=sources_colors, c=colors, marker='x', alpha=1, axes=axes)
+    fig, axes = est.gamut_plot(Bnewhat1, colors=sources_colors, c=colors, marker='x', alpha=1, axes=axes)
+    fig, axes = est.gamut_plot(Bnewhat2, colors=sources_colors, c=colors, marker='s', alpha=1, axes=axes)
+    fig, axes = est.gamut_plot(Bnewhat3, colors=sources_colors, c=colors, marker='+', alpha=1, axes=axes)
     plt.close()
 

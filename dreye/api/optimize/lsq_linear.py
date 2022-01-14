@@ -90,17 +90,19 @@ def _prepare_variables(A, B, lb, ub, W, batch_size):
     A_ = diagonal_stack(A, batch_size)
     lb_ = concat(lb, batch_size)
     ub_ = concat(ub, batch_size)
+    
+    # positivity constraint
+    if np.all(lb >= 0):
+        kwargs = {'pos': True}
+    else:
+        kwargs = {}
 
     # parameters
     w_ = cp.Parameter((batch_size * W.shape[1]), pos=True)
-    b_ = cp.Parameter((batch_size * B.shape[1]), )
+    b_ = cp.Parameter((batch_size * B.shape[1]), **kwargs)
     
     # variable and constraints
-    if np.all(lb >= 0):
-        xkwargs = {'pos': True}
-    else:
-        xkwargs = {}
-    x_ = cp.Variable(A_.shape[1], **xkwargs)
+    x_ = cp.Variable(A_.shape[1], **kwargs)
     constraints = []
     if np.all(np.isfinite(lb)):
         constraints.append(x_ >= lb_)
@@ -168,7 +170,9 @@ def lsq_linear(
         [description]
     """
     A, B, lb, ub, W, baseline, batch_size = _prepare_parameters(
-        A, B, lb, ub, W, K, baseline, batch_size
+        A, B, lb, ub, W, K, baseline, batch_size, 
+        # baseline is not subtracted for the poisson model
+        subtract=(model != 'poisson')
     )
     A_, x_, w_, b_, constraints = _prepare_variables(
         A, B, lb, ub, W, batch_size
@@ -183,13 +187,13 @@ def lsq_linear(
         )
     elif model == 'poisson':
         objective = cp.Minimize(
-            -cp.sum(cp.multiply(b_, cp.log(A_ @ x_)) - (cp.multiply(A_, w_[:, None]) @ x_))
+            -cp.sum(cp.multiply(b_, cp.log(A_ @ x_ + baseline)) - (cp.multiply(A_, w_[:, None]) @ x_ + cp.multiply(w_, baseline)))
         )
     else:
         raise NameError(f"Model string name must be `gaussian` or `poisson`, but is {model}")
     
     problem = cp.Problem(objective, constraints)
-    assert problem.is_dcp(dpp=True)
+    assert problem.is_dcp(dpp=True), "Problem not convex. Positivity constraint probably not met."
 
     # empty X
     X = np.zeros((B.shape[0], A.shape[-1]))

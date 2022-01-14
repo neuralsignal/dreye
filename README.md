@@ -20,7 +20,7 @@ pip install jax[cpu]
 
 ## Common Issues
 
-* Running jax on the new Macbook Pro chips can run into problems. Make sure to install the latest version
+* Running jax on the new Macbook Pro chips can run into problems. Make sure to install the versions that work with the M1 chip. For my purposes jaxlib==0.1.60 and jax==0.2.10 currently work (14/01/21).
 
 ## Development
 

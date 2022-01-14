@@ -23,20 +23,42 @@ from dreye.api.metrics import compute_gamut
 
 
 class ReceptorEstimator:
-    """[summary]
+    """
+    Core class in *drEye* for analyzing and fitting to capture values given 
+    a set of receptor filters and a set of stimulation sources that comprise 
+    an experimental system.
     
     Parameters
     ----------
-    filters : [type]
-        [description]
-    domain : float, optional
-        [description], by default 1.0
-    filters_uncertainty : [type], optional
-        [description], by default None
-    w : [type], optional
-        [description], by default None
-    labels : [type], optional
-        [description], by default None
+    filters : ndarray of shape (n_filters, n_domain)
+        Filter functions for each receptor type.
+    domain : float or ndarray of shape (n_domain), optional
+        Domain array specifying the domain covered by the filter function. 
+        If float, it is assumed to be the step size in the domain (e.g. dx=1nm for wavelengths). 
+        If array-like, it is assumed to be an ascending array where each element is the
+        value in domain coordinates (e.g. [340, 350, ..., 670, 680]nm for wavelengths).
+        By default 1.0.
+    filters_uncertainty : ndarray of shape (n_filters, n_domain) or (n_samples, n_filters, n_domain), optional
+        The standard deviation for each element in `filters`. 
+        If the array has three dimensions, the array is assumed to correspond to 
+        samples from a distribution of filters.
+        By default None.
+    w : float or ndarray of shape (n_filters), optional
+        Importance weighting for each filter during fitting procedures, by default 1.0.
+    labels : ndarray of shape (n_filters), optional
+        The label names of each filter, by default None
+    K : float or ndarray of shape (n_filters) or (n_filters, n_filters), optional
+        The adaptational state of each receptor type, by default 1.0.
+    baseline : float or ndarray of shape (n_filters), optional
+        The baseline capture value of each receptor type, by default 0.0
+    sources : ndarray of shape (n_sources, n_domain), optional
+        The stimulation sources' normalized (excitation/spectral) distribution, by default None
+    lb : float or ndarray of shape (n_sources), optional
+        The lower bound value for each stimulation source, by default set to 0.
+    ub : float or ndarray of shape (n_sources), optional
+        The upper bound value for each stimulation source, by default set to inf
+    sources_labels : ndarray of shape (n_sources), optional
+        The label names of each source, by default None
     """
     
     def __init__(
@@ -67,12 +89,12 @@ class ReceptorEstimator:
             self.register_system(sources, domain=domain, lb=lb, ub=ub, labels=sources_labels)
         
     def register_uncertainty(self, filters_uncertainty):
-        """[summary]
+        """Register a new filter uncertainty function
 
         Parameters
         ----------
-        filters_uncertainty : [type]
-            [description]
+        filters_uncertainty : ndarray of shape (n_filters, n_domain), optional
+            The standard deviation for each element in `filters`, by default None.
         """
         self.filters_uncertainty = (
             filters_uncertainty 
@@ -83,27 +105,31 @@ class ReceptorEstimator:
     ### register state of adaptation and baseline
     
     def register_adaptation(self, K):
-        """[summary]
+        """Register a new adaptational state.
 
         Parameters
         ----------
-        K : [type]
-            [description]
+        K : float or ndarray of shape (n_filters) or (n_filters, n_filters), optional
+            The adaptational state of each receptor type.
         """
         # K being one d or two d
         self.K = np.atleast_1d(K)
     
     def register_background_adaptation(self, background, domain=None, add_baseline=True, add=False):
-        """[summary]
+        """Register a new adaptational state using a background excitation function.
 
         Parameters
         ----------
-        background : [type]
-            [description]
+        background : ndarray of shape (n_domain)
+            Background excitation function.
         domain : [type], optional
-            [description], by default None
+            If given, this is the domain for `background`, 
+            and domains between `filters` and `background` will be equalized.
+            By default None.
         add_baseline : bool, optional
-            [description], by default True
+            Whether to add the `baseline` value the adaptational state, by default True.
+        add : bool, optional
+            Whether to add this adaptational state to the current adaptational state, by default False.
         """
         qb = self.capture(background, domain=domain)
         if add_baseline:
@@ -114,12 +140,12 @@ class ReceptorEstimator:
             self.K = 1/qb
     
     def register_baseline(self, baseline):
-        """[summary]
+        """Register a new baseline value
 
         Parameters
         ----------
-        baseline : [type]
-            [description]
+        baseline : float or ndarray of shape (n_filters)
+            The baseline capture value of each receptor type.
         """
         self.baseline = np.atleast_1d(baseline)
     
@@ -146,19 +172,31 @@ class ReceptorEstimator:
     ### methods that only require filters
     
     def capture(self, signals, domain=None):
-        """[summary]
+        """Calculate the absolute excitation/light-induced capture.
 
         Parameters
         ----------
-        signals : [type]
-            [description]
-        domain : [type], optional
-            [description], by default None
+        signals : ndarray of shape (n_signals, n_domain)
+            The signals exciting all photoreceptor types.
+        domain : ndarray of shape (n_domain), optional
+            If given, this is the domain for `signals`, 
+            and domains between `filters` and `signals` will be equalized.
+            By default None.
 
         Returns
         -------
-        [type]
-            [description]
+        Q : ndarray of shape (n_filters, n_signals)
+            The absolute light-induced capture.
+            
+        Notes
+        -----
+        The absolute excitation/light-induced capture is calculated 
+        using the filter functions :math:`S(\lambda)` and the 
+        signals :math:`I(\lambda)`:
+         
+        .. math:: 
+        
+            Q = \int_{\lambda} S(\lambda)I(\lambda) d\lambda
         """
         signals = np.asarray(signals)
         domain, filters, signals = self._check_domain(domain, signals)
@@ -166,24 +204,26 @@ class ReceptorEstimator:
         return calculate_capture(filters, signals, domain=domain)
     
     def uncertainty_capture(self, signals, domain=None):
-        """[summary]
+        """Calculate the variance of the absolute excitation/light-induced capture.
 
         Parameters
         ----------
-        signals : [type]
-            [description]
-        domain : [type], optional
-            [description], by default None
+        signals : ndarray of shape (n_signals, n_domain)
+            The signals exciting all photoreceptor types.
+        domain : ndarray of shape (n_domain), optional
+            If given, this is the domain for `signals`, 
+            and domains between `filters` and `signals` will be equalized.
+            By default None.
 
         Returns
         -------
-        [type]
-            [description]
+        Epsilon : ndarray of shape (n_filters, n_signals)
+            The variance of the absolute light-induced capture.
 
         Raises
         ------
-        ValueError
-            [description]
+        ValueError, AssertionError
+            If the filters_uncertainty hasn't been previously defined or is not formatted correctly.
         """
         signals = np.asarray(signals)
         domain, filters_uncertainty, signals = self._check_domain(domain, signals, uncertainty=True)
@@ -208,19 +248,31 @@ class ReceptorEstimator:
         return B
         
     def relative_capture(self, signals, domain=None):
-        """[summary]
+        """Calculate the relative capture given a signal
 
         Parameters
         ----------
-        signals : [type]
-            [description]
-        domain : [type], optional
-            [description], by default None
+        signals : ndarray of shape (n_signals, n_domain)
+            The signals exciting all photoreceptor types.
+        domain : ndarray of shape (n_domain), optional
+            If given, this is the domain for `signals`, 
+            and domains between `filters` and `signals` will be equalized.
+            By default None.
 
         Returns
         -------
-        [type]
-            [description]
+        B : ndarray of shape (n_filters, n_signals)
+            The relative total capture.
+            
+        Notes
+        -----
+        The relative total capture is calculated from the absolute capture  
+        :math:`Q` and with the adaptational state :math:`K` and 
+        baseline capture :math:`baseline`:
+         
+        .. math:: 
+        
+            B = K (Q + baseline)
         """
         B = self.capture(signals, domain)
         return self._relative_capture(B)
@@ -763,8 +815,8 @@ class ReceptorEstimator:
         self, 
         B=None,
         neutral_point=None, 
-        delta_radius=1e-5, 
-        delta_norm1=1e-5,
+        delta_radius=1e-4, 
+        delta_norm1=1e-4,
         adaptive_objective="unity", 
         verbose=0, 
         **opt_kwargs
@@ -908,7 +960,7 @@ class ReceptorEstimator:
         self, 
         B=None,
         underdetermined_opt=None,
-        l2_eps=1e-5,
+        l2_eps=1e-4,
         batch_size=1, 
         verbose=0,
         **opt_kwargs
@@ -967,9 +1019,9 @@ class ReceptorEstimator:
         Epsilon=None,
         batch_size=1, 
         verbose=0, 
-        l2_eps=1e-5, 
+        l2_eps=1e-4, 
         L1=None, 
-        l1_eps=1e-5, 
+        l1_eps=1e-4, 
         norm=None,
         **opt_kwargs
     ):
@@ -1030,6 +1082,7 @@ class ReceptorEstimator:
             return self
         return X, B, Bvar
     
+    # TODO
     # def substitute(self, C, **kwargs):
     #     self._assert_registered()
     #     pass
@@ -1106,7 +1159,9 @@ class ReceptorEstimator:
         label_size=16,
         **kwargs
     ):
-        """[summary]
+        """
+        Plot the simplex plot (aka chromaticity diagram) of all filter types. 
+        This function only works for two, three, and four filter types (i.e. 1 < n_filters < 5). 
 
         Parameters
         ----------
@@ -1289,7 +1344,7 @@ class ReceptorEstimator:
         vectors_kws=None,
         **kwargs
     ):
-        """[summary]
+        """Plot the hull of the system on all possible pairs of filter combinations (2D-plot).
 
         Parameters
         ----------
