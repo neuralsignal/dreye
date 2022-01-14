@@ -726,6 +726,10 @@ def lsq_linear_decomposition(
         iters = tqdm(range(max_iter), desc="Decompose iteration", total=max_iter)
     else:
         iters = range(max_iter)
+        
+    # for linting purposes
+    prev_vars = None
+    prev_loss = None
 
     # EM-type algorithm to optimize P and X
     for n in iters:
