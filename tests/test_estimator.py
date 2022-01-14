@@ -227,6 +227,7 @@ def test_introduction():
 
     # all points can be fit perfectly
     print(np.allclose(B2, Bhat))
+    print(np.abs(B2 - Bhat))
     assert np.allclose(B2, Bhat)
 
     # %%
