@@ -5,18 +5,20 @@ from itertools import combinations
 from numbers import Number
 import numpy as np
 from scipy.special import comb
+from scipy.spatial import ConvexHull
 import matplotlib.pyplot as plt
 
 from dreye.api.barycentric import barycentric_dim_reduction, cartesian_to_barycentric
 from dreye.api.capture import calculate_capture
-from dreye.api.convex import get_P_from_A, in_hull_from_A, range_of_solutions
+from dreye.api.convex import get_P_from_A, in_hull, in_hull_from_A, range_of_solutions
 from dreye.api.domain import equalize_domains
 from dreye.api.optimize.lsq_linear import lsq_linear, lsq_linear_adaptive, lsq_linear_decomposition, lsq_linear_excitation, lsq_linear_minimize, lsq_linear_underdetermined
 from dreye.api.optimize.lsq_nonlinear import lsq_nonlinear
 from dreye.api.plotting.basic import hull_outline, simple_plotting_function, vectors_plot
 from dreye.api.plotting.simplex_plot import plot_simplex
+from dreye.api.project import B_with_P
 from dreye.api.sampling import sample_in_hull
-from dreye.api.utils import check_bounds
+from dreye.api.utils import check_bounds, l1norm, linear_transform
 from dreye.api.metrics import compute_gamut
 
 
@@ -437,6 +439,11 @@ class ReceptorEstimator:
             baseline=(self.baseline if relative else None), 
             bounded=bounded
         )
+        
+    def sample_in_gamut(self, *args, **kwargs):
+        """Alias for `sample_in_hull`. 
+        """
+        return self.sample_in_gamut(*args, **kwargs)
     
     def sample_in_hull(self, n=10, seed=None, engine=None, l1=None, relative=True):
         """[summary]
@@ -472,6 +479,97 @@ class ReceptorEstimator:
             P = barycentric_dim_reduction(P)
             X = sample_in_hull(P, n, seed=seed, engine=engine)
             return cartesian_to_barycentric(X, L1=l1)
+        
+    def gamut_l1_scaling(self, *args, **kwargs):
+        """Alias for `hull_l1_scaling`
+        """
+        return self.hull_l1_scaling(*args, **kwargs)
+        
+    def hull_l1_scaling(self, B, relative=True):
+        """Scale `B` to fit within the hull/gamut of the system
+
+        Parameters
+        ----------
+        B : [type]
+            [description]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        if relative:
+            A, baseline = linear_transform(self.A, self.K, self.baseline)
+        else:
+            A = self.A
+            baseline = 0
+        
+        B = B - baseline
+        # scale intensities to span gamut
+        Amax = A * self.ub
+        amax = np.min(np.max(Amax, axis=-1))
+        bmax = np.max(B)
+        return B * amax / bmax + baseline
+    
+    def gamut_angle_scaling(self, *args, **kwargs):
+        """Alias for `hull_angle_scaling`
+        """
+        return self.hull_angle_scaling(*args, **kwargs)
+    
+    def hull_angle_scaling(self, B, neutral_point=None, relative=True):
+        """Scale `B` within L1-normalized simplex plot to fit within gamut of system.
+
+        Parameters
+        ----------
+        B : [type]
+            [description]
+        neutral_point : [type], optional
+            [description], by default None
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        if neutral_point is None:
+            neutral_point = np.ones(self.filters.shape[0])
+        neutral_point = np.atleast_2d(neutral_point)
+        
+        P = self._get_P_from_A(relative=relative, bounded=True)        
+        # remove zero point, if exists
+        P = P[(P == 0).all(-1)]
+        assert np.all(P >= 0)  # must be non-negative
+        # replace zero point with neutral point
+        B = B.copy()
+        zero_rows = (B == 0).all(-1)
+        B[zero_rows] = neutral_point
+        L1 = l1norm(B, axis=-1) 
+
+        center = barycentric_dim_reduction(neutral_point)
+        
+        baryP = barycentric_dim_reduction(P) - center
+        baryB = barycentric_dim_reduction(B) - center
+        
+        # find alphas 
+        if baryP.shape[1] == 1:
+            assert np.any(baryP < 0) and np.any(baryP > 0)
+            baryP_ = np.array([np.min(baryP), np.max(baryP)])
+            alphas = baryP_[:, None, None] / baryB[None, ...]
+            alphas[alphas <= 0] = np.nan
+            alpha = np.nanmin(alphas)
+        else:
+            assert np.all(
+                in_hull(baryP, np.zeros(baryP.shape[1]))
+            ), "neutral point is not in hull."
+            hull = ConvexHull(baryP)
+            alphas = B_with_P(baryB, hull.equations)
+            alpha = np.nanmin(alphas)
+
+        baryB_scaled = baryB * alpha + center
+
+        B = cartesian_to_barycentric(baryB_scaled, L1)
+        B[zero_rows] = 0
+        return B
         
     ### fitting functions
     
@@ -511,7 +609,12 @@ class ReceptorEstimator:
     def _assert_fitted(self):
         assert hasattr(self, 'X'), "Target have not been fitted to system yet."
     
-        ### methods that require registered system
+    ### methods that require registered system
+        
+    def in_gamut(self, *args, **kwargs):
+        """Alias for `in_hull`.
+        """
+        return self.in_hull(*args, **kwargs)
     
     def in_hull(self, B=None, relative=True):
         """[summary]
@@ -1170,7 +1273,12 @@ class ReceptorEstimator:
         
         return ax
     
-    def gamut_plot(
+    def gamut_plot(self, *args, **kwargs):
+        """Alias for `hull_plot`.
+        """
+        return self.hull_plot(*args, **kwargs)
+    
+    def hull_plot(
         self, B=None, 
         axes=None, labels=None, 
         sources_labels=None,

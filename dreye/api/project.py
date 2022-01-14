@@ -145,12 +145,12 @@ def proj_P_to_simplex(P, c):
 
 def proj_B_to_hull(B, equations):
     """
-    Project `X` to the convex hull defined by the
+    Project `B` to the convex hull defined by the
     hyperplane equations of the facets
 
     Parameters
     ----------
-    X : numpy.ndarray (..., ndim)
+    B : numpy.ndarray (..., ndim)
     equations : numpy.ndarray (nfacets, ndim + 1)
 
     Returns
