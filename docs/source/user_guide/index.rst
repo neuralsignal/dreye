@@ -31,9 +31,17 @@ Tutorials
 The different tutorials are listed below:
 
 * `Introduction to dreye <introduction.ipynb>`_.
+   .. image:: https://mybinder.org/badge_logo.svg
+      :target: https://mybinder.org/v2/gh/gucky92/dreye/HEAD?labpath=tutorials%2Fintroduction.ipynb
 * `Dealing with filter uncertainty and underdetermined systems <uncertainty.ipynb>`_.
+   .. image:: https://mybinder.org/badge_logo.svg
+      :target: https://mybinder.org/v2/gh/gucky92/dreye/HEAD?labpath=tutorials%2Funcertainty.ipynb
 * `Gamut-corrective approaches <gamut_corrections.ipynb>`_.
+   .. image:: https://mybinder.org/badge_logo.svg
+      :target: https://mybinder.org/v2/gh/gucky92/dreye/HEAD?labpath=tutorials%2Fgamut_corrections.ipynb
 * `Patterned stimuli <patterned.ipynb>`_.
+   .. image:: https://mybinder.org/badge_logo.svg
+      :target: https://mybinder.org/v2/gh/gucky92/dreye/HEAD?labpath=tutorials%2Fpatterned.ipynb
 
 .. toctree::
     :maxdepth: 2
