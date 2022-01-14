@@ -11,9 +11,8 @@ Sci Rep 6, 26756 (2016). https://doi.org/10.1038/srep26756
 import os
 import pandas as pd
 import numpy as np
-from dreye.utilities import irr2flux
+from dreye.api.units.convert import irr2flux
 from dreye import DREYE_DIR
-from dreye.core.signal import Signals
 
 
 _WL_FILE = 'srep26756-s1.csv'
@@ -34,22 +33,20 @@ SPITSCHAN2016_FILE = os.path.join(
 )
 
 
-def load_dataset(as_spectra=False, label_cols='data_id'):
+def load_dataset(as_wide=False, label_cols='data_id'):
     """
     Load Spitschan dataset of various spectra for different times of day as a dataframe.
 
     Parameters
     ----------
-    as_spectra : bool, optional
-        Whether to return a `dreye.IntensitySpectra`. If False,
-        returns a long-format `pandas.DataFrame`. Defaults to False.
+    as_wide : bool, optional
+        Whether to return the dataframe as a wide-format dataframe.
     label_cols : str or list-like, optional
-        The label columns for the `dreye.IntensitySpectra` instance.
-        Defaults to `data_id`.
+        The column `pandas.MultiIndex`, if `as_wide` is True.
 
     Returns
     -------
-    df : `pandas.DataFrame` or `dreye.IntensitySpectra`
+    df : `pandas.DataFrame`
         A long-format `pandas.DataFrame` with the following columns:
             * `date_number`
             * `solar_elevation`
@@ -63,9 +60,7 @@ def load_dataset(as_spectra=False, label_cols='data_id'):
             * `spectralirradiance`
             * `microspectralphotonflux`
             * `location`
-        Or a `dreye.IntensitySpectra` instance in units of
-        microspectralphotonflux and labels along the column axis.
-        The column labels are a `pandas.MultiIndex`.
+        The columns attribute is a `pandas.MultiIndex` in wide-format.
 
     References
     ----------
@@ -89,17 +84,13 @@ def load_dataset(as_spectra=False, label_cols='data_id'):
     df.loc[:, 'spectralirradiance'] = df['spectralirradiance'].fillna(0)
     df.loc[df['spectralirradiance'] < 0, 'spectralirradiance'] = 0
 
-    if as_spectra:
-        return Signals(
-            pd.pivot_table(
-                df,
-                'microspectralphotonflux',
-                'wavelengths',
-                label_cols
-            ).fillna(0),
-            units='uE', 
-            domain_units='nm'
-        )
+    if as_wide:
+        return pd.pivot_table(
+            df,
+            'microspectralphotonflux',
+            'wavelengths',
+            label_cols
+        ).fillna(0)
 
     return df
 

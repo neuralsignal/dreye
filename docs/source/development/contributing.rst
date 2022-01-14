@@ -40,9 +40,9 @@ and "help wanted" is open to whoever wants to implement it.
 Write Documentation
 ~~~~~~~~~~~~~~~~~~~
 
-`dreye` could always use more documentation, whether as part of the
-official docs, in docstrings, or even on the web in blog posts,
-articles, and such.
+`dreye` could always use more documentation, whether as part of 
+the official docs, in docstrings, or even on the web in 
+blog posts, articles, and such.
 
 Submit Feedback
 ~~~~~~~~~~~~~~~
@@ -109,14 +109,6 @@ Before you submit a pull request, check that it meets these guidelines:
 3. The pull request should work for Python 3.6, 3.7 and 3.8, and for PyPy. Check
    https://travis-ci.com/gucky92/dreye/pull_requests
    and make sure that the tests pass for all supported Python versions.
-
-Tips
-----
-
-To run a subset of tests::
-
-$ pytest tests.test_frameengine.py
-
 
 Deploying
 ---------

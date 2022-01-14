@@ -7,12 +7,21 @@ import numpy as np
 from dreye.api.utils import l2norm
 
 
-# TODO test
-
-
-def spherical2cartesian(Y):
+def spherical_to_cartesian(Y):
     """
-    Convert from spherical to cartesian coordinates
+    Convert from spherical to cartesian coordinates. 
+    
+    Parameters
+    ----------
+    Y : array-like (..., ndim)
+        Array where the last axis corresponds to the dimensions of each spherical coordinate
+        starting with the radius and ending with the angle that spans 2pi. The other angles
+        only span pi. All angle dimensions must be in radians.
+        
+    Returns
+    -------
+    X : array-like (..., ndim)
+        `Y` in cartesian corrdinates.
     """
     if Y.shape[-1] == 1:
         return Y
@@ -27,19 +36,31 @@ def spherical2cartesian(Y):
     
     X = np.zeros(Y.shape)
     # first dimension
-    X[..., 0] = cosx[:, 0]
+    X[..., 0] = cosx[..., 0]
     # second to second to last
-    for i in range(1, Y.shape[-1]-1):
-        X[..., i] = cosx[:, i] * np.prod(sinx[:, :i], axis=-1)
+    for i in range(1, Y.shape[-1] - 1):
+        X[..., i] = cosx[..., i] * np.prod(sinx[..., :i], axis=-1)
     # last
     X[..., -1] = np.prod(sinx, axis=-1)
     
     return X * r
 
 
-def cartesian2spherical(X):
+def cartesian_to_spherical(X):
     """
-    Convert from cartesian to spherical coordinates
+    Convert from cartesian to spherical coordinates.
+    
+    Parameters
+    ----------
+    X : array-like (..., ndim)
+        Array where the last axis corresponds to the dimensions in cartesian coordinates.
+        
+    Returns
+    -------
+    Y : array-like (..., ndim)
+        Array where the last axis corresponds to the dimensions of each spherical coordinate
+        starting with the radius and ending with the angle that spans 2pi. The other angles
+        only span pi. All angle dimensions must be in radians.
     """
     
     if X.shape[-1] == 1:

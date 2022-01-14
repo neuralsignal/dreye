@@ -9,12 +9,18 @@ import warnings
 import numpy as np
 from scipy import optimize
 from scipy.linalg import block_diag
-import jax.numpy as jnp
-from jax import jit, jacfwd, jacrev, grad, vmap
+
+try:
+    JAX = True
+    import jax.numpy as jnp
+    from jax import jit, jacfwd, jacrev, grad, vmap
+except (ImportError, RuntimeError):
+    JAX = False
 
 from dreye.api.optimize.parallel import batch_arrays, batched_iteration
 from dreye.api.optimize.utils import get_batch_size, prepare_parameters_for_linear, FAILURE_MESSAGE, replace_numpy
-from dreye.api.optimize.lsq_linear import lsq_linear_cp
+from dreye.api.optimize.lsq_linear import lsq_linear
+from dreye.api.utils import get_prediction
 
 
 # B is assumed to have the affine transform already applied
@@ -91,12 +97,15 @@ def lsq_nonlinear(
     lb (inputs)
     w (channels)
     """
+    if not JAX:
+        raise RuntimeError("JAX not properly installed in environment in order to perform nonlinear least squares optimization.")
     A, B, lb, ub, W, baseline = prepare_parameters_for_linear(A, B, lb, ub, W, K, baseline)
     # get linear X0
     if X0 is None:
-        linopt_kwargs['batch_size'] = max(1, int(2**10 * 1/np.prod(A.shape)))  # TODO test optimality
+        # TODO-later test optimality
+        linopt_kwargs['batch_size'] = max(1, int(2**10 * 1/np.prod(A.shape)))
         linopt_kwargs['n_jobs'] = None
-        X0 = lsq_linear_cp(
+        X0 = lsq_linear(
             A=A, B=B, lb=lb, ub=ub, W=W, 
             # K=K, -> transformation already applied above 
             baseline=baseline, return_pred=False,
@@ -106,6 +115,8 @@ def lsq_nonlinear(
         X0 = np.asarray(X0)
         assert X0.shape[0] == B.shape[0]
         assert A.shape[1] == X0.shape[1]
+        
+    # TODO-later if all in gamut skip whole fitting procedure
 
     if nonlin is None:
         if return_pred:
@@ -145,10 +156,12 @@ def lsq_nonlinear(
 
     X = np.zeros((E.shape[0], A.shape[-1]))
     count_failure = 0
-    for idx, (e, w, x0), (A_, baseline_, lb_, ub_) in batched_iteration(E.shape[0], (E, W, X0), (A, baseline, lb, ub), batch_size=batch_size):
-        # TODO parallelizing
-        # TODO test using sparse matrices when batching
-        # TODO substitute with faster algorithm
+    for idx, (e, w, x0), (A_, baseline_, lb_, ub_) in batched_iteration(E.shape[0], (E, W, X0), (A, baseline, lb, ub), batch_size=batch_size, verbose=verbose):
+        # TODO-later parallelizing
+        # TODO-later padding
+        # TODO-later test using sparse matrices when batching
+        # TODO-later substitute with faster algorithm
+        # TODO-later efficiency skipping in gamut solutions
         idx_slice = slice(idx * batch_size, (idx+1) * batch_size)
         # reshape resulting x
         x0 = x0.reshape(-1, A.shape[-1])
@@ -206,10 +219,12 @@ def lsq_nonlinear(
             raise RuntimeError(FAILURE_MESSAGE.format(count=count_failure)) 
 
     if return_pred:
-        return X, nonlin(X @ A.T + baseline)
+        B = get_prediction(X, A, baseline)
+        return X, B, nonlin(B)
     return X
 
 
-# TODO nonlinear variance minimization
-# TODO nonlinear gamut adaptive minimization
-# TODO nonlinear image decomposition
+# TODO-later transfer old code for nonlinear cases
+# TODO-later nonlinear variance minimization
+# TODO-later nonlinear gamut adaptive minimization
+# TODO-later nonlinear image decomposition

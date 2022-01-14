@@ -1,32 +1,28 @@
-# [WIP] dreye
+# DrEye: Exploiting Receptor Space Geometry for Stimulus Design across Animals
 
-## DrEye: Exploiting Color Space Geometry for Visual Stimulus Design across Animals
-
-Dreye is still being actively developed and tested, and documentation will be added soon. Currently, we are redesigning some of the API in order to make it easier to use and speed up some of our algorithms. Our redesign will be finished by mid-November, but our old API will remain for backwards compatibility
-
-The current documentation focuses on the old API, but will be updated in the next weeks.
-
-## Timeline for new API release
-
-* Jan 25: Tutorials for new API
-* Jan 31: Web application for stimulus design and color space manipulation
+*drEye* is a package that implements various approaches to design stimuli for sensory receptors. The main focus of the package is geared towards designing color stimuli for any animal under investigation, where the photoreceptor spectral sensitivities are known. The hardware-agnostic approach incorporates photoreceptor models within the framework of the principle of univariance. This enables experimenters to identify the most effective way to combine multiple light sources to create desired distributions of light, and thus easily construct relevant stimuli for mapping the color space of an organism. The methods support broad applications in color vision science and provide a framework for uniform stimulus designs across experimental systems. Many of the methods described can be used more generally to design stimuli for other sensory organs or used more broadly where a set of linear filters define the input to a system. In this introductory tutorial, we will cover some of the basics of the *drEye* API using basic examples from color vision science.
 
 ## Installation
 
-```
+```bash
 pip install dreye
 ```
 
-## Hardware module
+In order to use the non-linear fitting procedures, JAX should be installed separately:
 
-For the hardware module in dreye the following packages will also have to be installed:
+```bash
+pip install jax[cpu]
+```
 
-```
-pip install seabreeze>=1.0.1
-pip install nidaqmx>=0.5.7
-```
+## Tutorials
+
+Tutorials can be found here: ...
+
+## Common Issues
+
+* Running jax on the new Macbook Pro chips can run into problems. Make sure to install the latest version
 
 ## Development
 
-Currently, we are redesigning the API for ease-of-use. If you are interested in helping us redesign and contribute to our project, please email at gucky@gucky.eu.
+If you are interested in contributing to the project, please email at gucky@gucky.eu.
 We would also love any type of general feedback or contributions to the code and methods implemented.
