@@ -16,11 +16,11 @@ def calculate_capture(
 
     Parameters
     ----------
-    filters : array-like (..., filter_dim, domain_dim)
-        [description]
-    signals : array-like (..., signal_dim, domain_dim)
-        [description]
-    domain : float or array-like (domain_dim), optional
+    filters : ndarray of shape (..., n_filters, n_domain)
+        Filter functions for each receptor type.
+    signals : ndarray of shape (..., n_signals, n_domain)
+        The signals exciting all receptor types.
+    domain : float or ndarray of shape (n_domain), optional
         If float, it is assumed to be the step size in the domain (e.g. dx=1nm for wavelengths). 
         If array-like, it is assumed to be an ascending array where each element is the
         value in domain coordinates (e.g. [340, 350, ..., 670, 680]nm for wavelengths).
@@ -32,8 +32,8 @@ def calculate_capture(
 
     Returns
     -------
-    captures : array-like (..., signal_dim, filter_dim)
-        [description]
+    captures : ndarray of shape (..., n_signals, n_filters)
+        Calculated capture values.
     """
     filters = np.asarray(filters)
     signals = np.asarray(signals)

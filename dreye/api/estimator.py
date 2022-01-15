@@ -177,7 +177,7 @@ class ReceptorEstimator:
         Parameters
         ----------
         signals : ndarray of shape (n_signals, n_domain)
-            The signals exciting all photoreceptor types.
+            The signals exciting all receptor types.
         domain : ndarray of shape (n_domain), optional
             If given, this is the domain for `signals`, 
             and domains between `filters` and `signals` will be equalized.
@@ -187,6 +187,10 @@ class ReceptorEstimator:
         -------
         Q : ndarray of shape (n_filters, n_signals)
             The absolute light-induced capture.
+            
+        See Also
+        --------
+        ReceptorEstimator.relative_capture
             
         Notes
         -----
@@ -209,7 +213,7 @@ class ReceptorEstimator:
         Parameters
         ----------
         signals : ndarray of shape (n_signals, n_domain)
-            The signals exciting all photoreceptor types.
+            The signals exciting all receptor types.
         domain : ndarray of shape (n_domain), optional
             If given, this is the domain for `signals`, 
             and domains between `filters` and `signals` will be equalized.
@@ -224,6 +228,10 @@ class ReceptorEstimator:
         ------
         ValueError, AssertionError
             If the filters_uncertainty hasn't been previously defined or is not formatted correctly.
+            
+        See Also
+        --------
+        ReceptorEstimator.capture
         """
         signals = np.asarray(signals)
         domain, filters_uncertainty, signals = self._check_domain(domain, signals, uncertainty=True)
@@ -264,6 +272,10 @@ class ReceptorEstimator:
         B : ndarray of shape (n_filters, n_signals)
             The relative total capture.
             
+        See Also
+        --------
+        ReceptorEstimator.capture
+            
         Notes
         -----
         The relative total capture is calculated from the absolute capture  
@@ -280,20 +292,27 @@ class ReceptorEstimator:
     ### register a system
     
     def register_system(self, sources, domain=None, lb=None, ub=None, labels=None, Epsilon=None):
-        """[summary]
-
+        """Register a new stimulation system.
+        
         Parameters
         ----------
-        sources : [type]
-            [description]
-        domain : [type], optional
-            [description], by default None
-        lb : [type], optional
-            [description], by default None
-        ub : [type], optional
-            [description], by default None
-        labels : [type], optional
-            [description], by default None
+        sources : ndarray of shape (n_sources, n_domain)
+            The stimulation sources' normalized (excitation/spectral) distribution, by default None
+        domain : ndarray of shape (n_domain), optional
+            If given, this is the domain for the `sources` argument, 
+            and domains between `filters` and `sources` will be equalized.
+            By default None.
+        lb : float or ndarray of shape (n_sources), optional
+            The lower bound value for each stimulation source, by default set to 0.
+        ub : float or ndarray of shape (n_sources), optional
+            The upper bound value for each stimulation source, by default set to inf.
+        labels : ndarray of shape (n_sources), optional
+            The label names of each source, by default None.
+        Epsilon : ndarray of shape (n_filters, n_sources), optional
+            The capture-base variance of each source-filter combination. 
+            If None, this will be calculated using the `filters_uncertainty` 
+            attribute provided during initialization. 
+            By default None.
         """
         sources = np.asarray(sources)
         # assign sources and domain
@@ -318,31 +337,46 @@ class ReceptorEstimator:
             self.Epsilon = np.asarray(Epsilon)
             assert self.Epsilon.shape == self.A.shape, "Shape of Epsilon must match (n_channels x n_sources)."
     
-    def compute_gamut(
+    def compute_gamut(self, *args, **kwargs):
+        """Alias for `ReceptorEstimator.compute_hull`.
+        """
+        return self.compute_hull(*args, **kwargs)
+
+    def compute_hull(
         self, 
         fraction=True,
         at_l1=None, metric='width', seed=None, 
         relative=True, 
     ):
-        """[summary]
+        """
+        Compute the hull metric.
+        This indicates the fraction of a
+        perfect stimulation system is covered by the 
+        registered stimulation system.
 
         Parameters
         ----------
         fraction : bool, optional
-            [description], by default True
-        at_l1 : [type], optional
-            [description], by default None
+            Whether to calculate the fractional metric (relative to the perfect system)
+            or the absolute metric. By default True.
+        at_l1 : float, optional
+            Whether to calculate the metric for a specific overall capture. 
+            That is a specific L1 norm value of the hull.
+            By default None.
         metric : str, optional
-            [description], by default 'width'
-        seed : [type], optional
-            [description], by default None
+            Metric used to compute. 
+            Currently the mean width is implemented (`'width'`) 
+            and computing the volume of the convex hull (`'volume'`).
+            By default 'width'.
+        seed : int, optional
+            Seed used when computing the mean width, by default None
         relative : bool, optional
-            [description], by default True
+            Whether to use relative total capture or light-induced absolute capture, by default True.
 
         Returns
         -------
-        [type]
-            [description]
+        metric : float
+            The hull metric.
         """
         self._assert_registered()
         P = self._get_P_from_A(relative=relative, bounded=True)
@@ -366,12 +400,12 @@ class ReceptorEstimator:
     
     @property
     def registered(self):
-        """[summary]
+        """Stimulation system is registered
 
         Returns
         -------
-        [type]
-            [description]
+        bool
+            Whether a stimulation system is registered with the object.
         """
         return hasattr(self, 'A') and hasattr(self, 'Epsilon')
     
@@ -380,68 +414,84 @@ class ReceptorEstimator:
     
     @property
     def underdetermined(self):
-        """[summary]
+        """Stimulation system underdetermined
 
         Returns
         -------
-        [type]
-            [description]
+        bool
+            Whether the stimulation system is underdetermined.
+            That is :math:`n_{filters}<n_{sources}`.
         """
         return self.registered and (self.A.shape[0] < self.A.shape[1])
     
     def system_capture(self, X):
-        """[summary]
+        """
+        Calculate the absolute light-induced capture 
+        given intensities of the stimulation system.
 
         Parameters
         ----------
-        X : [type]
-            [description]
+        X : ndarray of shape (..., n_sources)
+            Set of intensities used for the stimulation system.
 
         Returns
         -------
-        [type]
-            [description]
+        ndarray
+            Tehe calculated absolute light-induced capture.
         """
         self._assert_registered()
         X = np.asarray(X)
         return X @ self.A.T
     
     def system_relative_capture(self, X):
-        """[summary]
+        """
+        Calculate the relative total capture 
+        given intensities of the stimulation system.
 
         Parameters
         ----------
-        X : [type]
-            [description]
+        X : ndarray of shape (..., n_sources)
+            Set of intensities used for the stimulation system.
 
         Returns
         -------
-        [type]
-            [description]
+        ndarray
+            The calculated relative total capture.
         """
         self._assert_registered()
         B = self.system_capture(X)
         return self._relative_capture(B)
     
     def in_system(self, X):
-        """[summary]
+        """
+        Are a set of intensities within the bounds?
 
         Parameters
         ----------
-        X : [type]
-            [description]
+        X : ndarray of shape (..., n_sources)
+            Set of intensity values.
+            
+        Returns
+        -------
+        ndarray of shape (..., n_sources)
+            Boolean array of intensities within the system.
         """
         self._assert_registered()
         X = np.asarray(X)
         return (X >= self.lb) & (X <= self.ub)
     
     def register_system_adaptation(self, x, add_baseline=True, add=False):
-        """[summary]
+        """
+        Register an adaptational state according to a set of intensities
 
         Parameters
         ----------
-        X : [type]
-            [description]
+        X : ndarray of shape (n_sources)
+            Set of intensity values.
+        add_baseline : bool, optional
+            Whether to add the `baseline` value the adaptational state, by default True.
+        add : bool, optional
+            Whether to add this adaptational state to the current adaptational state, by default False.
         """
         self._assert_registered()
         qb = self.system_capture(x)
@@ -453,14 +503,15 @@ class ReceptorEstimator:
             self.K = 1/qb
     
     def register_bounds(self, lb=None, ub=None):
-        """[summary]
+        """
+        Register new lower and upper bounds, if given.
 
         Parameters
         ----------
-        lb : [type], optional
-            [description], by default None
-        ub : [type], optional
-            [description], by default None
+        lb : float or ndarray of shape (n_sources), optional
+            The lower bound value for each stimulation source.
+        ub : float or ndarray of shape (n_sources), optional
+            The upper bound value for each stimulation source.
         """
         self._assert_registered()
         # lb and ub
@@ -471,20 +522,8 @@ class ReceptorEstimator:
             self.ub = ub_
             
     def _get_P_from_A(self, relative=True, bounded=None, remove_zero=False):
-        """[summary]
-
-        Parameters
-        ----------
-        relative : bool, optional
-            [description], by default True
-        bounded : [type], optional
-            [description], by default None
-
-        Returns
-        -------
-        [type]
-            [description]
-        """
+        # get exhaustive set of capture values that span the gamut
+        # of the stimulation system.
         P = get_P_from_A(
             self.A, self.lb, self.ub, 
             K=(self.K if relative else None), 
@@ -496,28 +535,35 @@ class ReceptorEstimator:
         return P
         
     def sample_in_gamut(self, *args, **kwargs):
-        """Alias for `sample_in_hull`. 
+        """Alias for `ReceptorEstimator.sample_in_hull`. 
         """
         return self.sample_in_gamut(*args, **kwargs)
     
     def sample_in_hull(self, n=10, seed=None, engine=None, l1=None, relative=True):
-        """[summary]
+        """
+        Sample capture values within the hull of the stimulation system.
 
         Parameters
         ----------
         n : int, optional
-            [description], by default 10
-        seed : [type], optional
-            [description], by default None
-        engine : [type], optional
-            [description], by default None
-        l1 : [type], optional
-            [description], by default None
+            Number of samples, by default 10.
+        seed : int, optional
+            Seed number, by default None
+        engine : str, optional
+            Quasi-Markov chain engine used to draw samples. 
+            Accepts `'Halton'`, `'Sobol'`, and `'LHC'`. 
+            If None, no QMC engine is used. 
+            For details see `scipy.qmc`.
+            By default None.
+        l1 : float, optional
+            Whether to sample points that correspond to a specific L1-norm. 
+            By default None.
 
         Returns
         -------
-        [type]
-            [description]
+        ndarray of shape (n, n_filters)
+            Sampled points from a uniform distribution
+            within the convex hull of the stimulation system.
         """
         self._assert_registered()
         # check if bounded
@@ -536,7 +582,7 @@ class ReceptorEstimator:
             return cartesian_to_barycentric(X, L1=l1)
         
     def gamut_l1_scaling(self, *args, **kwargs):
-        """Alias for `hull_l1_scaling`
+        """Alias for `ReceptorEstimator.hull_l1_scaling`
         """
         return self.hull_l1_scaling(*args, **kwargs)
         
@@ -547,13 +593,14 @@ class ReceptorEstimator:
 
         Parameters
         ----------
-        B : [type]
-            [description]
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
 
         Returns
         -------
-        [type]
-            [description]
+        ndarray of shape (n_samples, n_filters)
+            Scaled values of `B` to fit within the convex hull
+            of the stimulation system.
         """
         if relative:
             A, baseline = linear_transform(self.A, self.K, self.baseline)
@@ -569,7 +616,7 @@ class ReceptorEstimator:
         return B * amax / bmax + baseline
     
     def gamut_dist_scaling(self, *args, **kwargs):
-        """Alias for `hull_dist_scaling`
+        """Alias for `ReceptorEstimator.hull_dist_scaling`
         """
         return self.hull_dist_scaling(*args, **kwargs)
     
@@ -580,15 +627,20 @@ class ReceptorEstimator:
 
         Parameters
         ----------
-        B : [type]
-            [description]
-        neutral_point : [type], optional
-            [description], by default None
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+        neutral_point : ndarray of shape (n_filters), optional
+            The neutrality point to use as the center of 
+            the simplex plot for scaling each vector. 
+            If None, then the center is set to the
+            adaptational state of equal capture for all
+            filters.
+            By default None.
 
         Returns
         -------
-        [type]
-            [description]
+        ndarray of shape (n_samples, n_filters)
+            The scaled versions of `B`.
         """
         if self.in_hull(B, normalized=True).all():
             return B.copy()
@@ -634,14 +686,15 @@ class ReceptorEstimator:
     ### fitting functions
     
     def register_targets(self, B, W=None):
-        """[summary]
+        """Register a set of relative total capture values.
 
         Parameters
         ----------
-        B : [type]
-            [description]
-        W : [type], optional
-            [description], by default None
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+        W : ndarray of shape (n_samples, n_filters), optional
+            Importance weighting for each sample and filter. 
+            By default None and set to `w`.
         """
         self._assert_registered()
         self.target_B = np.asarray(B)
@@ -654,12 +707,13 @@ class ReceptorEstimator:
     
     @property
     def registered_targets(self):
-        """[summary]
+        """If targets have been registered.
 
         Returns
         -------
-        [type]
-            [description]
+        bool
+            Whether relative total capture values have been set using
+            the `register_targets` method.
         """
         return hasattr(self, 'B')
 
@@ -672,22 +726,26 @@ class ReceptorEstimator:
     ### methods that require registered system
         
     def in_gamut(self, *args, **kwargs):
-        """Alias for `in_hull`.
+        """Alias for `ReceptorEstimator.in_hull`.
         """
         return self.in_hull(*args, **kwargs)
     
     def in_hull(self, B=None, relative=True, normalized=False):
-        """[summary]
+        """
+        If relative captures are within the system's hull.
 
         Parameters
         ----------
-        B : [type]
-            [description]
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
 
         Returns
         -------
-        [type]
-            [description]
+        ndarray of shape (n_samples)
+            Whether the sample is within the stimulation system's 
+            convex hull.
         """
         self._assert_registered()
         if B is None:
@@ -710,25 +768,37 @@ class ReceptorEstimator:
     def range_of_solutions(
         self, B=None, relative=True, error='raise', n=None, eps=1e-5
     ):
-        """[summary]
+        """
+        Range of possible solutions for capture values.
 
         Parameters
         ----------
-        B : [type], optional
-            [description], by default None
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
         relative : bool, optional
-            [description], by default True
+            Whether `B` are relative capture values, by default True.
         error : str, optional
-            [description], by default 'raise'
-        n : [type], optional
-            [description], by default None
-        eps : [type], optional
-            [description], by default 1e-5
+            Error message when no range of solutions can be found ('raise', 'warning', or 'ignore').
+            By default 'raise'.
+        n : int, optional
+            Number of minimum samples to draw between the range of solutions.
+            If None, no samples are drawn.
+            By default None.
+        eps : float, optional
+            Accuracy for relative capture values, by default 1e-5.
 
         Returns
         -------
-        [type]
-            [description]
+        mins : ndarray of shape (n_samples, n_sources)
+            The minimum possible value for each stimulation source.
+        maxs : ndarray of shape (n_samples, n_sources)
+            The maximum possible value for each stimulation source.
+        Xs : ndarray of shape (n_samples)
+            An object array containing arrays of shape (n+, n_sources)
+            of all the samples drawn for the given capture value.
+            This is only returned, if `n` is not None.
         """
         self._assert_registered()
         if B is None:
@@ -753,24 +823,42 @@ class ReceptorEstimator:
 
         Parameters
         ----------
-        B : [type], optional
-            [description], by default None
-        model : str, optional
-            [description], by default 'gaussian'
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
+        model : str or callable, optional
+            Model used for fitting source intensities:
+                * 'gaussian': Gaussian model where the squared difference 
+                    between the target and the fitted captures is minimized. 
+                * 'poisson': Poisson model that minimizes 
+                    the negative log-likelihood of a Poisson distribution.
+                * 'excitation': Minimizes difference between the
+                    target and fitted excitation values. Excitation values 
+                    are define as :math:`e=b/(1+b)`. This function 
+                    saturates at 1.
+                * custom-callable: If a custom callable is given, 
+                    this is applied to the capture values to transform
+                    them into custom excitation values.
+                    Non-linear least squares is used to minize the difference
+                    between the target and fitted excitations.
+            By default 'gaussian'.
         batch_size : int, optional
-            [description], by default 1
+            Batch size used to simultaneously fit multiple samples, by default 1.
         verbose : int, optional
-            [description], by default 0
+            Verbosity of the fitting procedure, by default 0.
 
         Returns
         -------
-        [type]
-            [description]
-
-        Raises
-        ------
-        NameError
-            [description]
+        self : object
+            The `ReceptorEstimator` object. This
+            is the only thing returned if `B` is None.
+        X : ndarray of shape (n_samples, n_sources)
+            Fitted intensity values.
+            Returned if `B` is not None.
+        B : ndarray of shape (n_samples, n_filters)
+            Capture values calculated using the fitted intensity values.
+            Returned if `B` is not None.
         """
         self._assert_registered()
         if B is None:
@@ -831,37 +919,63 @@ class ReceptorEstimator:
     def fit_adaptive(
         self, 
         B=None,
-        neutral_point=None, 
+        neutral_point=None,
+        delta_norm1=1e-4, 
         delta_radius=1e-4, 
-        delta_norm1=1e-4,
         adaptive_objective="unity", 
         verbose=0, 
         scale_w=1.0,
         **opt_kwargs
     ):
-        """[summary]
+        """
+        Fit source intensities adaptively to fit capture values within the system's hull.
 
         Parameters
         ----------
-        B : [type], optional
-            [description], by default None
-        neutral_point : [type], optional
-            [description], by default None
-        delta_radius : [type], optional
-            [description], by default 1e-5
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
+        neutral_point : ndarray of shape (n_filters), optional
+            The neutrality point to use as the center of 
+            the simplex plot for scaling each vector. 
+            If None, then the center is set to the
+            adaptational state of equal capture for all
+            filters.
+            By default None.
         delta_norm1 : [type], optional
-            [description], by default 1e-5
+            The maximum allowed difference in the intensity (l1-norm) metric between 
+            the target and the fit.
+            By default 1e-5
+        delta_radius : float, optional
+            The maximum allowed difference in the saturation-hue/s (radial) metric between 
+            the target and the fit.
+            By default 1e-5
         adaptive_objective : str, optional
-            [description], by default "unity"
+            Adaptive objective to use:
+                * 'unity': Try to keep the values as close as possible to the original capture values.
+                * 'max': Maximize the scaling to fill as much of the system's hull as possible.
+            By default "unity".
         scaled_w : float or ndarray of shape (2)
-            [description], by default 1.
+            Relative importance put on l1-norm optimization versus radial optimization.
+            By default 1 and thus equally weighted.
         verbose : int, optional
-            [description], by default 0
+            Verbosity of the fitting procedure, by default 0.
 
         Returns
         -------
-        [type]
-            [description]
+        self : object
+            The `ReceptorEstimator` object. This
+            is the only thing returned if `B` is None.
+        X : ndarray of shape (n_samples, n_sources)
+            Fitted intensity values.
+            Returned if `B` is not None.
+        scales : ndarray of shape (2)
+            The intensity and radial scaling values.
+            Returned if `B` is not None.
+        B : ndarray of shape (n_samples, n_filters)
+            Capture values calculated using the fitted intensity values.
+            Returned if `B` is not None.
         """
         self._assert_registered()
         if B is None:
@@ -908,41 +1022,64 @@ class ReceptorEstimator:
         ftol=1e-8, 
         **opt_kwargs
     ):
-        """[summary]
+        """
+        Fit source intensities by assigning sources adaptively to independent layers. 
+        This is the method used to fit to capture values that describe an image, 
+        while using a projector system with fewer subframes than light sources.
 
         Parameters
         ----------
-        B : [type], optional
-            [description], by default None
-        n_layers : [type], optional
-            [description], by default None
-        mask : [type], optional
-            [description], by default None
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
+        n_layers : int, optional
+            Number of independent layers (or number of subframes). 
+            By default None.
+        mask : ndarray of shape (n_layers, n_sources), optional
+            Mask that sets which sources can be on for each independent layer. 
+            By default all sources can be on for all layers.
         lbp : int, optional
-            [description], by default 0
+            Lower bound opacity/intensity for each subframe, by default 0.
         ubp : int, optional
-            [description], by default 1
+            Upper bound opacity/intensity for each subframe, by default 1.
         max_iter : int, optional
-            [description], by default 200
+            Maximum number of iterations used during fitting after initialization, by default 200.
         init_iter : int, optional
-            [description], by default 1000
-        seed : [type], optional
-            [description], by default None
-        subsample : str, optional
-            [description], by default 'fast'
+            Number of iterations used for initial NMF decomposition, by default 1000.
+        seed : int, optional
+            Seed number, by default None.
+        subsample : str or int, optional
+            Whether to subsample a set of samples during fitting of source intensities.
+            If 'fast', 1028 samples are subsampled. If `int`, then that
+            number of samples is subsampled. If None, no subsampling is performed.
+            By default 'fast'.
         verbose : int, optional
-            [description], by default 0
+            Verbosity of the fitting procedure, by default 0.
         equal_l1norm_constraint : bool, optional
-            [description], by default True
-        xtol : [type], optional
-            [description], by default 1e-8
+            Whether to constrain the source intensities to have the same 
+            overall intensity (L1-norm) for each independen layer.
+            By default True.
+        xtol : float, optional
+            Tolerance for termination by the change of the independent variables. Default is 1e-8. 
         ftol : [type], optional
-            [description], by default 1e-8
+            Tolerance for termination by the change of the cost function. Default is 1e-8. 
 
         Returns
         -------
-        [type]
-            [description]
+        self : object
+            The `ReceptorEstimator` object. This
+            is the only thing returned if `B` is None.
+        X : ndarray of shape (n_layers, n_sources)
+            Fitted intensity values.
+            Returned if `B` is not None.
+        P : ndarray of shape (n_samples, n_layers)
+            Opacity values or intensities for each 
+            independent layer.
+            Returned if `B` is not None.
+        B : ndarray of shape (n_samples, n_filters)
+            Capture values calculated using the fitted intensity values.
+            Returned if `B` is not None.
         """
         self._assert_registered()
         if B is None:
@@ -986,25 +1123,47 @@ class ReceptorEstimator:
         verbose=0,
         **opt_kwargs
     ):
-        """[summary]
+        """
+        Fit capture values that are within the system's hull
+        and where the system is underdetermined (i.e. multiple solutions exist).
 
         Parameters
         ----------
-        B : [type], optional
-            [description], by default None
-        underdetermined_opt : [type], optional
-            [description], by default None
-        l2_eps : [type], optional
-            [description], by default 1e-5
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
+        underdetermined_opt : str, float, ndarray of shape (n_sources), optional
+            The underdetermined objective:
+                * None : The L2-norm of the independent variables is minimized
+                * float : The objective becomes to get the 
+                    overall source intensities as close as possible to the given value.
+                * ndarray :  The objective becomes to get each source intensity as close
+                    as possible to the given value
+                * 'min' : Minimize the overall intensity as much as possible
+                * 'max' : Maximize the overall intensity as much as possible
+                * 'var' : Reduce the variance between source intensities
+            By default None.
+        l2_eps : float, optional
+            Allowable error in the l2-norm of the difference between target and fitted capture values.
+            By default 1e-5.
         batch_size : int, optional
-            [description], by default 1
+            Batch size used to simultaneously fit multiple samples, by default 1.
+            This is currently not implemented for this method.
         verbose : int, optional
-            [description], by default 0
+            Verbosity of the fitting procedure, by default 0.
 
         Returns
         -------
-        [type]
-            [description]
+        self : object
+            The `ReceptorEstimator` object. This
+            is the only thing returned if `B` is None.
+        X : ndarray of shape (n_samples, n_sources)
+            Fitted intensity values.
+            Returned if `B` is not None.
+        B : ndarray of shape (n_samples, n_filters)
+            Capture values calculated using the fitted intensity values.
+            Returned if `B` is not None.
         """
         self._assert_registered()
         if B is None:
@@ -1042,7 +1201,7 @@ class ReceptorEstimator:
         verbose=0, 
         l2_eps=1e-4, 
         L1=None, 
-        l1_eps=1e-4, 
+        l1_eps=1e-2, 
         norm=None,
         **opt_kwargs
     ):
@@ -1050,27 +1209,46 @@ class ReceptorEstimator:
 
         Parameters
         ----------
-        B : [type], optional
-            [description], by default None
-        Epsilon : [type], optional
-            [description], by default None
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
+        Epsilon : ndarray of shape (n_filters, n_sources), optional
+            The capture-base variance of each source-filter combination. 
+            If None, the previously calculated value will be used.
+            By default None.
         batch_size : int, optional
-            [description], by default 1
+            Batch size used to simultaneously fit multiple samples, by default 1.
         verbose : int, optional
-            [description], by default 0
-        l2_eps : [type], optional
-            [description], by default 1e-5
-        L1 : [type], optional
-            [description], by default None
+            Verbosity of the fitting procedure, by default 0.
+        l2_eps : float, optional
+            Allowable error in the l2-norm of the difference between target and fitted capture values.
+            By default 1e-4.
+        L1 : ndarray of shape (n_samples), optional
+            Overall source intensities (L1-norm) that needs to be achieved.
+            If None, this constraint is ignored.
+            By default None.
         l1_eps : [type], optional
-            [description], by default 1e-5
-        norm : [type], optional
-            [description], by default None
+            The +- range acceptable for the overall source intensities, by default 1e-2.
+        norm : ndarray of shape (n_samples), optional
+            Precalculated L2-norm of the difference between the target and best fitted capture values. 
+            If None, these will be calculated internally. 
+            By default None.
 
         Returns
         -------
-        [type]
-            [description]
+        self : object
+            The `ReceptorEstimator` object. This
+            is the only thing returned if `B` is None.
+        X : ndarray of shape (n_samples, n_sources)
+            Fitted intensity values.
+            Returned if `B` is not None.
+        B : ndarray of shape (n_samples, n_filters)
+            Capture values calculated using the fitted intensity values.
+            Returned if `B` is not None.
+        Bvar : ndarray of shape (n_samples, n_filters)
+            Variance of capture values calculated using the fitted intensity values.
+            Returned if `B` is not None.
         """
         self._assert_registered()
         if Epsilon is None:
@@ -1115,21 +1293,26 @@ class ReceptorEstimator:
     ### plotting functions
     
     def sources_plot(self, ax=None, colors=None, labels=None, **kwargs):
-        """[summary]
+        """
+        Plot the normalized excitation functions of the sources.
+        In color science, these are the normalized spectral distributions 
+        of the light sources (e.g. LEDs).
 
         Parameters
         ----------
-        ax : [type], optional
-            [description], by default None
-        colors : [type], optional
-            [description], by default None
-        labels : [type], optional
-            [description], by default None
+        ax : matplotlib.axes.Axes, optional
+            Pre-existing axes for the plot. Otherwise, call `matplotlib.pyplot.gca()` internally.
+        colors : ndarray of shape (n_sources), optional
+            Colors for each source, by default None
+        labels : ndarray of shape (n_sources), optional
+            Labels for each source, by default None
+        kwargs : key, value mappings
+            Other keyword arguments are passed down to `matplotlib.axes.Axes.plot()`.
 
         Returns
         -------
-        [type]
-            [description]
+        matplotlib.axes.Axes, optional
+            The matplotlib axes containing the plot.
         """
         self._assert_registered()
         return simple_plotting_function(
@@ -1140,21 +1323,26 @@ class ReceptorEstimator:
         )
     
     def filter_plot(self, ax=None, colors=None, labels=None, **kwargs):
-        """[summary]
+        """
+        Plot the filter functions. 
+        In color science, these are the spectral sensitivities
+        of each photoreceptor.
 
         Parameters
         ----------
-        ax : [type], optional
-            [description], by default None
-        colors : [type], optional
-            [description], by default None
-        labels : [type], optional
-            [description], by default None
+        ax : matplotlib.axes.Axes, optional
+            Pre-existing axes for the plot. Otherwise, call `matplotlib.pyplot.gca()` internally.
+        colors : ndarray of shape (n_filters), optional
+            Colors for each filter, by default None
+        labels : ndarray of shape (n_filters), optional
+            Labels for each filter, by default None
+        kwargs : key, value mappings
+            Other keyword arguments are passed down to `matplotlib.axes.Axes.plot()`.
 
         Returns
         -------
-        [type]
-            [description]
+        matplotlib.axes.Axes, optional
+            The matplotlib axes containing the plot.
         """
         return simple_plotting_function(
             self.domain, self.filters, 
@@ -1186,41 +1374,60 @@ class ReceptorEstimator:
 
         Parameters
         ----------
-        B : [type], optional
-            [description], by default None
-        domain : [type], optional
-            [description], by default None
-        ax : [type], optional
-            [description], by default None
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
+        domain : ndarray, optional
+            Domain points to plot as a spectrally colored line, by default None
+        ax : matplotlib.axes.Axes, optional
+            Pre-existing axes for the plot. Otherwise, call `matplotlib.pyplot.gca()` internally.
         cmap : str, optional
-            [description], by default 'rainbow'
-        gradient_line_kws : [type], optional
-            [description], by default None
-        point_scatter_kws : [type], optional
-            [description], by default None
-        hull_kws : [type], optional
-            [description], by default None
+            Color map used for the gradient colored line, by default 'rainbow'.
+        gradient_line_kws : dict, optional
+            Other keyword arguments passed to 
+            the `matplotlib.axes.Axes.plot()` function
+            for the spectrally colored domain line. 
+            By default None.
+        point_scatter_kws : dict, optional
+            Other keyword arguments passed to 
+            the `matplotlib.axes.Axes.scatter()` function
+            for center points. 
+            By default None.
+        hull_kws : dict, optional
+            Other keyword arguments passed to 
+            the `matplotlib.axes.Axes.plot()` function
+            for the system's hull. 
+            By default None.
         impure_lines : bool, optional
-            [description], by default False
+            Plot the lines that connect non-adjacent filter function. 
+            In color science, these are usually colored non-spectral
+            color lines.
+            By default False.
         add_center : bool, optional
-            [description], by default True
+            Add the center (adapted) point, by default True.
         add_grid : bool, optional
-            [description], by default False
+            Add an orientation grid that connects the center with the edges
+            of the simplex, by default False.
         add_hull : bool, optional
-            [description], by default True
+            Add the system's hull to the plot, by default True.
         relative : bool, optional
-            [description], by default True
+            Whether to plot using the relative capture values, by default True.
         domain_line : bool, optional
-            [description], by default True
-        labels : [type], optional
-            [description], by default None
+            Whether to plot the spectrally colored domain line, by default True.
+        labels : ndarray of shape (n_filters), optional
+            Labels for the edges of the simplex. That is the labels of the filters.
+            By default None.
         label_size : int, optional
-            [description], by default 16
+            The size of each label, by default 16.
+        kwargs : key, value mappings
+            Other keyword arguments are passed down to `matplotlib.axes.Axes.scatter()`
+            for the `B` points.
 
         Returns
         -------
-        [type]
-            [description]
+        matplotlib.axes.Axes, optional
+            The matplotlib axes containing the plot.
         """
         gradient_line_kws = ({} if gradient_line_kws is None else gradient_line_kws)
         point_scatter_kws = ({} if point_scatter_kws is None else point_scatter_kws)
@@ -1350,7 +1557,7 @@ class ReceptorEstimator:
         return ax
     
     def gamut_plot(self, *args, **kwargs):
-        """Alias for `hull_plot`.
+        """Alias for `ReceptorEstimator.hull_plot`.
         """
         return self.hull_plot(*args, **kwargs)
     
@@ -1369,33 +1576,46 @@ class ReceptorEstimator:
 
         Parameters
         ----------
-        B : [type], optional
-            [description], by default None
-        axes : [type], optional
-            [description], by default None
-        labels : [type], optional
-            [description], by default None
-        sources_labels : [type], optional
-            [description], by default None
-        colors : [type], optional
-            [description], by default None
-        ncols : [type], optional
-            [description], by default None
-        fig_kws : [type], optional
-            [description], by default None
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+            If None, the registered `B` is used.
+            Defaults to None.
+        axes : ndarray of matplotlib.axes.Axes, optional
+            The matplotlib axes that 
+            should contain the plots.
+            If None, these will be created 
+            including a new figure.
+            By default None.
+        labels : ndarray of shape (n_filters), optional
+            Labels for the filters.
+            By default None.
+        sources_labels : ndarray of shape (n_sources), optional
+            Labels for the sources.
+            By default None.
+        colors : ndarray of shape (n_sources), optional
+            Color for each source, by default None.
+        ncols : int, optional
+            Number of columns in the plots, by default None
+        fig_kws : dict, optional
+            Keyword arguments passed to create the figure, by default None.
         relative : bool, optional
-            [description], by default True
+            Whether to use relative capture values, by default True
         sources_vectors : bool, optional
-            [description], by default True
-        hull_kws : [type], optional
-            [description], by default None
-        vectors_kws : [type], optional
-            [description], by default None
+            Whether to plot the sources colored arrows, by default True.
+        hull_kws : dict, optional
+            Keyword arguments passed to `matplotlib.axes.Axes.plot()`, by default None.
+        vectors_kws : dict, optional
+            Keyword arguments passed to `matplotlib.axes.Axes.arrow()`, by default None.
+        kwargs : key, value mappings
+            Other keyword arguments are passed down to `matplotlib.axes.Axes.scatter()`
+            for the `B` points.
 
         Returns
         -------
-        [type]
-            [description]
+        fig : matplotlib.figure.Figure
+            The matplotlib figure containing the plots.
+        axes : ndarray of matplotlib.axes.Axes, optional
+            The matplotlib axes containing the plots.
         """
         self._assert_registered()
         

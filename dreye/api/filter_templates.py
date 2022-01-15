@@ -31,21 +31,21 @@ def stavenga1993_band_calculation(x, a, b):
 
 
 def gaussian_template(wavelengths, mean, std=30):
-    """[summary]
+    """Gaussian filter template normalized to the max.
 
     Parameters
     ----------
-    wavelengths : [type]
-        [description]
-    mean : [type]
-        [description]
-    std : int, optional
-        [description], by default 30
+    wavelengths : ndarray of shape (n_wls)
+        The wavelength array.
+    mean : float or ndarray of shape (n_filters, 1)
+        The mean of each filter.
+    std : float or ndarray of shape (n_filters, 1), optional
+        The standard deviation of each filter, by default 30
 
     Returns
     -------
-    [type]
-        [description]
+    templates : ndarray of shape (n_filters, n_wls)
+        The filter templates as a numpy ndarray.
     """
     y = norm.pdf(wavelengths, mean, std)
     return y / np.max(y, axis=0, keepdims=True)
@@ -65,27 +65,33 @@ def stavenga1993_template(
 
     Parameters
     ----------
-    wavelengths : [type]
-        [description]
-    alpha_max : [type]
-        [description]
-    a_alpha : int, optional
-        [description], by default 380
+    wavelengths : ndarray of shape (n_wls)
+        The wavelength array.
+    alpha_max : float or ndarray of shape (n_filters, 1)
+        The wavelength peak of each filter.
+    a_alpha : float, optional
+        Relates to the width and shape of the alpha band, by default 380
     b_alpha : float, optional
-        [description], by default 6.09
-    beta_max : int, optional
-        [description], by default 350
+        Relates to the width and shape of the alpha band, by default 6.09
+    beta_max : float, optional
+        The wavelength peak of the beta band, by default 350
     A_beta : float, optional
-        [description], by default 0.29
+        Determines the proportion of the beta band, by default 0.29
     a_beta : int, optional
-        [description], by default 247
+        Relates to the width and shape of the beta band, by default 247
     b_beta : float, optional
-        [description], by default 3.59
+        Relates to the width and shape of the beta band, by default 3.59
 
     Returns
     -------
-    [type]
-        [description]
+    templates : ndarray of shape (n_filters, n_wls)
+        The filter templates as a numpy ndarray.
+        
+    References
+    ----------
+    .. [1] D.G. Stavenga, R.P. Smits, B.J. Hoenders,
+        Simple exponential functions describing the absorbance bands of visual pigment spectra,
+        Vision Research, Volume 33, Issue 8, 1993.
     """
 
     x_alpha = np.log10(wavelengths / alpha_max)
@@ -149,45 +155,51 @@ def govardovskii2000_template(
 
     Parameters
     ----------
-    wavelengths : [type]
-        [description]
-    alpha_max : [type]
-        [description]
+    wavelengths : ndarray of shape (n_wls)
+        The wavelength array.
+    alpha_max : float or ndarray of shape (n_filters, 1)
+        The wavelength peak of each filter.
     A_alpha : float, optional
-        [description], by default 69.7
+        Relates to the width and shape of the alpha band, by default 69.7
     a_alpha1 : float, optional
-        [description], by default 0.8795
+        Relates to the width and shape of the alpha band, by default 0.8795
     a_alpha2 : float, optional
-        [description], by default 0.0459
-    a_alpha3 : int, optional
-        [description], by default 300
-    a_alpha4 : int, optional
-        [description], by default 11940
-    B_alpha : int, optional
-        [description], by default 28
+        Relates to the width and shape of the alpha band, by default 0.0459
+    a_alpha3 : float, optional
+        Relates to the width and shape of the alpha band, by default 300
+    a_alpha4 : float, optional
+        Relates to the width and shape of the alpha band, by default 11940
+    B_alpha : float, optional
+        Relates to the width and shape of the alpha band, by default 28
     b_alpha : float, optional
-        [description], by default 0.922
+        Relates to the width and shape of the alpha band, by default 0.922
     C_alpha : float, optional
-        [description], by default -14.9
+        Relates to the width and shape of the alpha band, by default -14.9
     c_alpha : float, optional
-        [description], by default 1.104
+        Relates to the width and shape of the alpha band, by default 1.104
     D_alpha : float, optional
-        [description], by default 0.674
+        Relates to the width and shape of the alpha band, by default 0.674
     A_beta : float, optional
-        [description], by default 0.26
-    beta_max1 : int, optional
-        [description], by default 189
+         Determines the proportion of the beta band, by default 0.26
+    beta_max1 : float, optional
+        Relates to the peak and shape of the beta band, by default 189
     beta_max2 : float, optional
-        [description], by default 0.315
+        Relates to the peak and shape of the beta band, by default 0.315
     d_beta1 : float, optional
-        [description], by default -40.5
+        Relates to the peak and shape of the beta band, by default -40.5
     d_beta2 : float, optional
-        [description], by default 0.195
+        Relates to the peak and shape of the beta band, by default 0.195
 
     Returns
     -------
-    [type]
-        [description]
+    templates : ndarray of shape (n_filters, n_wls)
+        The filter templates as a numpy ndarray.
+        
+    References
+    ----------
+    .. [1] Govardovskii, V. I., Fyhrquist, N., Reuter, T., Kuzmin, D. G., & Donner, K., 
+        In search of the visual pigment template. 
+        Visual neuroscience, 17(4), 509-528, 2000. 
     """
     x_alpha = (wavelengths / alpha_max) ** -1
     a_alpha = a_alpha1 + a_alpha2 * np.exp(-(alpha_max - a_alpha3)**2 / a_alpha4)

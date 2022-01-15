@@ -162,7 +162,7 @@ def l2norm(arr, axis=-1, keepdims=False):
 
     Parameters
     ----------
-    arr : array-like
+    arr : ndarray
         Array used to calculate the L2-norm.
     axis : int, optional
         Axis to normalize along, by default -1
@@ -171,7 +171,7 @@ def l2norm(arr, axis=-1, keepdims=False):
 
     Returns
     -------
-    l2norm : array-like
+    l2norm : ndarray
         L2-norm or array along axis.
     """
     return norm(arr, ord=2, axis=axis, keepdims=keepdims)
@@ -182,7 +182,7 @@ def l1norm(arr, axis=-1, keepdims=False):
 
     Parameters
     ----------
-    arr : array-like
+    arr : ndarray
         Array used to calculate the L1-norm.
     axis : int, optional
         Axis to normalize along, by default -1
@@ -191,30 +191,31 @@ def l1norm(arr, axis=-1, keepdims=False):
 
     Returns
     -------
-    l1norm : array-like
+    l1norm : ndarray
         L1-norm or array along axis.
     """
     return norm(arr, ord=1, axis=axis, keepdims=keepdims)
 
 
 def integral(arr, domain, axis=-1, keepdims=False):
-    """[summary]
+    """Calculate the integral of an array given its domain along an axis
 
     Parameters
     ----------
-    arr : [type]
-        [description]
-    domain : [type]
-        [description]
+    arr : ndarray of shape (..., n_domain, ...)
+        The array to use to obtain the integral.
+    domain : float or ndarray of shape (n_domain)
+        The domain for `arr` along the given axis. 
+        If a float, it is assumed to be the step size of the domain.
     axis : int, optional
-        [description], by default -1
+        The axis of the domain dimension, by default -1
     keepdims : bool, optional
-        [description], by default False
+        Whether to keep the dimensionality or not, by default False
 
     Returns
     -------
-    [type]
-        [description]
+    integral : ndarray
+        Integral of the array along given axis.
     """
     kwargs = {'axis': axis}
     if isinstance(domain, Number):

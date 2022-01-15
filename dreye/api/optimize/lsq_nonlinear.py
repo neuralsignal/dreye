@@ -220,7 +220,7 @@ def lsq_nonlinear(
 
     if return_pred:
         B = get_prediction(X, A, baseline)
-        return X, B, nonlin(B)
+        return X, B
     return X
 
 
