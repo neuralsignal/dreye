@@ -490,8 +490,8 @@ def test_gamut_corrections():
     # Load hyperspectral images and interpolate to wavelength points defined above:
 
     # %%
-    image = np.load(os.path.join('data', 'flower_image.npy'))
-    image_wls = np.load(os.path.join('data', 'wls_image.npy'))
+    image = np.load(os.path.join('..', 'tutorials', 'data', 'flower_image.npy'))
+    image_wls = np.load(os.path.join('..', 'tutorials', 'data', 'wls_image.npy'))
     # convert hyperspectral image in units of W/m2 to photonflux units (uE)
     image = dreye.irr2flux(image, image_wls, prefix='micro')
     print(image.shape, image_wls.shape)
@@ -704,8 +704,8 @@ def test_patterned():
 
     # %%
     # load previous image
-    image = np.load(os.path.join('data', 'flower_image.npy'))
-    image_wls = np.load(os.path.join('data', 'wls_image.npy'))
+    image = np.load(os.path.join('..', 'tutorials', 'data', 'flower_image.npy'))
+    image_wls = np.load(os.path.join('..', 'tutorials', 'data', 'wls_image.npy'))
     # convert hyperspectral image in units of W/m2 to photonflux units (uE)
     image = dreye.irr2flux(image, image_wls, prefix='micro')
     print(image.shape, image_wls.shape)
