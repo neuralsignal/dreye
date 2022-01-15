@@ -16,7 +16,7 @@ from dreye.api.optimize.lsq_linear import lsq_linear, lsq_linear_adaptive, lsq_l
 from dreye.api.optimize.lsq_nonlinear import lsq_nonlinear
 from dreye.api.plotting.basic import hull_outline, simple_plotting_function, vectors_plot
 from dreye.api.plotting.simplex_plot import plot_simplex
-from dreye.api.project import B_with_P
+from dreye.api.project import alpha_for_B_with_P
 from dreye.api.sampling import sample_in_hull
 from dreye.api.utils import check_bounds, l1norm, linear_transform
 from dreye.api.metrics import compute_gamut
@@ -470,7 +470,7 @@ class ReceptorEstimator:
         if ub is not None:
             self.ub = ub_
             
-    def _get_P_from_A(self, relative=True, bounded=None):
+    def _get_P_from_A(self, relative=True, bounded=None, remove_zero=False):
         """[summary]
 
         Parameters
@@ -485,12 +485,15 @@ class ReceptorEstimator:
         [type]
             [description]
         """
-        return get_P_from_A(
+        P = get_P_from_A(
             self.A, self.lb, self.ub, 
             K=(self.K if relative else None), 
             baseline=(self.baseline if relative else None), 
             bounded=bounded
         )
+        if remove_zero:
+            P = P[~np.all(P == 0, axis=-1)]
+        return P
         
     def sample_in_gamut(self, *args, **kwargs):
         """Alias for `sample_in_hull`. 
@@ -538,7 +541,9 @@ class ReceptorEstimator:
         return self.hull_l1_scaling(*args, **kwargs)
         
     def hull_l1_scaling(self, B, relative=True):
-        """Scale `B` to fit within the hull/gamut of the system
+        """
+        Scale `B` to fit within the hull of the system. 
+        This is equivalent to intensity scaling of an image for color science.
 
         Parameters
         ----------
@@ -563,13 +568,15 @@ class ReceptorEstimator:
         bmax = np.max(B)
         return B * amax / bmax + baseline
     
-    def gamut_angle_scaling(self, *args, **kwargs):
-        """Alias for `hull_angle_scaling`
+    def gamut_dist_scaling(self, *args, **kwargs):
+        """Alias for `hull_dist_scaling`
         """
-        return self.hull_angle_scaling(*args, **kwargs)
+        return self.hull_dist_scaling(*args, **kwargs)
     
-    def hull_angle_scaling(self, B, neutral_point=None, relative=True):
-        """Scale `B` within L1-normalized simplex plot to fit within gamut of system.
+    def hull_dist_scaling(self, B, neutral_point=None, relative=True):
+        """
+        Scale `B` within L1-normalized simplex plot to fit within hull of system.
+        This is equivalent to saturation scaling of an image for color science.
 
         Parameters
         ----------
@@ -583,13 +590,14 @@ class ReceptorEstimator:
         [type]
             [description]
         """
+        if self.in_hull(B, normalized=True).all():
+            return B.copy()
+        
         if neutral_point is None:
             neutral_point = np.ones(self.filters.shape[0])
         neutral_point = np.atleast_2d(neutral_point)
         
-        P = self._get_P_from_A(relative=relative, bounded=True)        
-        # remove zero point, if exists
-        P = P[(P == 0).all(-1)]
+        P = self._get_P_from_A(relative=relative, bounded=True, remove_zero=True)
         assert np.all(P >= 0)  # must be non-negative
         # replace zero point with neutral point
         B = B.copy()
@@ -614,7 +622,7 @@ class ReceptorEstimator:
                 in_hull(baryP, np.zeros(baryP.shape[1]))
             ), "neutral point is not in hull."
             hull = ConvexHull(baryP)
-            alphas = B_with_P(baryB, hull.equations)
+            alphas = alpha_for_B_with_P(baryB, hull.equations)
             alpha = np.nanmin(alphas)
 
         baryB_scaled = baryB * alpha + center
@@ -668,7 +676,7 @@ class ReceptorEstimator:
         """
         return self.in_hull(*args, **kwargs)
     
-    def in_hull(self, B=None, relative=True):
+    def in_hull(self, B=None, relative=True, normalized=False):
         """[summary]
 
         Parameters
@@ -685,6 +693,14 @@ class ReceptorEstimator:
         if B is None:
             self._assert_registered_targets()
             B = self.B
+            
+        # normalized does it within the l1-normalized simplex
+        if normalized:
+            P = self._get_P_from_A(relative=relative, bounded=True, remove_zero=True)
+            P = barycentric_dim_reduction(P)
+            B = barycentric_dim_reduction(B)
+            return in_hull(P, B, bounded=True)
+        
         return in_hull_from_A(
             B, self.A, lb=self.lb, ub=self.ub, 
             K=(self.K if relative else None), 
@@ -732,7 +748,8 @@ class ReceptorEstimator:
         verbose=0, 
         **opt_kwargs
     ):
-        """[summary]
+        """
+        Fitting source intensities given relative capture values.
 
         Parameters
         ----------
@@ -819,6 +836,7 @@ class ReceptorEstimator:
         delta_norm1=1e-4,
         adaptive_objective="unity", 
         verbose=0, 
+        scale_w=1.0,
         **opt_kwargs
     ):
         """[summary]
@@ -835,6 +853,8 @@ class ReceptorEstimator:
             [description], by default 1e-5
         adaptive_objective : str, optional
             [description], by default "unity"
+        scaled_w : float or ndarray of shape (2)
+            [description], by default 1.
         verbose : int, optional
             [description], by default 0
 
@@ -861,6 +881,7 @@ class ReceptorEstimator:
             delta_norm1=delta_norm1, 
             delta_radius=delta_radius, 
             adaptive_objective=adaptive_objective, 
+            scale_w=scale_w,
             **opt_kwargs
         )
         
@@ -1297,7 +1318,7 @@ class ReceptorEstimator:
                 
         if add_hull:
             
-            P = self._get_P_from_A(relative=relative, bounded=True)
+            P = self._get_P_from_A(relative=relative, bounded=True, remove_zero=True)
             default_kws = {
                 'color':'lightgray', 
                 'edgecolor': 'gray', 
@@ -1311,7 +1332,7 @@ class ReceptorEstimator:
             
             ax = plot_simplex(
                 n, 
-                hull=P[P.sum(axis=1) > 0], 
+                hull=P, 
                 hull_kws=hull_kws, 
                 ax=ax, 
                 lines=False

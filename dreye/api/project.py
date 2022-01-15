@@ -174,6 +174,9 @@ def alpha_for_B_with_P(B, equations):
     """
     Get multiple of vector that intersects with hull
     """
+    # need to transpose
+    equations = equations.T
+    # transform and bias
     V, b = equations[:-1], equations[-1]
     alpha = -b / (B @ V)
     # mask smaller equal to zero values
