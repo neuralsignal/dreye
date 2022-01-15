@@ -244,7 +244,7 @@ def test_introduction():
     X, Bnewhat1 = est.fit(Bnew, verbose=1)
     
     # important test
-    assert np.allclose(Bnewhat1 == est.system_relative_capture(X)), 'either system relative capture is inaccurate or predicted capture calculation is wrong'
+    assert np.allclose(Bnewhat1, est.system_relative_capture(X)), 'either system relative capture is inaccurate or predicted capture calculation is wrong'
     
     # Using different models - gives a different result for out-of-gamut points - see API for details
     X, Bnewhat2 = est.fit(Bnew, model='poisson', verbose=1)
