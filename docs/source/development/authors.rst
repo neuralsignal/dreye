@@ -14,4 +14,5 @@ Development Lead
 Contributors
 ------------
 
-* Navid Mousavi
+* Navid Mousavi : testing of optimization methods
+* Sarah L Heath : tutorials for old API
