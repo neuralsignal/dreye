@@ -1205,7 +1205,9 @@ class ReceptorEstimator:
         norm=None,
         **opt_kwargs
     ):
-        """[summary]
+        """
+        Minimize the variance of capture values
+        given the fitted intensities.
 
         Parameters
         ----------
