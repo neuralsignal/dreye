@@ -11,7 +11,10 @@ import dreye
 
 from pytest import raises
 
-    
+
+# TODO implement unit tests for individual functions instead of testing the tutorials
+
+ 
 def test_introduction():
     wls = np.arange(300, 700, 1)
     # peaks of the sensitivities
@@ -255,6 +258,7 @@ def test_introduction():
     fig, axes = est.gamut_plot(Bnewhat2, colors=sources_colors, c=colors, marker='s', alpha=1, axes=axes)
     fig, axes = est.gamut_plot(Bnewhat3, colors=sources_colors, c=colors, marker='+', alpha=1, axes=axes)
     plt.close()
+
 
 def test_uncertainty():
     # %%

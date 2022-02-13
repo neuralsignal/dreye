@@ -558,6 +558,8 @@ class ReceptorEstimator:
         l1 : float, optional
             Whether to sample points that correspond to a specific L1-norm. 
             By default None.
+        relative : bool, optional
+            Whether `B` are relative capture values, by default True.
 
         Returns
         -------
