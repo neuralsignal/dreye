@@ -2,6 +2,7 @@
 Convert units
 """
 
+import numpy as np
 from dreye.api.units.pint import CONTEXTS, ureg
 
 
@@ -28,7 +29,7 @@ def optional_to(obj, units, *args, **kwargs):
     return obj
 
 
-def irr2flux(irradiance, wavelengths, return_units=None, prefix=None, irr_units='I'):
+def irr2flux(irradiance, wavelengths, return_units=None, prefix=None, irr_units='I', axis=None):
     """
     Convert from irradiance to photonflux.
 
@@ -46,12 +47,20 @@ def irr2flux(irradiance, wavelengths, return_units=None, prefix=None, irr_units=
         have units.
     prefix : str, optional
         Unit prefix for photonflux (e.g. `micro`).
+    axis : int, optional
+        Wavelength dimension in `irradiance` object.
 
     Returns
     -------
     photonflux : numpy.ndarray or pint.Quantity
         Values converted to photonflux (mol/m^2/s/nm).
     """
+    if axis is not None:
+        return np.apply_along_axis(
+            irr2flux, axis, irradiance, wavelengths, return_units=return_units, 
+            prefix=prefix, irr_units=irr_units
+        )
+        
     prefix = '' if prefix is None else prefix
     if return_units is None:
         if has_units(irradiance):
@@ -75,7 +84,7 @@ def irr2flux(irradiance, wavelengths, return_units=None, prefix=None, irr_units=
         return photonflux.to(f'{prefix}E').magnitude
 
 
-def flux2irr(photonflux, wavelengths, return_units=None, prefix=None, flux_units='E'):
+def flux2irr(photonflux, wavelengths, return_units=None, prefix=None, flux_units='E', axis=None):
     """
     Convert from photonflux to irradiance.
 
@@ -93,12 +102,20 @@ def flux2irr(photonflux, wavelengths, return_units=None, prefix=None, flux_units
         have units.
     prefix : str, optional
         Unit prefix for irradiance (e.g. `micro`).
+    axis : int, optional
+        Wavelength dimension in `flux` object.
 
     Returns
     -------
     irradiance : numpy.ndarray or pint.Quantity
         Values converted to photonflux (W/m^2/nm).
     """
+    if axis is not None:
+        return np.apply_along_axis(
+            flux2irr, axis, photonflux, wavelengths, return_units=return_units, 
+            prefix=prefix, flux_units=flux_units
+        )
+
     prefix = '' if prefix is None else prefix
     if return_units is None:
         if has_units(photonflux):
