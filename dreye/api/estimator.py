@@ -912,9 +912,9 @@ class ReceptorEstimator:
         else:
             raise NameError(f"Model name `{model}` unknown.")
             
-        self.X = X
-        self.B = B
         if internal:
+            self.X = X
+            self.B = B
             return self
         return X, B
     
@@ -1001,10 +1001,10 @@ class ReceptorEstimator:
             **opt_kwargs
         )
         
-        self.X = X
-        self.B = B
-        self.scales = scales
         if internal:
+            self.X = X
+            self.B = B
+            self.scales = scales
             return self
         return X, scales, B
     
@@ -1109,10 +1109,10 @@ class ReceptorEstimator:
             **opt_kwargs 
         )
         
-        self.X = X
-        self.P = P
-        self.B = B
         if internal:
+            self.X = X
+            self.P = P
+            self.B = B
             return self
         return X, P, B
     
@@ -1189,9 +1189,9 @@ class ReceptorEstimator:
             **opt_kwargs
         )
         
-        self.X = X
-        self.B = B
         if internal:
+            self.X = X
+            self.B = B
             return self
         return X, B
     
@@ -1278,10 +1278,10 @@ class ReceptorEstimator:
             **opt_kwargs
         )
         
-        self.X = X
-        self.B = B
-        self.Bvar = Bvar
         if internal:
+            self.X = X
+            self.B = B
+            self.Bvar = Bvar
             return self
         return X, B, Bvar
     
