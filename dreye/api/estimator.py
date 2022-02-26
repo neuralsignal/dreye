@@ -575,9 +575,9 @@ class ReceptorEstimator:
             return sample_in_hull(P, n, seed=seed, engine=engine)
         else:
             # sample within a simplex
-            l1 = P.sum(axis=-1)
+            l1_P = P.sum(axis=-1)
             # remove zero intensity
-            P = P[l1 != 0]
+            P = P[l1_P != 0]
             # reduce to barycentric coordinates and sample within that hull
             P = barycentric_dim_reduction(P)
             X = sample_in_hull(P, n, seed=seed, engine=engine)
