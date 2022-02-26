@@ -48,7 +48,7 @@ def gaussian_template(wavelengths, mean, std=30):
         The filter templates as a numpy ndarray.
     """
     y = norm.pdf(wavelengths, mean, std)
-    return y / np.max(y, axis=0, keepdims=True)
+    return y / np.max(y, axis=-1, keepdims=True)
 
 
 def stavenga1993_template(
