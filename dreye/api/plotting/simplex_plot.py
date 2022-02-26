@@ -99,7 +99,8 @@ def plot_simplex(
     if ax is None:
         if n == 4:
             fig = plt.figure(**fig_kws)
-            ax = Axes3D(fig)
+            ax = Axes3D(fig, auto_add_to_figure=False)
+            fig.add_axes(ax)
         else:
             fig = plt.figure(**fig_kws)
             ax = plt.subplot(111)
