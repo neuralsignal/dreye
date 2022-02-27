@@ -3,7 +3,7 @@
 
 __author__ = """gucky92"""
 __email__ = 'gucky@gucky.eu'
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 import os
 DREYE_DIR = os.path.dirname(__file__)
