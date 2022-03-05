@@ -27,6 +27,14 @@ pip install jax[cpu]
 
 * Running jax on the new Macbook Pro chips can run into problems. Make sure to install the versions that work with the M1 chip. For my purposes jaxlib==0.1.60 and jax==0.2.10 currently work (14/01/21).
 
+
+## Old code
+
+The nonlinear fitting procedures for the variance minimization, underdetermined, and decomposition algorithms and the silent substitution algorithm described in the paper have yet to be refactored into the new API. 
+The old API can be found at <https://github.com/gucky92/dreye_ext>.
+The linear versions (faster and convex) are already available in the new API.
+
+
 ## Development
 
 If you are interested in contributing to the project, please email at gucky@gucky.eu.
