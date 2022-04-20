@@ -1370,6 +1370,8 @@ class ReceptorEstimator:
         domain_line=True,
         labels=None,
         label_size=16,
+        scalar_gradient_line=1,
+        cmap_B=None,
         **kwargs
     ):
         """
@@ -1424,6 +1426,11 @@ class ReceptorEstimator:
             By default None.
         label_size : int, optional
             The size of each label, by default 16.
+        scalar_gradient_line : float, optional
+            Scalar used to scale the gradient line before calculating the relative 
+            capture of the single wavelength gradient line.
+        cmap_B : str, optional
+            Colormap used for the `B` scatter points.
         kwargs : key, value mappings
             Other keyword arguments are passed down to `matplotlib.axes.Axes.scatter()`
             for the `B` points.
@@ -1459,7 +1466,7 @@ class ReceptorEstimator:
             domain = np.arange(dmin, dmax, domain)
             
         # dirac delta functions for perfect excitation
-        signals = np.eye(self.filters.shape[-1])
+        signals = np.eye(self.filters.shape[-1]) * scalar_gradient_line
         if relative:
             optimal = self.relative_capture(signals)
         else:
@@ -1550,6 +1557,8 @@ class ReceptorEstimator:
             )
             
         if B is not None:
+            if cmap_B is not None:
+                kwargs['cmap'] = cmap_B
             ax = plot_simplex(
                 n, 
                 ax=ax, 

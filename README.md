@@ -6,6 +6,11 @@
 
 Documentation and tutorials can be found here <https://dreye.readthedocs.io/en/latest/>.
 
+## Web application
+
+To test stimulus creation, check out the corresponding web applitcation:
+<https://share.streamlit.io/gucky92/dreyeapp/main/app.py>.
+
 ## Preprint
 
 Our preprint that explains the purpose of the package *drEye* and goes through key concepts is available on bioRxiv (<https://www.biorxiv.org/content/10.1101/2022.01.17.476640v1>).
