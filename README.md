@@ -1,5 +1,7 @@
 # DrEye: Exploiting Receptor Space Geometry for Stimulus Design across Animals
 
+[![DOI](https://zenodo.org/badge/243093421.svg)](https://zenodo.org/badge/latestdoi/243093421)
+
 *drEye* is a package that implements various approaches to design stimuli for sensory receptors. The main focus of the package is geared towards designing color stimuli for any animal under investigation, where the photoreceptor spectral sensitivities are known. The hardware-agnostic approach incorporates photoreceptor models within the framework of the principle of univariance. This enables experimenters to identify the most effective way to combine multiple light sources to create desired distributions of light, and thus easily construct relevant stimuli for mapping the color space of an organism. The methods support broad applications in color vision science and provide a framework for uniform stimulus designs across experimental systems. Many of the methods described can be used more generally to design stimuli for other sensory organs or used more broadly where a set of linear filters define the input to a system. 
 
 ## Documentationa and tutorials
