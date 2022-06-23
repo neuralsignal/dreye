@@ -537,7 +537,7 @@ class ReceptorEstimator:
     def sample_in_gamut(self, *args, **kwargs):
         """Alias for `ReceptorEstimator.sample_in_hull`. 
         """
-        return self.sample_in_gamut(*args, **kwargs)
+        return self.sample_in_hull(*args, **kwargs)
     
     def sample_in_hull(self, n=10, seed=None, engine=None, l1=None, relative=True):
         """
