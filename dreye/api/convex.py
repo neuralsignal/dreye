@@ -91,7 +91,7 @@ def get_P_from_A(A, lb, ub, K=None, baseline=None, bounded=True):
     return get_prediction(X, A, baseline)
 
 
-def in_hull(P, B, bounded=True):
+def in_hull(P, B, bounded=True, qhull_options=None):
     """
     Compute if `B` is in the convex hull of `points`
     or a convex combination of `points` if not bounded.
@@ -113,7 +113,7 @@ def in_hull(P, B, bounded=True):
     if bounded:
         try:
             # try hull algorithm before relying on convex combination algorithm
-            hull = Delaunay(P)
+            hull = Delaunay(P, qhull_options=qhull_options)
             inhull = hull.find_simplex(B) >= 0
         except QhullError:
             _, _, inhull = convex_combination(P, B, bounded=bounded)

@@ -18,7 +18,7 @@ from scipy.spatial import ConvexHull, Delaunay
 from dreye.api.utils import l1norm
 
 
-def sample_in_hull(P, n, seed=None, engine=None):
+def sample_in_hull(P, n, seed=None, engine=None, qhull_options=None):
     """Sampling uniformly from convex hull as given by points.
 
     Parameters
@@ -54,8 +54,9 @@ def sample_in_hull(P, n, seed=None, engine=None):
         raise TypeError("seed must be None, int, or `numpy.random.Generator` type.")
     
     dims = P.shape[-1]
-    hull = P[ConvexHull(P).vertices]
-    deln = hull[Delaunay(hull).simplices]
+    hull = P[ConvexHull(P, qhull_options=qhull_options).vertices]
+    deln = hull[Delaunay(hull, qhull_options=qhull_options).simplices]
+    # deln = P[Delaunay(P, qhull_options=qhull_options).simplices]
 
     # volume of each simplex
     vols = np.abs(det(deln[:, :dims, :] - deln[:, dims:, :])) / np.math.factorial(dims)

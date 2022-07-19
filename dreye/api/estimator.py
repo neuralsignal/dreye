@@ -1488,7 +1488,7 @@ class ReceptorEstimator:
             gradient_line_kws['cmap'] = cmap
             
             ax = plot_simplex(
-                n, 
+                n,
                 ax=ax,
                 gradient_line=points, 
                 gradient_color=domain, 
