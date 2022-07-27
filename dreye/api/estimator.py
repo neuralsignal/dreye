@@ -1372,6 +1372,8 @@ class ReceptorEstimator:
         label_size=16,
         scalar_gradient_line=1,
         cmap_B=None,
+        rescale=False, 
+        transform=None,
         **kwargs
     ):
         """
@@ -1431,6 +1433,11 @@ class ReceptorEstimator:
             capture of the single wavelength gradient line.
         cmap_B : str, optional
             Colormap used for the `B` scatter points.
+        rescale : bool, optional
+            Whether to rescale the corners to fill out the tetrahedron according to 
+            the optimal wavelength line.
+        transform : callable, optional
+            Function to apply to `B` and single wavelength line.
         kwargs : key, value mappings
             Other keyword arguments are passed down to `matplotlib.axes.Axes.scatter()`
             for the `B` points.
@@ -1471,6 +1478,18 @@ class ReceptorEstimator:
             optimal = self.relative_capture(signals)
         else:
             optimal = self.capture(signals)
+            
+        # transforming capture values
+        if transform is not None:
+            optimal = transform(optimal)
+            if B is not None:
+                B = transform(B)
+                
+        if rescale:
+            omax = optimal.max(0)
+            optimal = optimal / omax
+            if B is not None:
+                B = B / omax
             
         ax = plot_simplex(
             n, ax=ax, labels=labels, label_size=label_size
