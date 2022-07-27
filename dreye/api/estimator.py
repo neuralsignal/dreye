@@ -7,6 +7,7 @@ import numpy as np
 from scipy.special import comb
 from scipy.spatial import ConvexHull
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import normalize
 
 from dreye.api.barycentric import barycentric_dim_reduction, cartesian_to_barycentric
 from dreye.api.capture import calculate_capture
@@ -1486,10 +1487,18 @@ class ReceptorEstimator:
                 B = transform(B)
                 
         if rescale:
+            optimal = normalize(optimal, norm='l1', axis=1)
             omax = optimal.max(0)
-            optimal = optimal / omax
+            
+            if rescale == 'max':
+                omin = 0
+            else:
+                omin = optimal.min(0)
+            
+            optimal = (optimal - omin) / (omax - omin)
             if B is not None:
-                B = B / omax
+                B = normalize(B, norm='l1', axis=1)
+                B = (B - omin) / (omax - omin)
             
         ax = plot_simplex(
             n, ax=ax, labels=labels, label_size=label_size
