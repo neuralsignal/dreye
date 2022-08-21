@@ -212,7 +212,7 @@ def plot_simplex(
                 text_kws['ha'] = 'left'
                 text_kws['va'] = 'center'
 
-            ax.text(*point, label, size=label_size, **text_kws)
+            ax.text(*point, label, fontsize=label_size, **text_kws)
 
     if remove_axes:
         if n == 4:
