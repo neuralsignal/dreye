@@ -1375,6 +1375,7 @@ class ReceptorEstimator:
         cmap_B=None,
         rescale=False, 
         transform=None,
+        label_kws={},
         **kwargs
     ):
         """
@@ -1501,7 +1502,8 @@ class ReceptorEstimator:
                 B = (B - omin) / (omax - omin)
             
         ax = plot_simplex(
-            n, ax=ax, labels=labels, label_size=label_size
+            n, ax=ax, labels=labels, label_size=label_size, 
+            label_kws=label_kws,
         )
         
         if domain_line:
