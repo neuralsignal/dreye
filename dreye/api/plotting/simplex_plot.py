@@ -203,7 +203,7 @@ def plot_simplex(
         eye_cart = barycentric_to_cartesian(eye)
         if isinstance(label_kws, dict):
             label_kws = [label_kws] * len(labels)
-        for idx, (point, label, label_kws) in enumerate(zip(eye_cart, labels, label_kws)):
+        for idx, (point, label, label_kw) in enumerate(zip(eye_cart, labels, label_kws)):
             text_kws = {}
             if idx == 0:
                 text_kws['ha'] = 'right'
@@ -215,7 +215,7 @@ def plot_simplex(
                 text_kws['ha'] = 'left'
                 text_kws['va'] = 'center'
                 
-            text_kws.update(label_kws)
+            text_kws.update(label_kw)
 
             ax.text(*point, label, fontsize=label_size, **text_kws)
 
