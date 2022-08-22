@@ -32,6 +32,7 @@ def plot_simplex(
     hull_kws={},
     point_scatter_kws={},
     gradient_line_kws={}, 
+    label_kws={},
     gradient_color=None,
     fig_kws={},
     remove_axes=True
@@ -200,7 +201,9 @@ def plot_simplex(
     if labels is not None and n != 2:
         eye = np.eye(n)
         eye_cart = barycentric_to_cartesian(eye)
-        for idx, (point, label) in enumerate(zip(eye_cart, labels)):
+        if isinstance(label_kws, dict):
+            label_kws = [label_kws] * len(labels)
+        for idx, (point, label, label_kws) in enumerate(zip(eye_cart, labels, label_kws)):
             text_kws = {}
             if idx == 0:
                 text_kws['ha'] = 'right'
@@ -211,6 +214,8 @@ def plot_simplex(
             else:
                 text_kws['ha'] = 'left'
                 text_kws['va'] = 'center'
+                
+            text_kws.update(label_kws)
 
             ax.text(*point, label, fontsize=label_size, **text_kws)
 
