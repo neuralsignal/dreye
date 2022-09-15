@@ -9,10 +9,9 @@ B : numpy.ndarray (npoints x ndim)
     Arbitary set of vectors
 """
 
-from scipy.spatial import ConvexHull
+from scipy.spatial import ConvexHull, QhullError
 from itertools import product
 import numpy as np
-from scipy.spatial.qhull import QhullError
 from sklearn.decomposition import PCA
 
 from quadprog import solve_qp
