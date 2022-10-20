@@ -13,7 +13,11 @@ B : numpy.ndarray (npoints x ndim)
 import warnings
 from itertools import combinations, product
 import numpy as np
-from scipy.spatial import Delaunay, QhullError
+from scipy.spatial import Delaunay
+try:
+    from scipy.spatial import QhullError
+except ImportError:
+    from scipy.spatial.qhull import QhullError
 import cvxpy as cp
 
 from dreye.api.optimize.lsq_linear import lsq_linear
