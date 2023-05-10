@@ -9,7 +9,7 @@ B : numpy.ndarray (npoints x ndim)
     Arbitary set of vectors
 """
 
-from scipy.spatial import ConvexHull
+from scipy.spatial import ConvexHull, Delaunay
 try:
     from scipy.spatial import QhullError
 except ImportError:
@@ -17,13 +17,70 @@ except ImportError:
 from itertools import product
 import numpy as np
 from sklearn.decomposition import PCA
+from typing import Union, Tuple
 
 from quadprog import solve_qp
 
-
-def proj_P_for_hull(P, hull_class=ConvexHull, return_ndim=False, return_hull=True, return_transformer=False):
+    
+def proj_P_for_hull(
+    P: np.ndarray, hull_class: Union[ConvexHull, Delaunay] = ConvexHull, 
+    return_ndim: bool = False, return_hull: bool = True, 
+    return_transformer: bool = False
+) -> Union[
+    ConvexHull, int, PCA, 
+    Tuple[ConvexHull, int], 
+    Tuple[ConvexHull, PCA], 
+    Tuple[ConvexHull, int, PCA]
+]:
     """
     Project `P` until it defines a convex hull.
+
+    Parameters
+    ----------
+    P : np.ndarray
+        The input array to be projected.
+    hull_class : type, optional
+        The convex hull class to use, by default ConvexHull
+    return_ndim : bool, optional
+        Whether to return the number of dimensions, by default False
+    return_hull : bool, optional
+        Whether to return the convex hull object, by default True
+    return_transformer : bool, optional
+        Whether to return the dimensionality reduction transformer, by default False
+
+    Returns
+    -------
+    types
+        Depending on the values of `return_ndim`, `return_hull`, and `return_transformer`, 
+        the function will return the convex hull object, 
+        the number of dimensions, the dimensionality reduction transformer, 
+        or some combination of these.
+        
+    Examples
+    --------
+
+    >>> from scipy.spatial import ConvexHull
+    >>> import numpy as np
+    >>> P = np.array([[0, 1], [1, 1], [1, 0], [0, 0]])
+    >>> hull = proj_P_for_hull(P)
+    >>> hull.vertices
+    array([0, 1, 2, 3])
+
+    >>> P = np.array([[0, 1], [1, 1], [1, 0], [0, 0], [0.5, 0.5]])
+    >>> hull, ndim, svd = proj_P_for_hull(P, return_ndim=True, return_transformer=True)
+    >>> hull.vertices
+    array([0, 1, 2, 3])
+    >>> ndim
+    2
+    >>> svd
+    PCA(n_components=1)
+
+    >>> P = np.array([[0, 1, 1], [1, 1, 1], [1, 0, 1], [0, 0, 1], [0.5, 0.5, 1]])
+    >>> hull, ndim = proj_P_for_hull(P, return_ndim=True)
+    >>> hull.vertices
+    array([0, 1, 2, 3])
+    >>> ndim
+    2
     """
     try:
         if P.shape[-1] == 1:
