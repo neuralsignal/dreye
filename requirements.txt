@@ -5,7 +5,7 @@ pandas>=1.0
 cvxpy>=1.1.10
 pyarrow>=3.0.0
 quadprog
-scipy
+scipy>=1.9.0
 matplotlib
 numpy
 tqdm

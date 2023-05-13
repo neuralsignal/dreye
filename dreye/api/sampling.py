@@ -97,8 +97,8 @@ def sample_in_hull(
             raise TypeError(f"engine wrong type `{type(engine)}`.")
 
         pvals = vols / vols.sum()
-        mult_qmc = qmc.MultinomialQMC(pvals, 1, engine=type(engine)(1, seed=rng), seed=rng)
-        counts = mult_qmc.random(n)
+        mult_qmc = qmc.MultinomialQMC(pvals, n, engine=type(engine)(1, seed=rng), seed=rng)
+        counts = mult_qmc.random(1)[0].astype(int)
         # init probs array
         probs = np.zeros((n, dims + 1))
         total = 0

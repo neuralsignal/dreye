@@ -103,7 +103,7 @@ class ReceptorEstimator:
             else np.asarray(filters_uncertainty)
         )
     
-    ### register state of adaptation and baseline
+    # register state of adaptation and baseline
     
     def register_adaptation(self, K):
         """Register a new adaptational state.
@@ -136,9 +136,9 @@ class ReceptorEstimator:
         if add_baseline:
             qb = qb + self.baseline
         if add:
-            self.K = self.K + 1/qb
+            self.K = self.K + 1 / qb
         else:
-            self.K = 1/qb
+            self.K = 1 / qb
     
     def register_baseline(self, baseline):
         """Register a new baseline value
@@ -169,8 +169,8 @@ class ReceptorEstimator:
         domain = np.asarray(domain)
         domain, [filters, signals] = equalize_domains([self.domain, domain], [filters, signals]) 
         return domain, filters, signals
-    
-    ### methods that only require filters
+
+    # methods that only require filters
     
     def capture(self, signals, domain=None):
         """Calculate the absolute excitation/light-induced capture.
@@ -290,7 +290,7 @@ class ReceptorEstimator:
         B = self.capture(signals, domain)
         return self._relative_capture(B)
     
-    ### register a system
+    # register a system
     
     def register_system(self, sources, domain=None, lb=None, ub=None, labels=None, Epsilon=None):
         """Register a new stimulation system.
@@ -686,7 +686,7 @@ class ReceptorEstimator:
         B[zero_rows] = 0
         return B
         
-    ### fitting functions
+    # fitting functions
     
     def register_targets(self, B, W=None):
         """Register a set of relative total capture values.
@@ -726,7 +726,7 @@ class ReceptorEstimator:
     def _assert_fitted(self):
         assert hasattr(self, 'X'), "Target have not been fitted to system yet."
     
-    ### methods that require registered system
+    # methods that require registered system
         
     def in_gamut(self, *args, **kwargs):
         """Alias for `ReceptorEstimator.in_hull`.
@@ -813,7 +813,6 @@ class ReceptorEstimator:
             baseline=(self.baseline if relative else None), 
             error=error, n=n, eps=eps
         )
-    
     
     def fit(
         self, B=None, model='gaussian',
@@ -1291,11 +1290,11 @@ class ReceptorEstimator:
     #     self._assert_registered()
     #     pass
     
-    ### scoring methods
+    # scoring methods
     
     # TODO r2-score, residuals, relative score, cosine similarity, etc.
         
-    ### plotting functions
+    # plotting functions
     
     def sources_plot(self, ax=None, colors=None, labels=None, **kwargs):
         """
