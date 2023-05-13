@@ -1,0 +1,32 @@
+name: dreyedocs
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - seaborn>=0.10
+  - pint>=0.16.1
+  - scikit-learn>=1.0
+  - pandas>=1.0
+  - cvxpy>=1.1.10
+  - pyarrow>=3.0.0
+  - quadprog
+  - scipy>=1.9.0
+  - matplotlib
+  - numpy
+  - tqdm
+  - sphinx
+  - jinja2==3.0.3
+  - ipython
+  - recommonmark
+  - numpydoc
+  - nbsphinx
+  - pydata-sphinx-theme
+  - nbsphinx-link
+  - sphinx-automodapi
+  - nbconvert
+  - pandoc
+  - flake8
+  - gitpython
+  - pygithub
+  - jupyter_client
+  - pandoc

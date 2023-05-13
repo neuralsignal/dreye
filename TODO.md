@@ -7,4 +7,3 @@
 * update readme
 * add documentation and expose more methods
 * add smoothing
-

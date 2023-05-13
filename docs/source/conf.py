@@ -423,7 +423,6 @@ ipython_exec_lines = [
 # Add custom Documenter to handle attributes/methods of an AccessorProperty
 
 import sphinx  # noqa: E402 isort:skip
-from sphinx.util import rpartition  # noqa: E402 isort:skip
 from sphinx.ext.autodoc import (  # noqa: E402 isort:skip
     AttributeDocumenter,
     Documenter,
@@ -482,9 +481,9 @@ class AccessorLevelDocumenter(Documenter):
                     return None, []
             # HACK: this is added in comparison to ClassLevelDocumenter
             # mod_cls still exists of class.accessor, so an extra
-            # rpartition is needed
-            modname, accessor = rpartition(mod_cls, ".")
-            modname, cls = rpartition(modname, ".")
+            # rsplit is needed
+            modname, accessor = mod_cls.rsplit(".", 1)
+            modname, cls = modname.rsplit(".", 1)
             parents = [cls, accessor]
             # if the module name is still missing, get it like above
             if not modname:
