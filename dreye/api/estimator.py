@@ -28,7 +28,7 @@ class ReceptorEstimator:
     Core class in *drEye* for analyzing and fitting to capture values given 
     a set of receptor filters and a set of stimulation sources that comprise 
     an experimental system.
-    
+
     Parameters
     ----------
     filters : ndarray of shape (n_filters, n_domain)
@@ -61,7 +61,7 @@ class ReceptorEstimator:
     sources_labels : ndarray of shape (n_sources), optional
         The label names of each source, by default None
     """
-    
+
     def __init__(
         self, 
         filters,

@@ -59,7 +59,7 @@ def _prepare_parameters(
     W : np.ndarray
         The weight matrix.
     K : np.ndarray, optional
-        The transformation matrix, by default None
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : float or np.ndarray
         The baseline to subtract from the target matrix.
     batch_size : int
@@ -231,7 +231,7 @@ def lsq_linear(
     W : np.ndarray, optional
         Weights for the objective function, by default None.
     K : np.ndarray, optional
-        Transformation matrix, by default None.
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : np.ndarray, optional
         Bias values for the linear equation, by default None.
     n_jobs : int, optional
@@ -329,7 +329,7 @@ def lsq_linear_excitation(
     W : np.ndarray, optional
         Weights for the objective function, by default None.
     K : np.ndarray, optional
-        Transformation matrix, by default None.
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : np.ndarray, optional
         Bias values for the linear equation, by default None.
     n_jobs : int, optional
@@ -451,7 +451,7 @@ def lsq_linear_underdetermined(
     W : np.ndarray, optional
         Weights for the objective function, by default None.
     K : np.ndarray, optional
-        Transformation matrix, by default None.
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : np.ndarray, optional
         Bias values for the linear equation, by default None.
     n_jobs : int, optional
@@ -554,7 +554,7 @@ def lsq_linear_minimize(
     W : np.ndarray, optional
         Weights for the objective function. If not provided, defaults to None.
     K : np.ndarray, optional
-        Transformation matrix. If not provided, defaults to None.
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : np.ndarray, optional
         Bias values for the linear equation. If not provided, defaults to None.
     norm : np.ndarray, optional
@@ -783,7 +783,7 @@ def lsq_linear_decomposition(
     ubp : int, optional
         Upper bound for the 'P' matrix in the NMF algorithm, by default 1.
     K : np.ndarray, optional
-        Transformation matrix. If not provided, defaults to None.
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : np.ndarray, optional
         Baseline values, by default None.
     max_iter : int, optional
@@ -1027,7 +1027,7 @@ def lsq_linear_adaptive(
     W : np.ndarray, optional
         Weight matrix, by default None.
     K : np.ndarray, optional
-        Kernel matrix, by default None.
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : np.ndarray, optional
         Baseline values, by default None.
     neutral_point : np.ndarray, optional

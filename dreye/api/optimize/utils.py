@@ -130,7 +130,7 @@ def prepare_parameters_for_linear(
     W : np.ndarray
         The weight matrix.
     K : np.ndarray, optional
-        The transformation matrix, by default None
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : float or np.ndarray
         The baseline to subtract from the target matrix.
 

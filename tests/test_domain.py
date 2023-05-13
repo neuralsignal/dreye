@@ -42,3 +42,54 @@ def test_equalize_domains_stack_axis():
     new_domain, new_arrs = equalize_domains(domains, arrs, stack_axis=0)
     assert np.array_equal(new_domain, domains[0])
     assert new_arrs.shape == (2, 10)
+    
+    
+def test_equalize_domains():
+    # domains with equal spacing but different ranges
+    domain1 = np.array([0, 1, 2, 3, 4, 5])
+    domain2 = np.array([3, 4, 5, 6, 7])
+    arr1 = np.array([1, 2, 3, 4, 5, 6])
+    arr2 = np.array([7, 8, 9, 10, 11])
+
+    new_domain, new_arrs = equalize_domains([domain1, domain2], [arr1, arr2])
+
+    assert np.allclose(new_domain, np.array([3, 4, 5]))
+    assert np.allclose(new_arrs[0], np.array([4, 5, 6]))
+    assert np.allclose(new_arrs[1], np.array([7, 8, 9]))
+
+def test_equalize_domains_interpolation():
+    # domains with different spacing
+    domain1 = np.array([0, 2, 4, 6, 8, 10])
+    domain2 = np.array([3, 6, 9])
+    arr1 = np.array([1, 2, 3, 4, 5, 6])
+    arr2 = np.array([7, 8, 9])
+
+    new_domain, new_arrs = equalize_domains([domain1, domain2], [arr1, arr2])
+
+    assert np.allclose(new_domain, np.array([3, 6, 9]))
+    assert np.allclose(new_arrs[0], np.array([2.5, 4, 5.5]))
+    assert np.allclose(new_arrs[1], np.array([7, 8, 9]))
+
+def test_equalize_domains_stack():
+    # test stacking
+    domain1 = np.array([0, 1, 2, 3, 4, 5])
+    domain2 = np.array([3, 4, 5, 6, 7])
+    arr1 = np.array([1, 2, 3, 4, 5, 6])
+    arr2 = np.array([7, 8, 9, 10, 11])
+
+    new_domain, new_arrs = equalize_domains([domain1, domain2], [arr1, arr2], stack_axis=0)
+
+    assert np.allclose(new_domain, np.array([3, 4, 5]))
+    assert np.allclose(new_arrs, np.array([[4, 5, 6], [7, 8, 9]]))
+
+def test_equalize_domains_concatenate():
+    # test concatenating
+    domain1 = np.array([0, 1, 2, 3, 4, 5])
+    domain2 = np.array([3, 4, 5, 6, 7])
+    arr1 = np.array([1, 2, 3, 4, 5, 6])
+    arr2 = np.array([7, 8, 9, 10, 11])
+
+    new_domain, new_arrs = equalize_domains([domain1, domain2], [arr1, arr2], stack_axis=0, concatenate=True)
+
+    assert np.allclose(new_domain, np.array([3, 4, 5]))
+    assert np.allclose(new_arrs, np.array([4, 5, 6, 7, 8, 9]))

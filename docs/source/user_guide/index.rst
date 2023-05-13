@@ -53,4 +53,5 @@ The different tutorials are listed below:
     Dealing with filter uncertainty and underdetermined systems <uncertainty.nblink>
     Gamut-corrective approaches <gamut_corrections.nblink>
     Patterned stimuli <patterned.nblink>
+    Spherical coordinates <spherical_coordinates.rst>
 

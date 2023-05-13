@@ -92,8 +92,8 @@ def get_P_from_A(
         Lower bound array.
     ub : numpy.ndarray
         Upper bound array.
-    K : unknown type, optional
-        Unknown variable, by default None.
+    K : np.ndarray, optional
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : unknown type, optional
         Unknown variable, by default None.
     bounded : bool, optional
@@ -255,7 +255,7 @@ def in_hull_from_A(
     ub : np.ndarray
         Upper bound for the convex combination coefficients. Should be a 1-D array.
     K : np.ndarray, optional
-        Transformation matrix, by default None.
+        Transformation matrix for `A`, `lb`, `ub`, and `baseline`, by default None.
     baseline : np.ndarray, optional
         The baseline point to be subtracted from all points in the convex hull, by default None.
 
