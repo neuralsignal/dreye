@@ -19,7 +19,7 @@ from dreye.api.plotting.basic import hull_outline, simple_plotting_function, vec
 from dreye.api.plotting.simplex_plot import plot_simplex
 from dreye.api.project import alpha_for_B_with_P
 from dreye.api.sampling import sample_in_hull
-from dreye.api.utils import check_bounds, l1norm, linear_transform
+from dreye.api.utils import ensure_bounds, l1norm, apply_linear_transform
 from dreye.api.metrics import compute_gamut
 
 
@@ -321,7 +321,7 @@ class ReceptorEstimator:
         self.sources = sources
         self.sources_domain = domain
         # lb and ub
-        self.lb, self.ub = check_bounds(lb, ub, self.sources.shape[0])
+        self.lb, self.ub = ensure_bounds(lb, ub, self.sources.shape[0])
         
         # labels
         self.sources_labels = (np.arange(self.sources.shape[0]) if labels is None else np.asarray(labels))
@@ -516,7 +516,7 @@ class ReceptorEstimator:
         """
         self._assert_registered()
         # lb and ub
-        lb_, ub_ = check_bounds(lb, ub, self.A.shape[1])
+        lb_, ub_ = ensure_bounds(lb, ub, self.A.shape[1])
         if lb is not None:
             self.lb = lb_
         if ub is not None:
@@ -606,7 +606,7 @@ class ReceptorEstimator:
             of the stimulation system.
         """
         if relative:
-            A, baseline = linear_transform(self.A, self.K, self.baseline)
+            A, baseline = apply_linear_transform(self.A, self.K, self.baseline)
         else:
             A = self.A
             baseline = 0

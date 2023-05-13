@@ -8,6 +8,7 @@ __pycache__/
 .vscode/*
 
 tests/test_data/*
+test.py
 
 # C extensions
 *.so

@@ -385,7 +385,7 @@ def test_uncertainty():
     plt.close()
 
     # %% [markdown]
-    # As we can see in the plot above, sometimes the standard approach gives the same result, but other times the variance minimization approach differs significantly. In our case, we defined our uncertainty according to the observed heteroscedasticity in photoreceptor noise. In this case, the variance minimization approach will ensure that the samples drawn in capture space have similar distances to each other when compared to the resulting fitted instensity combinations in LED space. There are other options to consider in the `minimize_variance` method that are detailed in the API reference.
+    # As we can see in the plot above, sometimes the standard approach gives the same result, but other times the variance minimization approach differs siicantly. In our case, we defined our uncertainty according to the observed heteroscedasticity in photoreceptor noise. In this case, the variance minimization approach will ensure that the samples drawn in capture space have similar distances to each other when compared to the resulting fitted instensity combinations in LED space. There are other options to consider in the `minimize_variance` method that are detailed in the API reference.
 
     # %% [markdown]
     # ## Other underdetermined objectives

@@ -7,10 +7,10 @@ from numbers import Number
 
 
 def calculate_capture(
-    filters, 
+    filters,
     signals,
-    domain=1.0, 
-    trapz=True, 
+    domain=1.0,
+    trapz=True,
 ):
     """Calculate the stimulus-induced capture.
 
@@ -21,7 +21,7 @@ def calculate_capture(
     signals : ndarray of shape (..., n_signals, n_domain)
         The signals exciting all receptor types.
     domain : float or ndarray of shape (n_domain), optional
-        If float, it is assumed to be the step size in the domain (e.g. dx=1nm for wavelengths). 
+        If float, it is assumed to be the step size in the domain (e.g. dx=1nm for wavelengths).
         If array-like, it is assumed to be an ascending array where each element is the
         value in domain coordinates (e.g. [340, 350, ..., 670, 680]nm for wavelengths).
         By default 1.0.
