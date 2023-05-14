@@ -221,7 +221,7 @@ def lsq_linear(
     Parameters
     ----------
     A : np.ndarray
-        Coefficients of the linear equation.
+        Coefficients of the linear equation (2D array).
     B : np.ndarray
         Right-hand side of the linear equation.
     lb : np.ndarray, optional

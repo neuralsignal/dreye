@@ -303,6 +303,8 @@ def proj_B_to_hull(B: np.ndarray, equations: np.ndarray) -> np.ndarray:
     np.ndarray
         The projected points.
     """
+    B = B.astype(np.float64)  # convert B to float64
+    equations = equations.astype(np.float64)  # convert equations to float64
     Q = np.eye(B.shape[-1])
     return np.apply_along_axis(
         lambda a: solve_qp(

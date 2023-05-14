@@ -38,6 +38,10 @@ def compute_jensen_shannon_divergence(P, Q, base=2):
         The Jensen-Shannon divergence between P and Q.
     """
     P, Q = np.asarray(P).ravel(), np.asarray(Q).ravel()
+
+    if np.any(P < 0) or np.any(Q < 0):
+        raise ValueError("Probabilities must be non-negative.")
+
     P, Q = P / np.linalg.norm(P, ord=1), Q / np.linalg.norm(Q, ord=1)
     M = 0.5 * (P + Q)
     return 0.5 * (stats.entropy(P, M, base=base) + stats.entropy(Q, M, base=base))
@@ -140,10 +144,13 @@ def compute_mean_mutual_info(X, **kwargs):
         The mean mutual information of X.
     """
     X = np.asarray(X)
-    mis = [
-        mutual_info_regression(X[idx], X[idx + 1 :], **kwargs)
-        for idx in range(X.shape[1] - 1)
-    ]
+    mis = []
+    for idx in range(X.shape[1]):
+        X_ = np.delete(X, idx, axis=1)
+        y_ = X[:, idx]
+        mi = mutual_info_regression(X_, y_, **kwargs)
+        mis.append(mi)
+
     return np.concatenate(mis).mean()
 
 
@@ -164,6 +171,8 @@ def compute_volume(X):
     X = np.asarray(X)
     if (X.ndim == 1) or (X.shape[1] < 2):
         return np.max(X) - np.min(X)
+    if np.allclose(X, X[0]):
+        return 0.0
     hull = proj_P_for_hull(X)
     return (
         hull.volume if not isinstance(hull, np.ndarray) else np.max(hull) - np.min(hull)
@@ -184,14 +193,14 @@ def compute_gamut(
 
     Parameters
     ----------
-    X : numpy.ndarray
+    X : np.ndarray
         An n x m matrix with n samples and m features.
-    at_l1 : [type], optional
+    at_l1 : float, optional
         [description], by default None
-    relative_to : [type], optional
-        [description], by default None
+    relative_to : np.ndarray, optional
+        Calculate relative to another array with samples, by default None
     center_to_neutral : bool, optional
-        [description], by default False
+        Center for barycentric dimensionality reduction, by default False
     metric : str, optional
         The metric to use when computing the gamut, either 'width' or 'volume', by default 'width'
     center : bool, optional
@@ -210,6 +219,7 @@ def compute_gamut(
     l1 = X.sum(axis=-1)
 
     if at_l1 is not None:
+        assert at_l1 > 0, "at_l1 must be greater than 0"
         if np.all(l1 <= at_l1) or np.all(l1 > at_l1):
             return 0
         # just keep current points if zero q the only one below at_l1

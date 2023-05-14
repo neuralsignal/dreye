@@ -9,7 +9,9 @@ import numpy as np
 from scipy.linalg import block_diag
 
 
-def diagonal_stack(A: np.ndarray, n: int, pad_size: int = 0, pad: bool = False) -> np.ndarray:
+def diagonal_stack(
+    A: np.ndarray, n: int, pad_size: int = 0, pad: bool = False
+) -> np.ndarray:
     """
     Stack the array diagonally.
 
@@ -30,9 +32,9 @@ def diagonal_stack(A: np.ndarray, n: int, pad_size: int = 0, pad: bool = False) 
         Diagonally stacked array.
     """
     if pad:
-        return block_diag(*([A]*n + [np.zeros(A.shape)*pad_size]))
+        return block_diag(*([A] * n + [np.zeros(A.shape) * pad_size]))
     else:
-        return block_diag(*[A]*n)
+        return block_diag(*[A] * n)
 
 
 def concat(x: np.ndarray, n: int, pad_size: int = 0, pad: bool = False) -> np.ndarray:
@@ -56,12 +58,14 @@ def concat(x: np.ndarray, n: int, pad_size: int = 0, pad: bool = False) -> np.nd
         Concatenated array.
     """
     if pad:
-        return np.concatenate([x]*n + [np.zeros(x.shape)]*pad_size)
+        return np.concatenate([x] * n + [np.zeros(x.shape)] * pad_size)
     else:
-        return np.concatenate([x]*n)
+        return np.concatenate([x] * n)
 
 
-def batch_arrays(arrays: List[np.ndarray], batch_size: int, pad_size: int = 0, pad: bool = False) -> List[np.ndarray]:
+def batch_arrays(
+    arrays: List[np.ndarray], batch_size: int, pad_size: int = 0, pad: bool = False
+) -> List[np.ndarray]:
     """
     Batch arrays.
 
@@ -84,13 +88,14 @@ def batch_arrays(arrays: List[np.ndarray], batch_size: int, pad_size: int = 0, p
     return [
         concat(arr, batch_size, pad_size, pad)
         if arr.ndim == 1
-        else
-        diagonal_stack(arr, batch_size, pad_size, pad)
+        else diagonal_stack(arr, batch_size, pad_size, pad)
         for arr in arrays
     ]
 
 
-def ravel_iarrays(iter_arrays: List[np.ndarray], batch_size: int, idx: int) -> List[np.ndarray]:
+def ravel_iarrays(
+    iter_arrays: List[np.ndarray], batch_size: int, idx: int
+) -> List[np.ndarray]:
     """
     Ravel and index into iter_arrays.
 
@@ -109,14 +114,15 @@ def ravel_iarrays(iter_arrays: List[np.ndarray], batch_size: int, idx: int) -> L
         Raveled and indexed arrays.
     """
     return [
-        arr[idx*batch_size:(idx+1)*batch_size].ravel()
-        for arr in iter_arrays
+        arr[idx * batch_size : (idx + 1) * batch_size].ravel() for arr in iter_arrays
     ]
 
 
 def ravel_last_iarrays(
-    iter_arrays: List[np.ndarray], last_batch_size: int, 
-    pad_size: int = 0, pad: bool = False
+    iter_arrays: List[np.ndarray],
+    last_batch_size: int,
+    pad_size: int = 0,
+    pad: bool = False,
 ) -> List[np.ndarray]:
     """
     Ravel the last batch of iter_arrays.
@@ -138,10 +144,12 @@ def ravel_last_iarrays(
         Raveled arrays for the last batch.
     """
     return [
-        np.concatenate([
-            arr[-last_batch_size:].ravel(), 
-            np.zeros((pad_size,) + arr.shape[1:]).ravel()
-        ])
+        np.concatenate(
+            [
+                arr[-last_batch_size:].ravel(),
+                np.zeros((pad_size,) + arr.shape[1:]).ravel(),
+            ]
+        )
         if pad
         else arr[-last_batch_size:].ravel()
         for arr in iter_arrays
@@ -152,9 +160,9 @@ def batched_iteration(
     n_samples: int,  # number of samples
     iter_arrays: List[np.ndarray],  # iterate (n_samples) and ravel these arrays
     arrays: List[np.ndarray],  # concat these arrays so that it is properly sized
-    batch_size: int = 1, 
-    pad: bool = False, 
-    verbose: bool = False
+    batch_size: int = 1,
+    pad: bool = False,
+    verbose: bool = False,
 ) -> Tuple[int, List[np.ndarray], List[np.ndarray]]:
     """
     Perform batched iteration over arrays.
@@ -180,26 +188,36 @@ def batched_iteration(
         Tuple containing the index, raveled iter_arrays, and batched arrays.
     """
     if batch_size == 1:
-        iterator = tqdm(enumerate(zip(*iter_arrays)), desc="Iterations", total=n_samples) if verbose else enumerate(zip(*iter_arrays))
+        iterator = (
+            tqdm(enumerate(zip(*iter_arrays)), desc="Iterations", total=n_samples)
+            if verbose
+            else enumerate(zip(*iter_arrays))
+        )
         for idx, iarrays in iterator:
             yield (idx, iarrays, arrays)
 
     else:
-        iterator = tqdm(range(n_samples // batch_size), desc='Iterations', total=n_samples//batch_size) if verbose else range(n_samples // batch_size)
-        
+        iterator = (
+            tqdm(
+                range(n_samples // batch_size),
+                desc="Iterations",
+                total=n_samples // batch_size,
+            )
+            if verbose
+            else range(n_samples // batch_size)
+        )
+
         batched_arrays = batch_arrays(arrays, batch_size)
         for idx in iterator:
             raveled_iarrays = ravel_iarrays(iter_arrays, batch_size, idx)
             yield (idx, raveled_iarrays, batched_arrays)
-        
+
         last_batch_size = n_samples % batch_size
         if last_batch_size:
             batched_arrays = batch_arrays(
-                arrays, last_batch_size, 
-                batch_size-last_batch_size, pad=pad
+                arrays, last_batch_size, batch_size - last_batch_size, pad=pad
             )
             raveled_iarrays = ravel_last_iarrays(
-                iter_arrays, last_batch_size, 
-                batch_size-last_batch_size, pad=pad
+                iter_arrays, last_batch_size, batch_size - last_batch_size, pad=pad
             )
-            yield (idx+1, raveled_iarrays, batched_arrays)
+            yield (idx + 1, raveled_iarrays, batched_arrays)

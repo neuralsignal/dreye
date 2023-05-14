@@ -8,11 +8,7 @@ import inspect
 from functools import wraps
 import numpy as np
 
-from dreye.api.utils import (
-    ensure_2d_array, 
-    ensure_value, 
-    transform_values
-)
+from dreye.api.utils import ensure_2d_array, ensure_value, transform_values
 
 
 FAILURE_MESSAGE = "Optimization unsuccessful for {count} samples/batches."
@@ -20,7 +16,7 @@ FAILURE_MESSAGE = "Optimization unsuccessful for {count} samples/batches."
 
 def replace_numpy_with(module: ModuleType, func: Callable) -> Callable:
     """
-    Replaces the numpy module in a given function with another module 
+    Replaces the numpy module in a given function with another module
     that uses similar attributes (e.g. torch or jax).
 
     Parameters
@@ -33,7 +29,7 @@ def replace_numpy_with(module: ModuleType, func: Callable) -> Callable:
     Returns
     -------
     function
-        A function with the numpy module replaced with the specified module. 
+        A function with the numpy module replaced with the specified module.
 
     Raises
     ------
@@ -51,15 +47,17 @@ def replace_numpy_with(module: ModuleType, func: Callable) -> Callable:
             return getattr(module, func.__name__)
         except AttributeError:
             raise AttributeError("The numpy function does not exist in the new module.")
-    if not hasattr(func, '__globals__'):
-        raise AttributeError("Function cannot be converted. It lacks a '__globals__' attribute.")
-    
+    if not hasattr(func, "__globals__"):
+        raise AttributeError(
+            "Function cannot be converted. It lacks a '__globals__' attribute."
+        )
+
     namespace = func.__globals__.copy()
-    if 'np' in namespace:
-        namespace['np'] = module
-    if 'numpy' in namespace:
-        namespace['numpy'] = module
-    
+    if "np" in namespace:
+        namespace["np"] = module
+    if "numpy" in namespace:
+        namespace["numpy"] = module
+
     source = inspect.getsource(func)
     exec(source, namespace)
     return wraps(func)(namespace.get(func.__name__, func))
@@ -93,7 +91,7 @@ def get_batch_size(batch_size: Union[None, int, str], total_size: int) -> int:
     if batch_size is None:
         return 1
     elif isinstance(batch_size, str):
-        allowed = ('full', 'total')
+        allowed = ("full", "total")
         if batch_size in allowed:
             return total_size
         else:
@@ -103,14 +101,14 @@ def get_batch_size(batch_size: Union[None, int, str], total_size: int) -> int:
 
 
 def prepare_parameters_for_linear(
-    A: np.ndarray, B: np.ndarray, 
-    lb: Union[float, np.ndarray], ub: Union[float, np.ndarray],
-    W: np.ndarray, K: Optional[np.ndarray],
-    baseline: Union[float, np.ndarray]
-) -> Tuple[
-    np.ndarray, np.ndarray, np.ndarray, 
-    np.ndarray, np.ndarray, np.ndarray
-]:
+    A: np.ndarray,
+    B: np.ndarray,
+    lb: Union[float, np.ndarray],
+    ub: Union[float, np.ndarray],
+    W: np.ndarray,
+    K: Optional[np.ndarray],
+    baseline: Union[float, np.ndarray],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Prepare parameters for linear least squares problem.
 
@@ -145,8 +143,8 @@ def prepare_parameters_for_linear(
     B = ensure_2d_array(B)
 
     if isinstance(W, str):
-        if W == 'inverse':
-            W = 1/B
+        if W == "inverse":
+            W = 1 / B
         else:
             raise ValueError(f"W must be an array or `inverse`, but is `{W}`")
 
