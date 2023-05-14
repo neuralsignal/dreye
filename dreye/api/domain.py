@@ -2,70 +2,113 @@
 Handling domains
 """
 
+from typing import Union, List, Tuple, Optional
 from numbers import Number
 import numpy as np
 from scipy.interpolate import interp1d
 
-from dreye.api.utils import arange
+from dreye.api.utils import arange_with_interval
 
 
 def equalize_domains(
-    domains, arrs, axes=None, fill_value=0, 
-    bounds_error=False, stack_axis=None, concatenate=False
-):
+    domains: List[np.ndarray],
+    arrs: List[np.ndarray],
+    axes: Optional[Union[int, List[int]]] = None,
+    fill_value: int = 0,
+    bounds_error: bool = False,
+    stack_axis: Optional[int] = None,
+    concatenate: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Equalize domains between different arrays.
 
     Parameters
     ----------
-    domains : [type]
-        [description]
-    arrs : [type]
-        [description]
-    axes : [type], optional
-        [description], by default None
+    domains : list of ndarray
+        List of 1-D arrays representing the domains to be equalized.
+    arrs : list of ndarray
+        List of n-D arrays whose domains are to be equalized.
+    axes : int or list of int, optional
+        The axis or axes along which the domains need to be equalized.
+        If None, it assumes the last axis for all arrays, by default None.
     fill_value : int, optional
-        [description], by default 0
+        The value to use for points outside of the interpolation range, by default 0.
     bounds_error : bool, optional
-        [description], by default False
-    stack_axis : [type], optional
-        [description], by default None
+        If True, an error is thrown any time interpolation is attempted on a value outside of the range
+        of x (where extrapolation is necessary). If False, out of bounds values are assigned fill_value.
+        By default, it is set to False.
+    stack_axis : int, optional
+        Axis along which the arrays have to be stacked. If None, the arrays are not stacked, by default None.
     concatenate : bool, optional
-        [description], by default False
+        If True, the arrays are concatenated along the stack_axis, by default False.
 
     Returns
     -------
-    [type]
-        [description]
+    tuple of ndarray
+        A tuple containing the new domain and the new arrays.
 
     Raises
     ------
     ValueError
-        [description]
+        If the domains cannot be equalized due to the range and difference of the domain values.
     """
     new_domain = domains[0]
-    for domain in domains:
-        if new_domain.shape != domain.shape:
-            break
-        all_equal = np.equal(new_domain, domain).all()
-        if not all_equal:
-            break
-    else:
-        if stack_axis is None:
-            new_arrs = arrs
-        elif concatenate:
-            new_arrs = np.concatenate(arrs, axis=stack_axis)
-        else:
-            new_arrs = np.stack(arrs, axis=stack_axis)
-        return new_domain, new_arrs
-    
-    count = len(domains)
+    if not _is_equal_domains(domains):
+        new_domain, arrs = _interpolate_domains(
+            domains, arrs, axes, fill_value, bounds_error
+        )
 
+    if stack_axis is not None:
+        arrs = _stack_or_concatenate(arrs, stack_axis, concatenate)
+
+    return new_domain, arrs
+
+
+def _is_equal_domains(domains: List[np.ndarray]) -> bool:
+    """
+    Check if all domains are equal.
+    """
+    first_domain = domains[0]
+    return all(np.array_equal(first_domain, domain) for domain in domains)
+
+
+def _interpolate_domains(
+    domains: List[np.ndarray],
+    arrs: List[np.ndarray],
+    axes: Optional[Union[int, List[int]]],
+    fill_value: int,
+    bounds_error: bool,
+) -> Tuple[np.ndarray, List[np.ndarray]]:
+    """
+    Interpolate domains to equalize them.
+    """
+    count = len(domains)
     if axes is None:
         axes = [-1] * count
     elif isinstance(axes, Number):
         axes = [axes] * count
 
+    lemin, lemax, lediff = _get_domain_bounds_and_diff(domains)
+    if (lemin >= lemax) or ((lemax - lemin) < lediff):
+        raise ValueError("Cannot equalize domains.")
+
+    new_domain = arange_with_interval(lemin, lemax, lediff)
+    new_arrs = []
+    for domain, arr, axis in zip(domains, arrs, axes):
+        interpolator = interp1d(
+            domain, arr, axis=axis, fill_value=fill_value, bounds_error=bounds_error
+        )
+        new_arrs.append(interpolator(new_domain))
+
+    return new_domain, new_arrs
+
+
+def _get_domain_bounds_and_diff(
+    domains: List[np.ndarray],
+) -> Tuple[float, float, float]:
+    """
+    Get the bounds and mean difference of the domain values.
+    """
     lemin = -np.inf
     lemax = np.inf
     lediff = 0
@@ -73,32 +116,26 @@ def equalize_domains(
         lemin = np.maximum(lemin, np.min(domain))
         lemax = np.minimum(lemax, np.max(domain))
         lediff = np.maximum(lediff, np.mean(np.diff(np.sort(domain))))
-        
-    if (lemin >= lemax) or ((lemax - lemin) < lediff):
-        raise ValueError("Cannot equalize domains.")
 
-    new_domain = arange(lemin, lemax, lediff)
-    # new_domain = np.arange(lemin, lemax+lediff-lemax%lediff, lediff)
-    new_arrs = []
-    for domain, arr, axis in zip(domain, arrs, axes):
-        arr = interp1d(domain, arr, axis=axis, fill_value=fill_value, bounds_error=bounds_error)(new_domain)
-        new_arrs.append(arr)
+    return lemin, lemax, lediff
 
-    if stack_axis is None:
-        pass
-    elif concatenate:
-        new_arrs = np.concatenate(new_arrs, axis=stack_axis)
+
+def _stack_or_concatenate(
+    arrs: List[np.ndarray], stack_axis: int, concatenate: bool
+) -> np.ndarray:
+    """
+    Stack or concatenate arrays along a specific axis.
+    """
+    if concatenate:
+        return np.concatenate(arrs, axis=stack_axis)
     else:
-        new_arrs = np.stack(new_arrs, axis=stack_axis)
-
-    return new_domain, new_arrs
+        return np.stack(arrs, axis=stack_axis)
 
 
 # TODO smooth
-# TODO integral, normalize
 
 # def filter(
-#     domain, arr, 
+#     domain, arr,
 #     domain_interval,
 #     method='savgol', extrapolate=False,
 #     **method_args

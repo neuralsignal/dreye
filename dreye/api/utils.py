@@ -1,30 +1,32 @@
 """
-Utils
+Utility functions for array and matrix operations.
 """
 
-import warnings
 from numbers import Number
 
 import numpy as np
 from scipy.linalg import norm
 
 
-def check_value(value, default, size):
-    """[summary]
+def ensure_value(value, default, size):
+    """
+    Ensure a value is not None and return it as an array.
+
+    If value is None, replace it with the default value.
 
     Parameters
     ----------
-    value : [type]
-        [description]
-    default : [type]
-        [description]
-    size : [type]
-        [description]
+    value : int, float, or array-like
+        Input value.
+    default : int or float
+        Default value to use if value is None.
+    size : int
+        Size of output array.
 
     Returns
     -------
-    [type]
-        [description]
+    numpy.ndarray
+        Value as an array.
     """
     if value is None:
         return np.ones(size) * default
@@ -34,48 +36,51 @@ def check_value(value, default, size):
         return np.asarray(value)
 
 
-def check_2darr(arr, axis0_size=None, axis1_size=None):
-    """[summary]
+def ensure_2d_array(array, axis0_size=None, axis1_size=None):
+    """
+    Ensure input is a 2D array, and validate its shape.
 
     Parameters
     ----------
-    arr : [type]
-        [description]
-    axis0_size : [type], optional
-        [description], by default None
-    axis1_size : [type], optional
-        [description], by default None
+    array : array-like
+        Input array.
+    axis0_size : int, optional
+        Expected size of the first dimension of the array.
+    axis1_size : int, optional
+        Expected size of the second dimension of the array.
 
     Returns
     -------
-    [type]
-        [description]
+    numpy.ndarray
+        Input as a 2D array.
     """
-    arr = np.atleast_2d(np.asarray(arr))
+    array = np.atleast_2d(np.asarray(array))
     if axis0_size is not None:
-        assert axis0_size == arr.shape[0], "array size mismatch along first dimension"
+        assert axis0_size == array.shape[0], "array size mismatch along first dimension"
     if axis1_size is not None:
-        assert axis1_size == arr.shape[1], "array size mismat along second dimension"
-    return arr
+        assert (
+            axis1_size == array.shape[1]
+        ), "array size mismatch along second dimension"
+    return array
 
 
-def linear_transform(A, K, baseline):
+def apply_linear_transform(A, K, baseline):
     """
-    Helper function to reformulate `K(Ax+baseline)`
+    Apply a linear transform `K(Ax+baseline)` to A and baseline.
 
     Parameters
     ----------
-    A : [type]
-        [description]
-    K : [type]
-        [description]
-    baseline : [type]
-        [description]
+    A : array-like
+        Input array to be transformed.
+    K : array-like or None
+        Transformation matrix or None.
+    baseline : array-like
+        Baseline to be transformed.
 
     Returns
     -------
-    [type]
-        [description]
+    tuple of numpy.ndarray
+        Transformed A and baseline.
     """
     if K is not None:
         K = np.asarray(K)
@@ -90,20 +95,21 @@ def linear_transform(A, K, baseline):
     return A, baseline
 
 
-def error_propagation(Epsilon, K):
-    """[summary]
+def propagate_error(Epsilon, K):
+    """
+    Propagate error Epsilon through a transformation K.
 
     Parameters
     ----------
-    Epsilon : [type]
-        [description]
-    K : [type]
-        [description]
+    Epsilon : array-like
+        Input error to be propagated.
+    K : array-like or None
+        Transformation matrix or None.
 
     Returns
     -------
-    [type]
-        [description]
+    numpy.ndarray
+        Propagated error.
     """
     if K is not None:
         K = np.asarray(K) ** 2
@@ -116,250 +122,266 @@ def error_propagation(Epsilon, K):
     return Epsilon
 
 
-def check_bounds(lb, ub, size):
-    # default lower bound value is zero (non-negativity)
-    lb = check_value(lb, 0, size)
-    assert np.all(np.isfinite(lb)) or np.all(np.isneginf(lb)), "bounds must all be finite or infinite."
-    # default upper bound value is infinity
-    ub = check_value(ub, np.inf, size)
-    assert np.all(np.isfinite(ub)) or np.all(np.isposinf(ub)), "bounds must all be finite or infinite."
-    return lb, ub
-    
-def check_and_return_transformed_values(A, lb, ub, K, baseline):
-    """[summary]
+def ensure_bounds(lb, ub, size):
+    """
+    Ensure lower and upper bounds are finite or infinite arrays of correct size.
 
     Parameters
     ----------
-    A : [type]
-        [description]
-    lb : [type]
-        [description]
-    ub : [type]
-        [description]
-    K : [type]
-        [description]
-    baseline : [type]
-        [description]
+    lb : array-like
+        Lower bounds.
+    ub : array-like
+        Upper bounds.
+    size : int
+        Size of output arrays.
 
     Returns
     -------
-    [type]
-        [description]
+    tuple of numpy.ndarray
+        Lower and upper bounds as arrays.
     """
-    # TODO K as string `norm`
-    A = check_2darr(A)
+    lb = ensure_value(lb, 0, size)
+    assert np.all(np.isfinite(lb)) or np.all(
+        np.isneginf(lb)
+    ), "bounds must all be finite or infinite."
+    ub = ensure_value(ub, np.inf, size)
+    assert np.all(np.isfinite(ub)) or np.all(
+        np.isposinf(ub)
+    ), "bounds must all be finite or infinite."
+    return lb, ub
 
-    lb, ub = check_bounds(lb, ub, A.shape[-1])
-    baseline = check_value(baseline, 0, A.shape[0])
 
-    A, baseline = linear_transform(A, K, baseline)
+def transform_values(A, lb, ub, K, baseline):
+    """
+    Ensure input values are correctly formatted and apply a linear transform.
 
+    Parameters
+    ----------
+    A : array-like
+        Input array to be transformed.
+    lb : array-like
+        Lower bounds for A.
+    ub : array-like
+        Upper bounds for A.
+    K : array-like or None
+        Transformation matrix or None.
+    baseline : array-like
+        Baseline for A.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        Transformed A, lb, ub, and baseline.
+    """
+    A = ensure_2d_array(A)
+    lb, ub = ensure_bounds(lb, ub, A.shape[-1])
+    baseline = ensure_value(baseline, 0, A.shape[0])
+    A, baseline = apply_linear_transform(A, K, baseline)
     return A, lb, ub, baseline
 
 
 def l2norm(arr, axis=-1, keepdims=False):
-    """Calculate the L2-norm along a given axis
+    """
+    Calculate the L2-norm of an array along a given axis.
 
     Parameters
     ----------
     arr : ndarray
-        Array used to calculate the L2-norm.
+        Array to calculate the L2-norm of.
     axis : int, optional
-        Axis to normalize along, by default -1
+        Axis to calculate the norm along, default is -1.
     keepdims : bool, optional
-        Whether to keep the dimensionality of the array, by default False.
+        Whether to keep the original number of dimensions, default is False.
 
     Returns
     -------
-    l2norm : ndarray
-        L2-norm or array along axis.
+    ndarray
+        L2-norm of the array along the given axis.
     """
     return norm(arr, ord=2, axis=axis, keepdims=keepdims)
 
 
 def l1norm(arr, axis=-1, keepdims=False):
-    """Calculate the L1-norm along a given axis
+    """
+    Calculate the L1-norm of an array along a given axis.
 
     Parameters
     ----------
     arr : ndarray
-        Array used to calculate the L1-norm.
+        Array to calculate the L1-norm of.
     axis : int, optional
-        Axis to normalize along, by default -1
+        Axis to calculate the norm along, default is -1.
     keepdims : bool, optional
-        Whether to keep the dimensionality of the array, by default False.
+        Whether to keep the original number of dimensions, default is False.
 
     Returns
     -------
-    l1norm : ndarray
-        L1-norm or array along axis.
+    ndarray
+        L1-norm of the array along the given axis.
     """
     return norm(arr, ord=1, axis=axis, keepdims=keepdims)
 
 
 def integral(arr, domain, axis=-1, keepdims=False):
-    """Calculate the integral of an array given its domain along an axis
+    """
+    Calculate the integral of an array over a given domain along an axis.
 
     Parameters
     ----------
-    arr : ndarray of shape (..., n_domain, ...)
-        The array to use to obtain the integral.
-    domain : float or ndarray of shape (n_domain)
-        The domain for `arr` along the given axis. 
-        If a float, it is assumed to be the step size of the domain.
+    arr : ndarray
+        The array to integrate.
+    domain : float or ndarray
+        The domain of integration. If a float, interpreted as the step size.
     axis : int, optional
-        The axis of the domain dimension, by default -1
+        The axis of integration, default is -1.
     keepdims : bool, optional
-        Whether to keep the dimensionality or not, by default False
+        Whether to keep the original number of dimensions, default is False.
 
     Returns
     -------
-    integral : ndarray
-        Integral of the array along given axis.
+    ndarray
+        Integral of
+    the array over the given domain.
     """
-    kwargs = {'axis': axis}
+    kwargs = {"axis": axis}
     if isinstance(domain, Number):
-        kwargs['dx'] = domain
+        kwargs["dx"] = domain
     else:
-        kwargs['x'] = domain
-    trapz = np.trapz(arr, **kwargs)
+        kwargs["x"] = domain
+    integral_result = np.trapz(arr, **kwargs)
     if keepdims:
-        return trapz[_keepdims_slice_helper(arr.shape, axis)]
+        return integral_result[_keepdims_slice_helper(arr.shape, axis)]
     else:
-        return trapz
-    
-    
+        return integral_result
+
+
 def _keepdims_slice_helper(shape, axis):
     slices = len(shape) * [slice(None, None, None)]
     slices[axis] = None
     return tuple(slices)
 
 
-def signif(x, p=1):
+def round_to_significant_digits(x, p=1):
     """
-    Round an array to a significant digit. 
+    Round an array to a specified number of round to significant digits.
 
     Parameters
     ----------
     x : array-like
         Array to round.
     p : int
-        Number of digits to round to.
+        Number of significant digits to round to.
 
     Returns
     -------
-    x : array-like
+    array-like
         Rounded array.
     """
     x = np.asarray(x)
-    x_positive = np.where(np.isfinite(x) & (x != 0), np.abs(x), 10**(p-1))
+    x_positive = np.where(np.isfinite(x) & (x != 0), np.abs(x), 10 ** (p - 1))
     mags = 10 ** (p - 1 - np.floor(np.log10(x_positive)))
     return np.round(x * mags) / mags
 
 
-def round(x, precision=1.0):
+# alias for backwards compatibility
+signif = round_to_significant_digits
+
+
+def round_to_precision(x, precision=1.0):
     """
-    Round an array to a particular precision. 
-    
+    Round an array to a specified precision.
+
     Parameters
     ----------
     x : array-like
-        Values to round to a particular precision
+        Values to round.
     precision : float
-        The precision to round to. For example, if `precision` is 0.5, 
-        then values are round to the nearest multiple of 0.5
-        
+        Precision to round to. For example, if `precision` is 0.5,
+        then values are rounded to the nearest multiple of 0.5.
+
     Returns
     -------
-    x : array-like
-        Rounded values of x.
+    array-like
+        Values of x rounded to the specified precision.
     """
     x = np.asarray(x)
-    return np.round(x/precision, decimals=0) * precision
+    return np.round(x / precision, decimals=0) * precision
 
 
-def arange(start, stop=None, step=1, dtype=None, error='ignore', return_interval=False):
+def arange_with_interval(
+    start: float,
+    stop: float,
+    step: float,
+    dtype=None,
+    raise_on_step_change=False,
+    return_interval=False,
+):
     """
     Return evenly spaced values within a given interval.
 
-    Values are generated within the closed interval ``[start, stop]``
-    (in other words, the interval including `start` and `stop`).
+    The function generates values within the closed interval ``[start, stop]``
+    (i.e., the interval including `start` and `stop`). If necessary, the function
+    adjusts the step size to ensure that `stop` is included in the output.
 
     Parameters
     ----------
-    start : number, optional
-        Start of interval.  The interval includes this value.  The default
-        start value is 0.
-    stop : numeric
-        End of interval.  The interval includes this value.
-    step : numeric, optional
-        Spacing between values.  For any output `out`, this is the distance
-        between two adjacent values, ``out[i+1] - out[i]``.  The default
-        step size is 1.  If `step` is specified as a position argument,
-        `start` must also be given.
-    dtype : dtype
-        The type of the output array.  If `dtype` is not given, infer the data
-        type from the other input arguments.
-    error : str
-        Whether to raise an error or print a warning or ignore the case when 
-        the found interval does not match `step`. 
-    return_interval : bool
-        Whether to return the new interval/stepsize or not.
+    start : float
+        Start of interval. The interval includes this value.
+    stop : float
+        End of interval. The interval includes this value.
+    step : float
+        Desired spacing between values. The actual spacing may be adjusted
+        to include `stop` in the output.
+    dtype : data-type, optional
+        Desired output data-type.
+    raise_on_step_change : bool, optional
+        If True, raise an exception if the step size is adjusted. Default is False.
+    return_interval : bool, optional
+        If True, return the used step size. Default is False.
 
     Returns
     -------
-    arange : ndarray
+    arr : ndarray
         Array of evenly spaced values.
-    interval : numeric
-        The new interval, if `return_interval` is True.
+    interval : float, optional
+        The used step size. Returned only if `return_interval` is True.
+
+    Raises
+    ------
+    ValueError
+        If `raise_on_step_change` is True and the step size is adjusted.
     """
-
-    if stop is None:
-        stop = start
-        start = 0
-
-    num = int(np.around((step + stop - start) / step, 0))
-    
-    if not num:
-        raise ValueError("Cannot form ranged array with "
-                         f"start {start} and stop {stop} and step {step}.")
-
+    num = int(np.around((stop - start) / step)) + 1
     arr, interval = np.linspace(start, stop, num, dtype=dtype, retstep=True)
 
-    if interval != step:
-
-        msg = "Interval had to change to {0} from {1}.".format(interval, step)
-
-        if error == 'ignore':
-            pass
-
-        elif error == 'warn':
-            warnings.warn(msg, RuntimeWarning)
-
-        elif error == 'raise':
-            raise ValueError(msg)
+    if interval != step and raise_on_step_change:
+        raise ValueError(f"Step size was adjusted from {step} to {interval}.")
 
     if return_interval:
         return arr, interval
-    
     return arr
 
 
-def get_prediction(X : np.ndarray, A : np.ndarray, baseline : np.ndarray):
-    """Return prediction
+# alias for backwards compatibility
+arange = arange_with_interval
+
+
+def predict_values(X: np.ndarray, A: np.ndarray, baseline: np.ndarray):
+    """
+    Return predicted values calculated as a linear combination of `X` and `A` added to the `baseline`.
 
     Parameters
     ----------
     X : np.ndarray
-        [description]
+        Matrix of predictor variables.
     A : np.ndarray
-        [description]
+        Weight matrix to apply to `X`.
     baseline : np.ndarray
-        [description]
+        Baseline value to add to the result of `X` and `A`.
 
     Returns
     -------
-    [type]
-        [description]
+    np.ndarray
+        Predicted values.
     """
-    return (X @ A.T + baseline)
+    return X @ A.T + baseline

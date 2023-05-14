@@ -11,9 +11,7 @@ def has_units(value):
     Check if has units via duck-typing.
     """
     return (
-        hasattr(value, 'units')
-        and hasattr(value, 'to')
-        and hasattr(value, 'magnitude')
+        hasattr(value, "units") and hasattr(value, "to") and hasattr(value, "magnitude")
     )
 
 
@@ -29,7 +27,9 @@ def optional_to(obj, units, *args, **kwargs):
     return obj
 
 
-def irr2flux(irradiance, wavelengths, return_units=None, prefix=None, irr_units='I', axis=None):
+def irr2flux(
+    irradiance, wavelengths, return_units=None, prefix=None, irr_units="I", axis=None
+):
     """
     Convert from irradiance to photonflux.
 
@@ -57,34 +57,38 @@ def irr2flux(irradiance, wavelengths, return_units=None, prefix=None, irr_units=
     """
     if axis is not None:
         return np.apply_along_axis(
-            irr2flux, axis, irradiance, wavelengths, return_units=return_units, 
-            prefix=prefix, irr_units=irr_units
+            irr2flux,
+            axis,
+            irradiance,
+            wavelengths,
+            return_units=return_units,
+            prefix=prefix,
+            irr_units=irr_units,
         )
-        
-    prefix = '' if prefix is None else prefix
+
+    prefix = "" if prefix is None else prefix
     if return_units is None:
         if has_units(irradiance):
             return_units = True
         else:
             return_units = False
     # convert units
-    irradiance = (
-        optional_to(irradiance, irr_units)
-        * ureg(irr_units)
-    )
-    wavelengths = optional_to(wavelengths, 'nm') * ureg('nm')
-    photonflux = irradiance * wavelengths / (
-        ureg.planck_constant
-        * ureg.speed_of_light
-        * ureg.N_A
+    irradiance = optional_to(irradiance, irr_units) * ureg(irr_units)
+    wavelengths = optional_to(wavelengths, "nm") * ureg("nm")
+    photonflux = (
+        irradiance
+        * wavelengths
+        / (ureg.planck_constant * ureg.speed_of_light * ureg.N_A)
     )
     if return_units:
-        return photonflux.to(f'{prefix}E')
+        return photonflux.to(f"{prefix}E")
     else:
-        return photonflux.to(f'{prefix}E').magnitude
+        return photonflux.to(f"{prefix}E").magnitude
 
 
-def flux2irr(photonflux, wavelengths, return_units=None, prefix=None, flux_units='E', axis=None):
+def flux2irr(
+    photonflux, wavelengths, return_units=None, prefix=None, flux_units="E", axis=None
+):
     """
     Convert from photonflux to irradiance.
 
@@ -112,29 +116,28 @@ def flux2irr(photonflux, wavelengths, return_units=None, prefix=None, flux_units
     """
     if axis is not None:
         return np.apply_along_axis(
-            flux2irr, axis, photonflux, wavelengths, return_units=return_units, 
-            prefix=prefix, flux_units=flux_units
+            flux2irr,
+            axis,
+            photonflux,
+            wavelengths,
+            return_units=return_units,
+            prefix=prefix,
+            flux_units=flux_units,
         )
 
-    prefix = '' if prefix is None else prefix
+    prefix = "" if prefix is None else prefix
     if return_units is None:
         if has_units(photonflux):
             return_units = True
         else:
             return_units = False
     # convert units
-    photonflux = (
-        optional_to(photonflux, flux_units)
-        * ureg(flux_units)
-    )
-    wavelengths = optional_to(wavelengths, 'nm') * ureg('nm')
+    photonflux = optional_to(photonflux, flux_units) * ureg(flux_units)
+    wavelengths = optional_to(wavelengths, "nm") * ureg("nm")
     irradiance = (
-        photonflux * (
-            ureg.planck_constant
-            * ureg.speed_of_light
-            * ureg.N_A)
+        photonflux * (ureg.planck_constant * ureg.speed_of_light * ureg.N_A)
     ) / wavelengths
     if return_units:
-        return irradiance.to(f'{prefix}spectralirradiance')
+        return irradiance.to(f"{prefix}spectralirradiance")
     else:
-        return irradiance.to(f'{prefix}spectralirradiance').magnitude
+        return irradiance.to(f"{prefix}spectralirradiance").magnitude
