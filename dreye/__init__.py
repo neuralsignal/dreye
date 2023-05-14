@@ -3,7 +3,7 @@
 
 __author__ = """gucky92"""
 __email__ = "gucky@gucky.eu"
-__version__ = "1.0.2dev1"
+__version__ = "1.1.0dev1"
 
 import os
 
