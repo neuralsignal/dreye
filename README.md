@@ -13,10 +13,16 @@ Documentation and tutorials can be found here <https://dreye.readthedocs.io/en/l
 To test stimulus creation, check out the corresponding web applitcation:
 <https://share.streamlit.io/gucky92/dreyeapp/main/app.py>.
 
-## Preprint
+## Paper
 
-Our preprint that explains the purpose of the package *drEye* and goes through key concepts is available on bioRxiv (<https://www.biorxiv.org/content/10.1101/2022.01.17.476640v1>).
-Please reference this preprint when using *drEye*.
+Our paper that explains the purpose of the package *drEye* and goes through key concepts:
+
+*"Exploiting colour space geometry for visual stimulus design across animals"*;
+Matthias P. Christenson, S. Navid Mousavi, Elie Oriol, Sarah L. Heath and Rudy Behnia;
+Philosophical Transactions of the Royal Society B: Biological Sciences;
+<https://royalsocietypublishing.org/doi/10.1098/rstb.2021.0280>.
+
+Please reference this paper when using *drEye*.
 
 ## Installation
 

@@ -6,18 +6,19 @@ import numpy as np
 from dreye.api.units.pint import CONTEXTS, ureg
 
 
-def has_units(value):
+def has_units(obj):
     """
-    Check if has units via duck-typing.
+    Check if object has units via duck-typing.
     """
     return (
-        hasattr(value, "units") and hasattr(value, "to") and hasattr(value, "magnitude")
+        hasattr(obj, "units") and hasattr(obj, "to") and hasattr(obj, "magnitude")
     )
 
 
 def optional_to(obj, units, *args, **kwargs):
     """
-    Optionally convert to units and return magnitude (numeric or array).
+    Optionally convert to `units` if `obj` is a pint.Quantity
+    and return numeric value or np.ndarray object.
     """
     if has_units(obj):
         if units is None:

@@ -30,6 +30,8 @@ Conversion functions
 
   irr2flux
   flux2irr
+  optional_to
+  has_units
 
 Utility functions
 =================

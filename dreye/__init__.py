@@ -3,13 +3,13 @@
 
 __author__ = """gucky92"""
 __email__ = "gucky@gucky.eu"
-__version__ = "1.1.0dev1"
+__version__ = "1.1.0"
 
 import os
 
 from dreye.api.capture import calculate_capture
 from dreye.api.estimator import ReceptorEstimator
-from dreye.api.units.convert import irr2flux, flux2irr
+from dreye.api.units.convert import irr2flux, flux2irr, optional_to, has_units
 from dreye.api.filter_templates import (
     gaussian_template,
     govardovskii2000_template,
@@ -93,5 +93,7 @@ __all__ = [
     "d_equally_spaced",
     "spherical_to_cartesian",
     "cartesian_to_spherical",
+    "optional_to",
+    "has_units",
     "DREYE_DIR"
 ]
