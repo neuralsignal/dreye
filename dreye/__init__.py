@@ -10,6 +10,7 @@ import os
 from dreye.api.capture import calculate_capture
 from dreye.api.estimator import ReceptorEstimator
 from dreye.api.units.convert import irr2flux, flux2irr, optional_to, has_units
+from dreye.api.units.pint import ureg
 from dreye.api.filter_templates import (
     gaussian_template,
     govardovskii2000_template,
@@ -95,5 +96,6 @@ __all__ = [
     "cartesian_to_spherical",
     "optional_to",
     "has_units",
+    "ureg",
     "DREYE_DIR"
 ]

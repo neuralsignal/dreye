@@ -32,6 +32,7 @@ Conversion functions
   flux2irr
   optional_to
   has_units
+  ureg
 
 Utility functions
 =================
