@@ -36,6 +36,8 @@ In order to use the non-linear fitting procedures, JAX should be installed separ
 pip install jax[cpu]
 ```
 
+This code has been tested on Python 3.8, 3.9, and 3.10.
+
 ## Common Issues
 
 * Running jax on the new Macbook Pro chips can run into problems. Make sure to install the versions that work with the M1 chip. For my purposes jaxlib==0.1.60 and jax==0.2.10 currently work (14/01/21).
