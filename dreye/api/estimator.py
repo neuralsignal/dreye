@@ -1,13 +1,16 @@
 """Object-oriented Estimator class for all fitting procedures
 """
 
+import warnings
 from itertools import combinations
 from numbers import Number
 import numpy as np
+import cvxpy as cp
 from scipy.special import comb
 from scipy.spatial import ConvexHull
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import normalize
+from sklearn.decomposition import NMF
 
 from dreye.api.barycentric import barycentric_dim_reduction, cartesian_to_barycentric
 from dreye.api.capture import calculate_capture
@@ -495,6 +498,11 @@ class ReceptorEstimator:
             Whether to add this adaptational state to the current adaptational state, by default False.
         """
         self._assert_registered()
+        
+        # register sources adaptational state
+        self.sources_adaptation = np.asarray(x)
+        
+        # calculate the absolute light-induced capture
         qb = self.system_capture(x)
         if add_baseline:
             qb = qb + self.baseline
@@ -725,6 +733,13 @@ class ReceptorEstimator:
         
     def _assert_fitted(self):
         assert hasattr(self, 'X'), "Target have not been fitted to system yet."
+        
+    def _assert_registered_sources_adaptation(self, method):
+        assert hasattr(self, "sources_adaptation"), (
+                f"`{method}` requires that "
+                "the adaptational state is defined via "
+                "the `register_system_adaptation` method."
+            )
     
     # methods that require registered system
         
@@ -813,7 +828,524 @@ class ReceptorEstimator:
             baseline=(self.baseline if relative else None), 
             error=error, n=n, eps=eps
         )
-    
+        
+    def fit_optimal_sources(
+        self, 
+        B,
+        l2_eps=1e-2,
+        l1_eps_rel=1e-1,
+        minimize_variance=True,
+        optimize_sources_sum=True,
+        verbose=False,
+        **kwargs
+    ):
+        """
+        Fit a set of relative total capture values to the stimulation system.
+        
+        Parameters
+        ----------
+        B : ndarray of shape (n_samples, n_filters)
+            Relative total capture points.
+        l2_eps : float, optional
+            Allowed error for the fits in capture space (sum of squared errors).
+            Only relevant if `minimize_variance` is True or the system is underdetermined.
+            By default 1e-2.
+        l1_eps_rel : float, optional
+            Allowed error for the fits in intensity space (relative L1 norm).
+            Only relevant if `minimize_variance` is True.
+            By default 1e-1.
+        minimize_variance : bool, optional
+            Whether to minimize the variance when fitting intensity values to capture values.
+            Only works for underdetermined systems.
+            By default True.
+        optimize_sources_sum : bool, optional
+            Whether to optimize the sum of the sources when fitting underdetermined systems.
+            By default True.
+        verbose : bool, optional
+            Whether to print progress, by default False.
+        **kwargs : dict, optional
+            Additional keyword arguments passed to the `fit` method.
+            
+        Returns
+        -------
+        Xhat : ndarray of shape (n_samples, n_sources)
+            The fitted intensity values.
+        Bhat : ndarray of shape (n_samples, n_filters)
+            The fitted relative total capture values.
+            
+        See Also
+        --------
+        ReceptorEstimator.fit
+        ReceptorEstimator.fit_underdetermined
+        ReceptorEstimator.minimize_variance
+        
+        Notes
+        -----
+        First, the system is fit using the `fit` method.
+        If the system is underdetermined, the system is fit using the `fit_underdetermined` method.
+        This ensures that the source values are close to the background source values (i.e. *chromatic* stimuli).
+        Finally, if `minimize_variance` is True, the variance is minimized using the `minimize_variance` method.
+        This ensures that the source combinations used are as invariant to the heteroscadasticity of the filters as possible.
+        
+        Warning:
+            * This method is experimental and may not work for all systems.
+            * This method might be removed in future versions.
+        """
+        warnings.warn(
+            "`find_optimal_sources` is an experimental method and might not work as expected. "
+            "Use with caution. This method might be removed or changed in future versions."
+        )
+        
+        self._assert_registered_sources_adaptation("fit_optimal_sources")
+        # fit points
+        if verbose:
+            print("Fitting points...")
+        Xhat, Bhat = self.fit(B, verbose=verbose, **kwargs)
+        if self.underdetermined and optimize_sources_sum:
+            # TODO allow source optimization for each sample individually
+            if verbose:
+                print("Fitting underdetermined system...")
+            Xhat, Bhat = self.fit_underdetermined(
+                Bhat, underdetermined_opt=np.sum(self.sources_adaptation),
+                verbose=verbose,
+                l2_eps=l2_eps,  # total relative capture error in fit (sum of squares)
+            )
+
+        if self.underdetermined and minimize_variance:
+            if verbose:
+                print("Optimizing variance...")
+            kws = {}
+            if optimize_sources_sum:
+                kws['L1'] = Xhat.sum(-1)
+                kws['l1_eps'] = l1_eps_rel * Xhat.sum(-1).mean()
+            Xhat, Bhat, _ = self.minimize_variance(
+                Bhat, 
+                l2_eps=l2_eps,  # total relative capture error in fit (sum of squares)
+                solver='SCS',
+                verbose=verbose,
+                norm=np.zeros(len(Xhat)), 
+                **kws
+            )
+                
+        if verbose:
+            print("Mean capture across samples")
+            print(Bhat.mean(0))
+            print("Mean intensity across samples")
+            print(Xhat.mean(0))
+            print("Background intensity")
+            print(self.sources_adaptation)
+        
+        return Xhat, Bhat
+        
+    def find_nonneg_orth_source_dimensions(
+        self,
+        n_samples=10000,
+        seed=None,
+        engine='Sobol',
+        l1='background',
+        verbose=0,
+        space='log',
+        ortho_reg=1e-4,
+        reduce_dim_with_nonneg=True,
+        **nonneg_kwargs
+    ):
+        """
+        Find the most informative source dimensions in contrast source space using the non-negative components in relative source space.
+        """
+        # only implemented for no baseline capture
+        assert not np.any(self.baseline), "Baseline must be set to zero for `find_nonneg_orth_source_dimensions`."
+        
+        if l1 == "background":
+            l1 = 1.0 * len(self.filters)
+        
+        X = self.sample_in_hull(
+            n_samples, 
+            seed=seed, 
+            engine=engine, 
+            l1=l1
+        )
+        if space == 'log':
+            X = np.log(X)  # excitation contrast
+        elif space == 'excitation':
+            X = 2 * (X)/(X+1) - 1
+        else:
+            X = X - 1
+        
+        # remove achromatic
+        X = X - (
+            X @ np.ones(X.shape[1])
+        )[:, None] / X.shape[1]
+
+        pcs, _, _ = np.linalg.svd(X.T)  # achromatic is last
+        
+        if verbose:
+            print("Principal components")
+            print(pcs)
+        
+        # relative capture matrix
+        A = self.system_relative_capture(
+            np.diag(self.sources_adaptation)
+        )
+            
+        if verbose:
+            print("Relative capture matrix")
+            print(A)
+            
+        if self.underdetermined and reduce_dim_with_nonneg:
+            H = self.find_nonneg_source_dimensions(
+                seed=seed, 
+                verbose=verbose, 
+                engine=engine,
+                **nonneg_kwargs
+            )
+        else:
+            H = np.eye(A.shape[0])
+        
+        ws = []
+        projs = [
+            np.sum(H, axis=1)  # achromatic
+        ]
+        for idx in range(H.shape[1] - 1):
+
+            w = cp.Variable(H.shape[1])
+            
+            pc = pcs[:, idx]
+            
+            sources_values = H @ w  # project bases onto leds
+
+            constraints = []
+            for jdx in range(idx):
+                constraints += [
+                    (projs[jdx+1] @ sources_values) <= ortho_reg, 
+                    (projs[jdx+1] @ sources_values) >= -ortho_reg
+                ]
+            constraints += [
+                sources_values >= -1, 
+                sources_values <= 1, 
+                cp.sum(sources_values) == 0,  # orthogonality to achromatic      
+            ] 
+
+            obj = cp.Maximize((sources_values @ A) @ pc)
+            prob = cp.Problem(obj, constraints)
+            prob.solve(solver='ECOS')
+            
+            projs.append(sources_values.value)
+            ws.append(w.value)
+            
+        projs = np.array(projs)
+        
+        return projs.T
+        
+    def find_nonneg_source_dimensions(
+        self,
+        normalize_A=True,
+        normalize_H=True,
+        use_argmax=True,
+        n_samples=None,
+        seed=None, 
+        engine=None,
+        l2_eps=1e-2,
+        l1_eps_rel=1e-1,
+        l1=None,
+        verbose=0
+    ):
+        """
+        Find the most informative source dimensions in relative source space.
+        
+        Parameters
+        ----------
+        normalize_A : bool, optional
+            Whether to normalize the relative capture matrix `A` to the background source intensities.
+            By default True.
+        normalize_H : bool, optional
+            Whether to normalize each component of the relative source matrix `H` to the its maximum.
+            By default True.
+        use_argmax : bool, optional
+            Whether to use the argmax of each component of `H` as the most informative source dimension.
+            If True, the returned matrix `H` will be a one-hot matrix.
+            By default True.
+        n_samples : int, optional
+            Number of samples to draw from the capture space, by default None.
+            If None, the relative capture matrix `A` is used.
+        seed : int, optional
+            Random seed for sampling, by default None.
+        engine : str, optional
+            Quasi-Markov chain engine used to draw samples.
+            Accepts `'Halton'`, `'Sobol'`, and `'LHC'`.
+            If None, no QMC engine is used.
+            For details see `scipy.qmc`.
+            By default None.
+        l2_eps : float, optional
+            Allowed error for the fits in capture space (sum of squared errors).
+            Only relevant if `minimize_variance` is True or the system is underdetermined.
+            By default 1e-2.
+        l1_eps_rel : float, optional
+            Allowed error for the fits in intensity space (relative L1 norm).
+            Only relevant if `minimize_variance` is True.
+            By default 1e-1.
+        l1 : float or str, optional
+            l1-norm of the capture space to sample from.
+            If "background", the l1-norm is set to the number of filters (i.e. total background capture).
+            By default None.
+        verbose : int, optional
+            Verbosity level, by default 0.
+            
+        Returns
+        -------
+        H : ndarray of shape (n_sources, n_informative_dimensions)
+            Relative source dimensions that are most informative
+            for the given filter space. Values are in relative source space.
+            The number of informative dimensions is equal to the number of
+            sources in the system.
+            
+        See Also
+        --------
+        ReceptorEstimator.fit_optimal_sources
+        ReceptorEstimator.fit_underdetermined
+        ReceptorEstimator.minimize_variance
+        
+        Notes
+        -----
+        This method uses the relative capture matrix `A` to find the most informative source dimensions.
+        If `n_samples` is None, the relative capture matrix `A` is used.
+        If `n_samples` is not None, a set of relative capture values is sampled from the capture space.
+        The relative capture values are then fit to the stimulation system using the `fit_optimal_sources` method.
+        The relative source matrix `H` is then found using non-negative matrix factorization (NMF).
+        
+        Warning:
+            * This method is experimental and may not work for all systems.
+            * This method might be removed in future versions.
+        """
+        warnings.warn(
+            "`find_nonneg_source_dimensions` is an experimental method and might not work as expected. "
+            "Use with caution. This method might be removed or changed in future versions."
+        )
+        self._assert_registered_sources_adaptation("find_nonneg_source_dimensions")
+        
+        assert self.underdetermined, "System must be underdetermined to find best non-negative source dimensions."
+        
+        if n_samples is None:
+            A = self.system_relative_capture(
+                np.diag(self.sources_adaptation)
+            )
+            if normalize_A:
+                # normalize across sources for each filter
+                A = normalize(A, axis=0, norm='l1')
+        else:
+            if l1 == "background":
+                l1 = 1.0 * len(self.filters)
+            
+            B = self.sample_in_hull(
+                n_samples, 
+                seed=seed,
+                engine=engine, 
+                relative=True, 
+                l1=l1
+            )
+            
+            Xhat, _ = self.fit_optimal_sources(
+                B, 
+                l2_eps=l2_eps,
+                l1_eps_rel=l1_eps_rel,
+                minimize_variance=True,
+                optimize_sources_sum=False,
+                verbose=verbose
+            )
+            A = Xhat.T
+            # normalize A to background
+            # relative change in source intensities
+            A = A / self.sources_adaptation[:, None]
+
+        # NMF to find independent nonneg components
+        nmf = NMF(n_components=len(self.filters))
+        nmf.fit(A.T)
+        H = nmf.components_.T
+        if normalize_H:
+            H = normalize(H, axis=0, norm='max')
+            
+        if use_argmax:
+            Hnew = np.zeros_like(H)
+            argmax = np.argmax(H, axis=1)
+            Hnew[np.arange(H.shape[0]), argmax] = 1
+            H = Hnew
+            
+        return H
+        
+    def find_orth_source_dimensions(
+        self,
+        n_samples=1000,
+        l1="background",
+        seed=None,
+        minimize_variance=True,
+        verbose=0,
+        l2_eps=1e-2,
+        l1_eps_rel=1e-1,
+        correct_achromatic=True,
+        achromatic_eps=1e-5,
+        maxout_change=False
+    ):
+        """
+        Find informative source dimensions in source contrast space.
+        
+        Parameters
+        ----------
+        n_samples : int, optional
+            Number of samples to draw from the capture space, by default 1000.
+        l1 : float or str, optional
+            l1-norm of the capture space to sample from.
+            If "background", the l1-norm is set to the number of filters (i.e. total background capture).
+            By default "background".
+        seed : int, optional
+            Random seed for sampling, by default None.
+        minimize_variance : bool, optional
+            Whether to minimize the variance when fitting intensity values to capture values.
+            Only works for underdetermined systems.
+            By default True.
+        verbose : int, optional
+            Verbosity level, by default 0.
+        l2_eps : float, optional
+            Allowed error for the fits in capture space (sum of squared errors).
+            Only relevant if `minimize_variance` is True.
+            By default 1e-2.
+        l1_eps_rel : float, optional
+            Allowed relative error in total intensities (sum of absolute errors).
+            Only relevant if `minimize_variance` is True.
+            By default 1e-1.
+        correct_achromatic : bool, optional
+            Whether to correct the informative constrast dimensions,
+            so that achromatic information is only in one dimension.
+            By default True.
+        achromatic_eps : float, optional
+            Allowed error for achromatic information in the corrected contrast dimensions.
+
+        Returns
+        -------
+        contrast_dimensions : ndarray of shape (n_sources, n_informative_dimensions)
+            Source contrast dimensions that are most informative 
+            for the given filter space. Values are in contrast space.
+            The number of informative dimensions is equal to the number of
+            sources in the system.
+            
+        See Also
+        --------
+        ReceptorEstimator.fit_optimal_sources
+        
+        Notes
+        -----
+        Source contrast space is defined as the fractional
+        difference between the source intensities and the 
+        adaptional sources intensities.
+        
+        Use `register_system_adaptation` to define the adaptational state
+        using source intensities.
+        
+        Warning: 
+            * This method is experimental and may not work for all systems.
+            * This method might be removed in future versions.
+        """
+        warnings.warn(
+            "`find_orth_source_dimensions` is an experimental method and might not work as expected. "
+            "Use with caution. This method might be removed or changed in future versions."
+        )
+        
+        self._assert_registered_sources_adaptation("find_orth_source_dimensions")
+        
+        if l1 == "background":
+            l1 = 1.0 * len(self.filters)
+            
+        B = self.sample_in_hull(n_samples, seed=seed, l1=l1)
+        
+        # fit points
+        Xhat, _ = self.fit_optimal_sources(
+            B,
+            l2_eps=l2_eps,
+            l1_eps_rel=l1_eps_rel,
+            minimize_variance=minimize_variance,
+            verbose=verbose,
+        )
+            
+        contrasts = (Xhat - self.sources_adaptation) / self.sources_adaptation
+        if verbose:
+            print("Mean contrast across samples")
+            print(contrasts.mean(0))
+            
+        cov = contrasts.T @ contrasts
+        corr = cov / np.sqrt(np.outer(np.diag(cov), np.diag(cov)))
+        
+        # PCA on the contrasts
+        eigval, eigvec = np.linalg.eig(corr)
+        argsort = np.argsort(eigval)[::-1]
+        eigvec = eigvec[:, argsort]
+        eigval = eigval[argsort]
+        cum_expl_var = np.cumsum(eigval) / np.sum(eigval)
+        
+        # normalized eigenvectors to L1 norm
+        c_dims = eigvec / np.linalg.norm(eigvec, axis=0, keepdims=True, ord=1) * len(self.sources)
+        
+        # only one achromatic
+        achr_idx = np.all(c_dims > 0, axis=0) | np.all(c_dims < 0, axis=0)
+        assert np.sum(achr_idx) == 1, "Only one achromatic dimension should be found. BUG! Please report."
+        # flip achromatic dimension if negative
+        if c_dims[:, achr_idx].sum() < 0:
+            c_dims[:, achr_idx] *= -1
+        
+        if correct_achromatic:
+            # correct so that achromatic information
+            # is only in the one dimension
+            
+            if verbose:
+                print("Cumulative explained variance for each contrast dimension")
+                print(cum_expl_var)
+                # contrast dimensions/directions that span informative color dimensions
+                print("total achromatic contrast in each dimension before correction")
+                print(np.sum(c_dims, axis=0))
+                print("scaled contrast directions (rounded to two decimals)")
+                print(np.round(c_dims, 2))
+                
+            W = cp.Variable((len(self.sources), len(self.sources)), name='W', pos=True)
+            
+            # achromatic dimensions is last dimension here
+            targets = np.array([0, 0, 0, 1]) * len(self.sources)
+            targets = np.zeros(len(self.sources))
+            targets[achr_idx] = len(self.sources)
+            if verbose:
+                print("achromatic and chromatic targets")
+                print(targets)
+            
+            pred = cp.sum(cp.multiply(W, c_dims), axis=0)
+            obj = cp.Minimize(cp.sum_squares(W-1))
+            constraints = [
+                cp.sum_squares(pred - targets) <= achromatic_eps  # allow for some numerical error
+            ]
+            prob = cp.Problem(obj, constraints)
+            prob.solve(solver='ECOS')
+            if not np.isfinite(prob.value):
+                raise ValueError(f"Optimization failed: {prob.status} -> Increase `achromatic_eps`? (current value: {achromatic_eps})")
+            
+            c_dims = W.value * c_dims
+            
+            if verbose:
+                print("total achromatic contrast in each dimension after correction; should be non-zero only for one dimension")
+                print(np.sum(c_dims, axis=0))
+                print("scaled contrast directions (rounded to two decimals)")
+                print(np.round(c_dims, 2))
+                
+        if maxout_change:
+            warnings.warn("maxout_change is an experimental feature and not thought out.")
+            c_dims = np.sign(c_dims)
+            pos = c_dims > 0
+            neg = c_dims < 0
+            pos[:, achr_idx] = False
+            neg[:, achr_idx] = False
+            frac_pos = np.sum(pos, axis=0)/c_dims.shape[0]
+            frac_neg = np.sum(neg, axis=0)/c_dims.shape[0]
+            
+            c_dims[pos] = np.broadcast_to(frac_neg, shape=c_dims.shape)[pos]
+            c_dims[neg] = -np.broadcast_to(frac_pos, shape=c_dims.shape)[neg]
+            c_dims = normalize(c_dims, axis=0, norm='max', copy=True,)
+            
+        return c_dims
+            
     def fit(
         self, B=None, model='gaussian',
         batch_size=1, 

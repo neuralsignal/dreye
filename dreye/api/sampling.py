@@ -13,9 +13,15 @@ from typing import Optional, Union
 import numpy as np
 from numpy.random import default_rng, Generator
 from scipy.spatial import ConvexHull, Delaunay
+try:
+    from scipy.spatial import QhullError
+except ImportError:
+    from scipy.spatial.qhull import QhullError
 from scipy.stats import dirichlet, qmc
+from sklearn.decomposition import PCA
 
 from dreye.api.utils import l1norm
+from dreye.api.project import proj_P_for_hull
 
 
 def sample_in_hull(
@@ -63,9 +69,26 @@ def sample_in_hull(
         raise TypeError("seed must be None, int, or `numpy.random.Generator` type.")
 
     dims = P.shape[-1]
-    hull = P[ConvexHull(P, qhull_options=qhull_options).vertices]
-    deln = hull[Delaunay(hull, qhull_options=qhull_options).simplices]
-
+    try:
+        transformed = False
+        hull = P[ConvexHull(P, qhull_options=qhull_options).vertices]
+        deln = hull[Delaunay(hull, qhull_options=qhull_options).simplices]
+    except QhullError:
+        transformed = True
+        hull_obj, dims, pca_obj = proj_P_for_hull(
+            P, ConvexHull, 
+            return_ndim=True, 
+            return_hull=True, 
+            return_transformer=True
+        )
+        hull_obj : ConvexHull
+        dims : int
+        pca_obj : PCA
+        P = pca_obj.transform(P)[:, :dims]
+        assert dims > 1, "dimensionality must be bigger than 1."
+        hull = P[hull_obj.vertices]
+        deln = hull[Delaunay(hull, qhull_options=qhull_options).simplices]
+        
     # volume of each simplex
     vols = np.abs(
         np.linalg.det(deln[:, :dims, :] - deln[:, dims:, :])
@@ -113,7 +136,11 @@ def sample_in_hull(
         sample_indices = np.repeat(np.arange(len(vols)), counts)
 
     # vertices weighted by probability simplex
-    return np.einsum("ijk, ij -> ik", deln[sample_indices], probs)
+    samples = np.einsum("ijk, ij -> ik", deln[sample_indices], probs)
+    if transformed:
+        samples = np.hstack([samples, np.zeros((samples.shape[0], pca_obj.n_components_-samples.shape[1]))])
+        samples = pca_obj.inverse_transform(samples)
+    return samples
 
 
 def d_equally_spaced(n: int, d: int, one_inclusive: bool = True) -> np.ndarray:
